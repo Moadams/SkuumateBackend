@@ -110,6 +110,7 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ),
     "NON_FIELD_ERRORS_KEY": "errors",
+    "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
 }
 
 # JWT configuration
