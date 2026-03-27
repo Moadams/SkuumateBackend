@@ -26,7 +26,8 @@ class SchoolSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_total_students(self, obj):
-        return obj.students.filter(status="active").count()
+        # return obj.students.filter(status="active").count()
+        return 0
 
     def get_total_users(self, obj):
         return obj.users.filter(is_active=True).count()

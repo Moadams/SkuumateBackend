@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -16,6 +17,7 @@ class SchoolOnboardView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @transaction.atomic
     def post(self, request):
         serializer = SchoolCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

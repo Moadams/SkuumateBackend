@@ -8,4 +8,5 @@ urlpatterns = [
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("schools.urls")),
     path("api/v1/", include("core.urls")),   
+    path("api/v1/", include("academics.urls")), 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
