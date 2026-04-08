@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welcome to SkuuMate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #f4f6fb;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #1a1a2e;
+    }
+
+    .wrapper {
+      max-width: 620px;
+      margin: 40px auto;
+      background: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+      padding: 40px 48px 36px;
+      text-align: center;
+    }
+
+    .header .logo {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .header .logo span {
+      color: #93c5fd;
+    }
+
+    .header .tagline {
+      color: #bfdbfe;
+      font-size: 13px;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+      padding: 0 48px 48px;
+      text-align: center;
+    }
+
+    .hero .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+      letter-spacing: 0.5px;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+
+    .hero h1 {
+      color: #ffffff;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+
+    .hero p {
+      color: #bfdbfe;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Body ── */
+    .body {
+      padding: 40px 48px;
+    }
+
+    .greeting {
+      font-size: 16px;
+      color: #374151;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .greeting strong {
+      color: #1e40af;
+    }
+
+    /* ── Credentials Box ── */
+    .credentials-box {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 32px;
+    }
+
+    .credentials-box .box-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #2563eb;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .credential-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #dbeafe;
+    }
+
+    .credential-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .credential-row .label {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .credential-row .value {
+      font-size: 14px;
+      color: #1e293b;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      background: #dbeafe;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .security-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 16px;
+    }
+
+    .security-note .icon {
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .security-note p {
+      font-size: 13px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+
+    /* ── Onboarding Steps ── */
+    .steps-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 16px;
+    }
+
+    .steps-list {
+      list-style: none;
+      margin-bottom: 32px;
+    }
+
+    .steps-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .steps-list li:last-child {
+      border-bottom: none;
+    }
+
+    .step-number {
+      width: 28px;
+      height: 28px;
+      background: #2563eb;
+      color: #ffffff;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-content .step-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 2px;
+    }
+
+    .step-content .step-desc {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    /* ── CTA Button ── */
+    .cta-container {
+      text-align: center;
+      margin: 32px 0;
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 40px;
+      border-radius: 10px;
+      letter-spacing: 0.3px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    .login-url {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    .login-url a {
+      color: #2563eb;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    /* ── Support ── */
+    .support-box {
+      background: #f9fafb;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .support-box p {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+
+    .support-box a {
+      color: #2563eb;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: #f9fafb;
+      border-top: 1px solid #f3f4f6;
+      padding: 28px 48px;
+      text-align: center;
+    }
+
+    .footer p {
+      font-size: 12px;
+      color: #9ca3af;
+      line-height: 1.7;
+    }
+
+    .footer .footer-links {
+      margin-top: 10px;
+    }
+
+    .footer .footer-links a {
+      color: #6b7280;
+      text-decoration: none;
+      font-size: 12px;
+      margin: 0 8px;
+    }
+
+    .footer .footer-links a:hover {
+      color: #2563eb;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 28px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">Skuu<span>Mate</span></div>
+      <div class="tagline">School Management Platform</div>
+    </div>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="badge">🎉 Account Created Successfully</div>
+      <h1>Welcome to SkuuMate,<br/>{{ school_name }}!</h1>
+      <p>Your school management account is ready.<br/>Here's everything you need to get started.</p>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+
+      <!-- Greeting -->
+      <p class="greeting">
+        Hi <strong>{{ admin_name }}</strong>, <br/><br/>
+        We're excited to have <strong>{{ school_name }}</strong> on board.
+        Your account has been successfully created and you're now on a
+        
+      </p>
+
+      <!-- Credentials -->
+      <div class="credentials-box">
+        <div class="box-title">🔐 Your Login Credentials</div>
+
+        <div class="credential-row">
+          <span class="label">Portal URL</span>
+          <span class="value">{{ login_url }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="label">Email Address</span>
+          <span class="value">{{ admin_email }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="label">Temporary Password</span>
+          <span class="value">{{ admin_password }}</span>
+        </div>
+
+        <div class="security-note">
+          <span class="icon">⚠️</span>
+          <p>
+            For your security, please <strong>change your password</strong> immediately
+            after your first login. Never share these credentials with anyone.
+          </p>
+        </div>
+      </div>
+
+      <!-- Onboarding Steps -->
+      <p class="steps-title">🚀 Complete Your Setup in 5 Steps</p>
+      <ul class="steps-list">
+        <li>
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-name">Log In to Your Dashboard</div>
+            <div class="step-desc">Use the credentials above to access your school's admin portal.</div>
+          </div>
+        </li>
+        <li>
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-name">Set Up Your Academic Year & Terms</div>
+            <div class="step-desc">Configure your current academic year and term structure.</div>
+          </div>
+        </li>
+        <li>
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-name">Create Classes & Subjects</div>
+            <div class="step-desc">Add your school's classes, assign subjects, and set up teachers.</div>
+          </div>
+        </li>
+        <li>
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-name">Register Your Students</div>
+            <div class="step-desc">Add student profiles, guardian information, and enroll them in classes.</div>
+          </div>
+        </li>
+        <li>
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <div class="step-name">Choose a Subscription Plan</div>
+            <div class="step-desc">
+              Select a plan that fits your school size. You can go with our free plan or upgrade to access premium features.
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <hr class="divider" />
+
+      <!-- CTA -->
+      <div class="cta-container">
+        <a href="{{ login_url }}" class="cta-button">
+          Log In to Your Dashboard →
+        </a>
+        <p class="login-url">
+          Or copy this link: <a href="{{ login_url }}">{{ login_url }}</a>
+        </p>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Support -->
+      <div class="support-box">
+        <p>
+          Need help getting started? Our support team is here for you.<br/>
+          📧 <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+          &nbsp;·&nbsp;
+          📞 <a href="tel:{{ support_phone }}">{{ support_phone }}</a>
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>
+        This email was sent to <strong>{{ admin_email }}</strong> because you registered
+        <strong>{{ school_name }}</strong> on SkuuMate.<br/>
+        © {{ current_year }} SkuuMate by HubTek Primex Enterprise. All rights reserved.<br/>
+        Achimota, Accra, Ghana
+      </p>
+      <div class="footer-links">
+        <a href="{{ frontend_url }}/privacy">Privacy Policy</a>
+        <a href="{{ frontend_url }}/terms">Terms of Service</a>
+        <a href="{{ frontend_url }}/support">Support</a>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

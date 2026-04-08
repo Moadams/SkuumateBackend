@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from core.email import send_welcome_school_email
 from .models import School
 
 
@@ -152,6 +154,13 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             last_name=admin_last_name,
             role="admin",
             school=school,
+        )
+
+        send_welcome_school_email(
+            admin_name=f"{admin_first_name} {admin_last_name}",
+            admin_email=admin_email,
+            admin_password=admin_password,
+            school_name=school.name
         )
 
         return school

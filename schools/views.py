@@ -334,16 +334,19 @@ class SchoolOnboardView(APIView):
     Public endpoint — creates a new school + first admin user.
     Called once during signup. No auth required.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperAdmin]
 
     @transaction.atomic
     def post(self, request):
         serializer = SchoolCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        school = serializer.save()
+        
+        with transaction.atomic():
+            school = serializer.save()
+
         return ApiResponse.created(
             data=SchoolSerializer(school).data,
-            message="School created successfully. You can now log in.",
+            message="School created successfully. Check your email for login details.",
         )
 
 
