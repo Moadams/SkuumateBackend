@@ -30,3 +30,12 @@ class IsAdminOrTeacher(BasePermission):
             request.user.is_authenticated and
             request.user.role in ("admin", "teacher")
         )
+    
+class IsSuperAdmin(BasePermission):
+    """Only super admins can access."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == "superadmin"
+        )
