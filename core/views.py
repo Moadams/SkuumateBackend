@@ -5,10 +5,11 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from core.permissions import IsAdmin
 from core.models import AuditLog
 from core.serializers import AuditLogSerializer
+from subscriptions.permissions import HasAuditLogAccess
 
 
 class AuditLogListView(generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdmin,HasAuditLogAccess]
     serializer_class = AuditLogSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["action", "resource"]
