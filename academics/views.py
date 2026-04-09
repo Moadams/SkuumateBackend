@@ -9,6 +9,7 @@ from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.utils import log_action
+from schools.utils import check_and_complete_onboarding
 
 from .models import AcademicYear, Term, Subject, Class, ClassSubject, ClassTeacher
 from .serializers import (
@@ -43,6 +44,7 @@ class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
             description=f"Academic year '{instance.name}' created",
             request=self.request,
         )
+        check_and_complete_onboarding(self.request.user.school)
         return instance
 
     def list(self, request, *args, **kwargs):
@@ -133,6 +135,7 @@ class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView)
             description=f"Term '{instance.get_name_display()}' created",
             request=self.request,
         )
+        check_and_complete_onboarding(self.request.user.school) 
         return instance
 
     def list(self, request, *args, **kwargs):
@@ -226,6 +229,7 @@ class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
             description=f"Subject '{instance.name}' created",
             request=self.request,
         )
+        check_and_complete_onboarding(self.request.user.school)
         return instance
 
     def list(self, request, *args, **kwargs):

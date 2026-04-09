@@ -11,6 +11,7 @@ class School(TimestampedModel):
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, default="Ghana")
     is_active = models.BooleanField(default=True)
+    onboarding_completed = models.BooleanField(default=False) 
 
     class Meta:
         ordering = ["name"]

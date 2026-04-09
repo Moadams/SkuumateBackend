@@ -5,6 +5,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from core.responses import ApiResponse
 from core.permissions import IsSuperAdmin
+from schools.utils import check_and_complete_onboarding
 
 from .models import School
 from .serializers import SchoolSerializer, SchoolCreateSerializer
@@ -383,4 +384,40 @@ class SchoolDetailView(APIView):
         return ApiResponse.success(
             data=serializer.data,
             message="School updated successfully.",
+        )
+    
+class OnboardingStatusView(APIView):
+    """
+    Returns the current school's onboarding status
+    and which steps have been completed.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        school = request.user.school
+        if not school:
+            return ApiResponse.error(
+                message="No school associated with this account.",
+                status_code=404,
+            )
+        
+        check_and_complete_onboarding(self.request.user.school)
+
+        steps = {
+            "academic_year": school.academic_years.exists(),
+            "term": school.terms.exists(),
+            "class": school.classes.exists(),
+            "subject": school.subjects.exists(),
+            "subscription": school.subscriptions.filter(
+                status__in=["active", "trial"]
+            ).exists(),
+        }
+
+        return ApiResponse.success(
+            data={
+                "onboarding_completed": school.onboarding_completed,
+                "steps": steps,
+                "completed_count": sum(steps.values()),
+                "total_steps": len(steps),
+            }
         )

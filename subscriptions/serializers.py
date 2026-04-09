@@ -123,3 +123,63 @@ class InitiatePaymentSerializer(serializers.Serializer):
         except Plan.DoesNotExist:
             raise serializers.ValidationError("Plan not found.")
         return value
+
+
+class SubscribeToPlanSerializer(serializers.Serializer):
+    plan_id = serializers.UUIDField()
+    term_id = serializers.UUIDField(required=False)
+    payment_reference = serializers.CharField(required=False, allow_blank=True)
+    payment_provider = serializers.ChoiceField(
+        choices=["paystack", "momo", "manual", "trial"],
+        required=False,
+        allow_blank=True,
+    )
+    amount_paid = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
+
+    def validate_plan_id(self, value):
+        try:
+            plan = Plan.objects.get(id=value, is_active=True)
+        except Plan.DoesNotExist:
+            raise serializers.ValidationError("Plan not found or inactive.")
+        return plan
+
+    def validate_term_id(self, value):
+        from academics.models import Term
+        school = self.context["school"]
+        try:
+            term = Term.objects.get(id=value, school=school)
+        except Term.DoesNotExist:
+            raise serializers.ValidationError(
+                "Term not found or does not belong to this school."
+            )
+        return term
+
+    def validate(self, attrs):
+        plan = attrs.get("plan_id")  # already resolved to Plan instance
+        school = self.context["school"]
+
+        # Rename keys to resolved instances for the view
+        attrs["plan"] = attrs.pop("plan_id")
+        if "term_id" in attrs:
+            attrs["term"] = attrs.pop("term_id")
+
+        # Validate student count against plan limits
+        if plan.max_students is not None:
+            current_students = school.students.filter(
+                status="active"
+            ).count()
+            if current_students > plan.max_students:
+                raise serializers.ValidationError({
+                    "plan_id": (
+                        f"Your school currently has {current_students} active students "
+                        f"which exceeds the {plan.name} plan limit of "
+                        f"{plan.max_students} students. "
+                        f"Please choose a higher plan."
+                    )
+                })
+
+        return attrs

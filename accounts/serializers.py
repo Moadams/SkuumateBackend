@@ -31,6 +31,7 @@ class LoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     school_name = serializers.CharField(source="school.name", read_only=True, allow_null = True)
+    onboarding_completed = serializers.BooleanField(source="school.onboarding_completed", read_only=True, allow_null = True)
 
     class Meta:
         model = User
@@ -43,6 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "school",
             "school_name",
+            "onboarding_completed", 
             "is_active",
             "created_at",
         ]

@@ -33,6 +33,11 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 
 
 class TermSerializer(serializers.ModelSerializer):
+    academic_year = serializers.PrimaryKeyRelatedField(
+        queryset=AcademicYear.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     academic_year_name = serializers.CharField(
         source="academic_year.name", read_only=True
     )
@@ -50,7 +55,7 @@ class TermSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at", "academic_year_name"]
 
     def validate(self, attrs):
         start = attrs.get("start_date")
@@ -60,6 +65,25 @@ class TermSerializer(serializers.ModelSerializer):
                 "end_date": "End date must be after start date."
             })
         return attrs
+
+    def create(self, validated_data):
+        # Get school from the authenticated user's school
+        school = self.context["request"].user.school
+        
+        # If academic_year is not provided, use the current academic year for the school
+        if validated_data.get("academic_year") is None:
+            try:
+                current_academic_year = AcademicYear.objects.get(
+                    school=school,
+                    is_current=True,
+                )
+                validated_data["academic_year"] = current_academic_year
+            except AcademicYear.DoesNotExist:
+                raise serializers.ValidationError({
+                     "Academic Year is required."
+                })
+        
+        return super().create(validated_data)
 
 
 class SubjectSerializer(serializers.ModelSerializer):
@@ -132,7 +156,7 @@ class ClassSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at", "subjects", "teachers", "current_student_count"]
 
 
 class AssignSubjectsSerializer(serializers.Serializer):
