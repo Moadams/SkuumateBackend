@@ -115,3 +115,8 @@ HasTermComparison = _make_feature_permission(
     "has_term_comparison",
     "Term-to-term comparison requires the Advantage plan or higher.",
 )
+
+HasAttendanceModule = _make_feature_permission(
+    "has_attendance",
+    "Attendance features require the Advantage plan or higher.",
+)

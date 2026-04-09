@@ -51,6 +51,7 @@ class Plan(TimestampedModel):
     has_debtors_list = models.BooleanField(default=True)
     has_sms_alerts = models.BooleanField(default=True)
     has_admin_teacher_portal = models.BooleanField(default=True)
+    has_attendance = models.BooleanField(default=True)
 
     # ── Advantage+ features ───────────────────────────────────────
     has_advanced_finance = models.BooleanField(default=False)
