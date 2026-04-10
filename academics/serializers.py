@@ -21,6 +21,12 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 
     def get_terms_count(self, obj):
         return obj.terms.count()
+    
+    def validate_name(self, value):
+        school = self.context["request"].user.school
+        if AcademicYear.objects.filter(name=value, school=school).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("An academic year with this name already exists.")
+        return value
 
     def validate(self, attrs):
         start = attrs.get("start_date")
@@ -29,6 +35,22 @@ class AcademicYearSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "end_date": "End date must be after start date."
             })
+        if AcademicYear.objects.filter(
+            school=self.context["request"].user.school,
+            is_current=True,
+        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", False):
+            raise serializers.ValidationError({
+                "is_current": "Another academic year is already marked as current."
+            })
+        
+        if AcademicYear.objects.filter(
+            school=self.context["request"].user.school,
+            start_date__lte=end,
+            end_date__gte=start,
+        ).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("Academic year dates overlap with an existing academic year.")
+        
+
         return attrs
 
 
@@ -41,6 +63,7 @@ class TermSerializer(serializers.ModelSerializer):
     academic_year_name = serializers.CharField(
         source="academic_year.name", read_only=True
     )
+    term_name = serializers.CharField(source="get_name_display", read_only=True)
 
     class Meta:
         model = Term
@@ -49,13 +72,22 @@ class TermSerializer(serializers.ModelSerializer):
             "academic_year",
             "academic_year_name",
             "name",
+            "term_name",
             "start_date",
             "end_date",
+            "next_reopening_date",
             "is_current",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "academic_year_name"]
+        read_only_fields = ["id", "created_at", "updated_at", "academic_year_name", "term_name"]
+
+    def validate_name(self, value):
+        school = self.context["request"].user.school
+        academic_year = self.initial_data.get("academic_year") or (self.instance.academic_year.id if self.instance else None)
+        if Term.objects.filter(name=value, school=school, academic_year_id=academic_year).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("A term with this name already exists for the selected academic year.")
+        return value
 
     def validate(self, attrs):
         start = attrs.get("start_date")
@@ -64,6 +96,39 @@ class TermSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "end_date": "End date must be after start date."
             })
+        if Term.objects.filter(
+            school=self.context["request"].user.school,
+            academic_year_id=attrs.get("academic_year") or (self.instance.academic_year.id if self.instance else None),
+            is_current=True,
+        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", False):
+            raise serializers.ValidationError({
+                "is_current": "Another term is already marked as current for this academic year."
+            })
+        
+        if Term.objects.filter(
+            school=self.context["request"].user.school,
+            academic_year_id=attrs.get("academic_year") or (self.instance.academic_year.id if self.instance else None),
+            start_date__lte=end,
+            end_date__gte=start,
+        ).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("Term dates overlap with an existing term in the same academic year.")
+        
+        if attrs.get("next_reopening_date") and attrs["next_reopening_date"] <= end:
+            raise serializers.ValidationError({
+                "next_reopening_date": "Next reopening date must be after the term end date."
+            })
+        
+        # if start date and end date are not in the academic year date range, raise error
+        academic_year = attrs.get("academic_year") or (self.instance.academic_year if self.instance else None)
+        if academic_year:
+            if start and (start < academic_year.start_date or start > academic_year.end_date):
+                raise serializers.ValidationError({
+                    "start_date": "Start date must be within the academic year date range."
+                })
+            if end and (end < academic_year.start_date or end > academic_year.end_date):
+                raise serializers.ValidationError({
+                    "end_date": f"End date must be within the academic year date range ({academic_year.start_date} to {academic_year.end_date})."
+                })
         return attrs
 
     def create(self, validated_data):

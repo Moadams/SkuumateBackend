@@ -50,6 +50,7 @@ class Term(TimestampedModel):
     name = models.CharField(max_length=20, choices=TermName.choices)
     start_date = models.DateField()
     end_date = models.DateField()
+    next_reopening_date = models.DateField(null=True, blank=True)
     is_current = models.BooleanField(default=False)
 
     class Meta:

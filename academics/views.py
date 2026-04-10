@@ -91,6 +91,16 @@ class AcademicYearDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        if instance.terms.exists():
+            return ApiResponse.error(
+                message="Cannot delete academic year with associated terms.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.is_current:
+            return ApiResponse.error(
+                message="Cannot delete the current academic year.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         self.perform_destroy(instance)
         return ApiResponse.success(message="Academic year deleted successfully.")
 
@@ -112,7 +122,23 @@ class AcademicYearExportView(ExportMixin, generics.ListAPIView):
 
 
 # ─── Term ────────────────────────────────────────────────────────
+class AcademicYearTermsListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TermSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = TermFilter
+    search_fields = ["name", "academic_year__name"]
+    ordering_fields = ["start_date", "name", "created_at"]
+    ordering = ["start_date"]
 
+    def get_queryset(self):
+        academic_year_id = self.kwargs.get("academic_year_id")
+        return Term.objects.filter(
+            school=self.request.user.school,
+            academic_year_id=academic_year_id,
+        )
+    
+    
 class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = TermSerializer
@@ -181,9 +207,42 @@ class TermDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        if instance.is_current:
+            return ApiResponse.error(
+                message="Cannot delete the current active term.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         self.perform_destroy(instance)
         return ApiResponse.success(message="Term deleted successfully.")
 
+class ActivateTermView(APIView):
+    def post(self, request, term_id):
+        try:
+            term = Term.objects.get(pk=term_id, school=request.user.school)
+        except Term.DoesNotExist:
+            return ApiResponse.error(message="Term not found.", status_code=404)
+
+        # Deactivate any currently active term in the same academic year
+        Term.objects.filter(
+            school=request.user.school,
+            is_current=True,
+        ).exclude(pk=term.pk).update(is_current=False)
+
+        AcademicYear.objects.filter(
+            school=request.user.school,
+            is_current=True,
+        ).exclude(pk=term.academic_year.pk).update(is_current=False)
+
+
+        term.is_current = True
+        term.academic_year.is_current = True
+        term.academic_year.save()
+        term.save()
+
+        return ApiResponse.success(
+            data=None,
+            message=f"{term.name} is now the active term.",
+        )
 
 class TermExportView(ExportMixin, generics.ListAPIView):
     permission_classes = [IsAdmin]
