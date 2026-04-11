@@ -114,22 +114,13 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             "academic_year_id",
         ]
 
-    def validate(self, attrs):
-        class_id = attrs.get("class_id")
-        academic_year_id = attrs.get("academic_year_id")
-        # Both must be provided together or not at all
-        if bool(class_id) != bool(academic_year_id):
-            raise serializers.ValidationError(
-                "Both class_id and academic_year_id must be provided together."
-            )
-        return attrs
+    
 
     def create(self, validated_data):
         from academics.models import Class, AcademicYear
 
         guardians_data = validated_data.pop("guardians", [])
         class_id = validated_data.pop("class_id", None)
-        academic_year_id = validated_data.pop("academic_year_id", None)
         school = self.context["school"]
 
         # Create the student
@@ -144,11 +135,11 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             )
 
         # Optionally enroll immediately
-        if class_id and academic_year_id:
+        if class_id:
             try:
                 klass = Class.objects.get(id=class_id, school=school)
                 academic_year = AcademicYear.objects.get(
-                    id=academic_year_id, school=school
+                    school=school, is_current=True
                 )
                 Enrollment.objects.create(
                     school=school,

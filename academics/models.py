@@ -95,7 +95,7 @@ class Class(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="classes",
     )
-    name = models.CharField(max_length=100)        # e.g. "Grade 1A"
+    name = models.CharField(max_length=100) 
     description = models.TextField(blank=True)
     capacity = models.PositiveIntegerField(default=30)
     is_active = models.BooleanField(default=True)

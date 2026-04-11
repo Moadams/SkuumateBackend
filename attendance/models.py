@@ -7,6 +7,7 @@ class Attendance(TimestampedModel):
     class Status(models.TextChoices):
         PRESENT = "present", "Present"
         ABSENT = "absent", "Absent"
+        LATE = "late", "Late"
 
     school = models.ForeignKey(
         "schools.School",
