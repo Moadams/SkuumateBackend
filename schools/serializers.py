@@ -156,6 +156,9 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             school=school,
         )
 
+        # Seed system positions for this new school
+        self._seed_system_positions(school)
+
         send_welcome_school_email(
             admin_name=f"{admin_first_name} {admin_last_name}",
             admin_email=admin_email,
@@ -164,3 +167,20 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
         )
 
         return school
+
+    @staticmethod
+    def _seed_system_positions(school):
+        from staff.models import StaffPosition
+        from staff.management.commands.seed_staff_positions import (
+            SYSTEM_POSITIONS,
+        )
+        for pos_data in SYSTEM_POSITIONS:
+            StaffPosition.objects.get_or_create(
+                school=school,
+                name=pos_data["name"],
+                defaults={
+                    "description": pos_data["description"],
+                    "permissions": pos_data["permissions"],
+                    "is_system": True,
+                },
+            )
