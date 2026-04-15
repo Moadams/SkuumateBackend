@@ -1,4 +1,7 @@
+from core.email import send_staff_welcome_mail
 from rest_framework import serializers
+from staff.enums.employment_type import EmploymentType
+from staff.enums.staff_status import StaffStatus
 from .models import (
     StaffPosition,
     StaffProfile,
@@ -44,7 +47,7 @@ class StaffPositionSerializer(serializers.ModelSerializer):
 
     def get_staff_count(self, obj):
         return obj.staff_members.filter(
-            status=StaffProfile.Status.ACTIVE
+            status=StaffStatus.ACTIVE
         ).count()
 
     def get_permission_labels(self, obj):
@@ -132,7 +135,7 @@ class CreateStaffSerializer(serializers.Serializer):
     # User fields
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
-    email = serializers.EmailField()
+    email = serializers.EmailField() 
     password = serializers.CharField(write_only=True, min_length=8)
 
     # Profile fields
@@ -143,8 +146,8 @@ class CreateStaffSerializer(serializers.Serializer):
     )
     date_joined = serializers.DateField()
     employment_type = serializers.ChoiceField(
-        choices=StaffProfile.EmploymentType.choices,
-        default=StaffProfile.EmploymentType.FULL_TIME,
+        choices=EmploymentType.choices,
+        default=EmploymentType.FULL_TIME,
     )
     phone = serializers.CharField(
         max_length=20, required=False, allow_blank=True
@@ -161,7 +164,20 @@ class CreateStaffSerializer(serializers.Serializer):
     notes = serializers.CharField(
         required=False, allow_blank=True
     )
+    employee_id = serializers.CharField(required=False, allow_blank=True)
 
+    profile_photo = serializers.FileField(required=False)
+
+    def validate_employee_id(self, value):
+        if not value:
+            return value
+        school = self.context['school']
+        if StaffProfile.objects.filter(school =school, employee_id = value).exists():
+            raise serializers.ValidationError(
+                "A staff with this employee id already exists"
+            )
+        return value
+    
     def validate_email(self, value):
         from accounts.models import User
         if User.objects.filter(email=value).exists():
@@ -188,21 +204,21 @@ class CreateStaffSerializer(serializers.Serializer):
 
         positions = validated_data.pop("position_ids")
         school = self.context["school"]
+        password = validated_data.pop("password")
 
-        # Determine role from positions
-        # If any position is administrator → role = admin
-        # else → role = teacher (default staff role)
+        
         position_names = [p.name.lower() for p in positions]
         role = (
             "admin"
             if "administrator" in position_names
             else "teacher"
         )
+        profile_photo = validated_data.pop("profile_photo", None)
 
         with transaction.atomic():
             user = User.objects.create_user(
                 email=validated_data.pop("email"),
-                password=validated_data.pop("password"),
+                password=password,
                 first_name=validated_data.pop("first_name"),
                 last_name=validated_data.pop("last_name"),
                 role=role,
@@ -212,9 +228,13 @@ class CreateStaffSerializer(serializers.Serializer):
             profile = StaffProfile.objects.create(
                 school=school,
                 user=user,
+                profile_photo = profile_photo,
                 **validated_data,
             )
+            
             profile.positions.set(positions)
+
+        send_staff_welcome_mail(f'{user.first_name} {user.last_name}', user.email, password, school.name)
 
         return profile
 

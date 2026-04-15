@@ -1,7 +1,11 @@
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
+import datetime
+
 import logging
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +65,7 @@ def send_welcome_school_email(
     """
     Sends the welcome + credentials email after school onboarding.
     """
-    import datetime
-    from django.conf import settings
+    
 
     context = {
         "admin_name": admin_name,
@@ -106,4 +109,30 @@ def _html_to_text(context: dict) -> str:
         f"Need help? Contact us at {context.get('support_email')} "
         f"or {context.get('support_phone')}\n\n"
         f"© {context.get('current_year')} SkuuMate by HubTek Primex Enterprise"
+    )
+
+
+def send_staff_welcome_mail(
+        staff_name: str,
+        staff_email: str,
+        staff_password: str,
+        school_name: str
+):
+    context = {
+        "staff_name":staff_name,
+        "staff_email": staff_email,
+        "staff_password":staff_password,
+        "school_name":school_name,
+        "login_url": f"{settings.FRONTEND_URL}",
+        "frontend_url": settings.FRONTEND_URL,
+        "support_email": "info@hubtekgh.com",
+        "support_phone": "+233(0)241874219",
+        "current_year": datetime.date.today().year,
+    }
+
+    send_templated_email(
+        subject = "Your staff account is ready",
+        template = "emails/staff_welcome.html",
+        context = context,
+        recipient = staff_email
     )

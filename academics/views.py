@@ -409,7 +409,7 @@ class ClassDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
     audit_resource = "Class"
 
     def get_queryset(self):
-        return Class.objects.filter(school=self.request.user.school).select_related("enrollments")
+        return Class.objects.filter(school=self.request.user.school)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()

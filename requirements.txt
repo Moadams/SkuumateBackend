@@ -17,3 +17,5 @@ requests==2.33.1
 sqlparse==0.5.5
 tzdata==2025.3
 urllib3==2.6.3
+mysqlclient
+gunicorn

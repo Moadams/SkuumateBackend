@@ -1,13 +1,16 @@
 import django_filters
+
+from staff.enums.employment_type import EmploymentType
+from staff.enums.staff_status import StaffStatus
 from .models import StaffProfile
 
 
 class StaffProfileFilter(django_filters.FilterSet):
     status = django_filters.ChoiceFilter(
-        choices=StaffProfile.Status.choices
+        choices=StaffStatus.choices
     )
     employment_type = django_filters.ChoiceFilter(
-        choices=StaffProfile.EmploymentType.choices
+        choices=EmploymentType.choices
     )
     position_id = django_filters.UUIDFilter(
         field_name="positions__id",

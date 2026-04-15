@@ -1,5 +1,7 @@
 from django.db import models
 from core.models import TimestampedModel
+from staff.enums.employment_type import EmploymentType
+from staff.enums.staff_status import StaffStatus
 
 
 # ── Permission Registry ───────────────────────────────────────────
@@ -109,17 +111,6 @@ class StaffProfile(TimestampedModel):
     Links a User to one or more StaffPositions and stores
     employment details.
     """
-    class EmploymentType(models.TextChoices):
-        FULL_TIME = "full_time", "Full Time"
-        PART_TIME = "part_time", "Part Time"
-        CONTRACT = "contract", "Contract"
-
-    class Status(models.TextChoices):
-        ACTIVE = "active", "Active"
-        ON_LEAVE = "on_leave", "On Leave"
-        SUSPENDED = "suspended", "Suspended"
-        TERMINATED = "terminated", "Terminated"
-
     school = models.ForeignKey(
         "schools.School",
         on_delete=models.CASCADE,
@@ -148,8 +139,8 @@ class StaffProfile(TimestampedModel):
     )
     status = models.CharField(
         max_length=20,
-        choices=Status.choices,
-        default=Status.ACTIVE,
+        choices=StaffStatus.choices,
+        default=StaffStatus.ACTIVE,
     )
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
