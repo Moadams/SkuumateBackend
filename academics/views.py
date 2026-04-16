@@ -548,13 +548,16 @@ class ClassTeacherAssignView(APIView):
         serializer.is_valid(raise_exception=True)
 
         teacher = serializer.validated_data["teacher"]
-        academic_year = serializer.validated_data["academic_year"]
+        academic_year = AcademicYear.objects.filter(school=request.user.school, is_current=True).first()
+        if not academic_year:
+            return ApiResponse.error(message="No active academic year found.", status_code=400)
 
-        class_teacher, created = ClassTeacher.objects.update_or_create(
+        class_teacher = ClassTeacher.objects.create(
             school=request.user.school,
             klass=klass,
             academic_year=academic_year,
-            defaults={"teacher": teacher, "is_active": True},
+            teacher=teacher,
+            is_active=True,
         )
 
         log_action(

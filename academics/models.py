@@ -169,7 +169,7 @@ class ClassTeacher(TimestampedModel):
 
     class Meta:
         ordering = ["klass", "academic_year"]
-        unique_together = ["school", "klass", "academic_year"]
+        unique_together = ["school", "klass", "academic_year", "teacher"]
 
     def __str__(self):
         return f"{self.teacher.full_name} → {self.klass.name} ({self.academic_year.name})"

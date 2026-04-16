@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from staff.models import StaffProfile
 from .models import AcademicYear, Term, Subject, Class, ClassSubject, ClassTeacher
 
 
@@ -248,34 +249,31 @@ class AssignSubjectsSerializer(serializers.Serializer):
 class AssignTeacherSerializer(serializers.Serializer):
     """Assign a teacher to a class for an academic year."""
     teacher_id = serializers.UUIDField()
-    academic_year_id = serializers.UUIDField()
 
     def validate(self, attrs):
         from accounts.models import User
         school = self.context["school"]
 
         try:
-            teacher = User.objects.get(
+            teacher = StaffProfile.objects.get(
                 id=attrs["teacher_id"],
                 school=school,
-                role="teacher",
-                is_active=True,
+                user__role="teacher",
+                user__is_active=True,
             )
-        except User.DoesNotExist:
+            
+        except StaffProfile.DoesNotExist:
             raise serializers.ValidationError({
                 "teacher_id": "Teacher not found in this school."
             })
-
-        try:
-            academic_year = AcademicYear.objects.get(
-                id=attrs["academic_year_id"],
-                school=school,
+        
+        if ClassTeacher.objects.filter(
+            school=school,
+            teacher=teacher.user,
+            academic_year__is_current=True,
+        ).exists():
+            raise serializers.ValidationError( "This teacher is already assigned to a class for the current academic year."
             )
-        except AcademicYear.DoesNotExist:
-            raise serializers.ValidationError({
-                "academic_year_id": "Academic year not found."
-            })
 
-        attrs["teacher"] = teacher
-        attrs["academic_year"] = academic_year
+        attrs["teacher"] = teacher.user
         return attrs
