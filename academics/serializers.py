@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from staff.models import StaffProfile
-from .models import AcademicYear, GradeScale, GradingSystem, Term, Subject, Class, ClassSubject, ClassTeacher
+from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
 
 
 class AcademicYearSerializer(serializers.ModelSerializer):
@@ -523,3 +523,318 @@ class GradeResolverSerializer(serializers.Serializer):
                     f"max score ({grading_system.max_score})."
                 )
         return value
+    
+class SubjectTeacherSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.CharField(
+        source="teacher.user.full_name", read_only=True
+    )
+    teacher_employee_id = serializers.CharField(
+        source="teacher.employee_id", read_only=True
+    )
+    subject_name = serializers.CharField(
+        source="subject.name", read_only=True
+    )
+    subject_code = serializers.CharField(
+        source="subject.code", read_only=True
+    )
+    class_name = serializers.CharField(
+        source="klass.name", read_only=True
+    )
+    academic_year_name = serializers.CharField(
+        source="academic_year.name", read_only=True
+    )
+    term_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubjectTeacher
+        fields = [
+            "id",
+            "klass",
+            "class_name",
+            "subject",
+            "subject_name",
+            "subject_code",
+            "teacher",
+            "teacher_name",
+            "teacher_employee_id",
+            "academic_year",
+            "academic_year_name",
+            "term",
+            "term_name",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_term_name(self, obj):
+        return obj.term.get_name_display() if obj.term else "All Terms"
+
+
+class SubjectTeacherWriteSerializer(serializers.Serializer):
+    """Assigns a single teacher to a class subject."""
+    class_id = serializers.UUIDField()
+    subject_id = serializers.UUIDField()
+    teacher_id = serializers.UUIDField() 
+
+    def validate(self, attrs):
+        from staff.models import StaffProfile
+        school = self.context["school"]
+
+        # ── Validate class ────────────────────────────────────────
+        try:
+            klass = Class.objects.get(
+                id=attrs["class_id"],
+                school=school,
+                is_active=True,
+            )
+        except Class.DoesNotExist:
+            raise serializers.ValidationError({
+                "class_id": "Class not found or inactive."
+            })
+
+        # ── Validate subject ──────────────────────────────────────
+        try:
+            subject = Subject.objects.get(
+                id=attrs["subject_id"],
+                school=school,
+                is_active=True,
+            )
+        except Subject.DoesNotExist:
+            raise serializers.ValidationError({
+                "subject_id": "Subject not found or inactive."
+            })
+
+        # ── Validate subject is assigned to this class ────────────
+        if not ClassSubject.objects.filter(
+            klass=klass, subject=subject, school=school
+        ).exists():
+            raise serializers.ValidationError({
+                "subject_id": (
+                    f"'{subject.name}' is not assigned to "
+                    f"'{klass.name}'. Assign the subject to the "
+                    f"class first."
+                )
+            })
+
+        # ── Validate teacher ──────────────────────────────────────
+        try:
+            teacher = StaffProfile.objects.select_related(
+                "user"
+            ).get(
+                id=attrs["teacher_id"],
+                school=school,
+                status="active",
+            )
+        except StaffProfile.DoesNotExist:
+            raise serializers.ValidationError({
+                "teacher_id": "Teacher not found or inactive."
+            })
+
+        # ── Validate teacher has teaching permission ──────────────
+        if not teacher.has_permission("exams.enter_scores"):
+            raise serializers.ValidationError({
+                "teacher_id": (
+                    f"{teacher.user.full_name} does not have "
+                    f"teaching permissions."
+                )
+            })
+
+        
+        # ── Validate term if provided ─────────────────────────────
+        try:
+            term = Term.objects.get(
+                id=attrs["term_id"],
+                school=school,
+                is_current = True,
+            )
+        except Term.DoesNotExist:
+            raise serializers.ValidationError({
+                "term_id": (
+                    "Current term not found. A current term must be set in the "
+                    "school to assign teachers to specific terms."    
+                )
+            })
+
+        attrs["klass"] = klass
+        attrs["subject"] = subject
+        attrs["teacher"] = teacher
+        attrs["academic_year"] = term.academic_year
+        attrs["term"] = term
+
+        return attrs
+
+
+class BulkSubjectTeacherItemSerializer(serializers.Serializer):
+    """Single item inside a bulk assignment request."""
+    class_id = serializers.UUIDField()
+    subject_id = serializers.UUIDField()
+    teacher_id = serializers.UUIDField()
+
+
+class BulkSubjectTeacherSerializer(serializers.Serializer):
+    """
+    Bulk assign teachers to class subjects.
+    All assignments share the same academic year and term.
+
+    Validates every item before saving any of them.
+    """
+    
+    assignments = BulkSubjectTeacherItemSerializer(
+        many=True,
+        allow_empty=False,
+        min_length=1,
+        max_length=100,
+    )
+
+    def validate_academic_year_id(self, value):
+        school = self.context["school"]
+        try:
+            return AcademicYear.objects.get(
+                id=value, school=school
+            )
+        except AcademicYear.DoesNotExist:
+            raise serializers.ValidationError(
+                "Academic year not found."
+            )
+
+    def validate_term_id(self, value):
+        school = self.context["school"]
+        if not value:
+            return None
+        try:
+            return Term.objects.get(id=value, school=school)
+        except Term.DoesNotExist:
+            raise serializers.ValidationError(
+                "Term not found."
+            )
+
+    def validate(self, attrs):
+        from staff.models import StaffProfile
+        school = self.context["school"]
+
+        academic_year = attrs["academic_year_id"]
+        term = attrs.get("term_id")
+        assignments = attrs["assignments"]
+
+        # ── Check for duplicate class+subject pairs ───────────────
+        pairs = [
+            (str(a["class_id"]), str(a["subject_id"]))
+            for a in assignments
+        ]
+        if len(pairs) != len(set(pairs)):
+            raise serializers.ValidationError({
+                "assignments": (
+                    "Duplicate class + subject combinations found. "
+                    "Each class-subject pair can only appear once."
+                )
+            })
+
+        # ── Validate every assignment item ────────────────────────
+        errors = {}
+        validated_assignments = []
+
+        for i, item in enumerate(assignments):
+            item_errors = {}
+
+            # Validate class
+            try:
+                klass = Class.objects.get(
+                    id=item["class_id"],
+                    school=school,
+                    is_active=True,
+                )
+            except Class.DoesNotExist:
+                item_errors["class_id"] = "Class not found or inactive."
+                klass = None
+
+            # Validate subject
+            try:
+                subject = Subject.objects.get(
+                    id=item["subject_id"],
+                    school=school,
+                    is_active=True,
+                )
+            except Subject.DoesNotExist:
+                item_errors["subject_id"] = "Subject not found or inactive."
+                subject = None
+
+            # Validate class-subject relationship
+            if klass and subject:
+                if not ClassSubject.objects.filter(
+                    klass=klass,
+                    subject=subject,
+                    school=school,
+                ).exists():
+                    item_errors["subject_id"] = (
+                        f"'{subject.name}' is not assigned to "
+                        f"'{klass.name}'."
+                    )
+
+            # Validate teacher
+            try:
+                teacher = StaffProfile.objects.select_related(
+                    "user"
+                ).get(
+                    id=item["teacher_id"],
+                    school=school,
+                    status="active",
+                )
+                if not teacher.has_permission("exams.enter_scores"):
+                    item_errors["teacher_id"] = (
+                        f"{teacher.user.full_name} does not have "
+                        f"teaching permissions."
+                    )
+            except StaffProfile.DoesNotExist:
+                item_errors["teacher_id"] = (
+                    "Teacher not found or inactive."
+                )
+                teacher = None
+
+            if item_errors:
+                errors[f"assignment_{i}"] = item_errors
+            else:
+                validated_assignments.append({
+                    "klass": klass,
+                    "subject": subject,
+                    "teacher": teacher,
+                    "academic_year": academic_year,
+                    "term": term,
+                })
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        attrs["validated_assignments"] = validated_assignments
+        return attrs
+
+
+class ClassSubjectTeacherSummarySerializer(serializers.Serializer):
+    """
+    Returns all subjects in a class along with their
+    assigned teacher for a given academic year/term.
+    Used for the class subject-teacher overview screen.
+    """
+    def to_representation(self, instance):
+        return {
+            "subject_id": str(instance["subject"].id),
+            "subject_name": instance["subject"].name,
+            "subject_code": instance["subject"].code,
+            "teacher_id": (
+                str(instance["teacher"].id)
+                if instance["teacher"] else None
+            ),
+            "teacher_name": (
+                instance["teacher"].user.full_name
+                if instance["teacher"] else None
+            ),
+            "teacher_employee_id": (
+                instance["teacher"].employee_id
+                if instance["teacher"] else None
+            ),
+            "is_assigned": instance["teacher"] is not None,
+            "assignment_id": (
+                str(instance["assignment_id"])
+                if instance["assignment_id"] else None
+            ),
+        }

@@ -11,13 +11,13 @@ from core.models import AuditLog
 from core.utils import log_action
 from schools.utils import check_and_complete_onboarding
 
-from .models import AcademicYear, GradeScale, GradingSystem, Term, Subject, Class, ClassSubject, ClassTeacher
+from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
 from .serializers import (
-    AcademicYearSerializer, BulkGradeScaleSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, TermSerializer, SubjectSerializer,
+    AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
     ClassSubjectSerializer, ClassTeacherSerializer,
 )
-from .filters import AcademicYearFilter, TermFilter, SubjectFilter, ClassFilter
+from .filters import AcademicYearFilter, SubjectTeacherFilter, TermFilter, SubjectFilter, ClassFilter
 
 from django.db import transaction
 
@@ -1050,3 +1050,408 @@ class GradeResolverView(APIView):
                 },
             }
         )
+
+
+class SubjectTeacherListView(
+    AuditLogMixin, ExportMixin, generics.ListAPIView
+):
+    """
+    List all subject-teacher assignments for the school.
+    Filterable by class, subject, teacher, year, term.
+    """
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = SubjectTeacherSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = SubjectTeacherFilter
+    search_fields = [
+        "teacher__user__first_name",
+        "teacher__user__last_name",
+        "subject__name",
+        "klass__name",
+    ]
+    ordering_fields = [
+        "klass__name", "subject__name",
+        "teacher__user__last_name", "created_at",
+    ]
+    ordering = ["klass__name", "subject__name"]
+
+    def get_queryset(self):
+        return (
+            SubjectTeacher.objects
+            .filter(school=self.request.user.school)
+            .select_related(
+                "klass", "subject",
+                "teacher__user",
+                "academic_year", "term",
+            )
+        )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data=serializer.data)
+
+
+class SubjectTeacherAssignView(APIView):
+    """
+    Assign a teacher to a single class subject.
+    If an assignment already exists it is updated (upsert).
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        school = request.user.school
+        serializer = SubjectTeacherWriteSerializer(
+            data=request.data,
+            context={"school": school},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        assignment, created = SubjectTeacher.objects.update_or_create(
+            school=school,
+            klass=data["klass"],
+            subject=data["subject"],
+            academic_year=data["academic_year"],
+            term=data["term"],
+            defaults={
+                "teacher": data["teacher"],
+                "is_active": True,
+            },
+        )
+
+        log_action(
+            action=AuditLog.Action.CREATE if created else AuditLog.Action.UPDATE,
+            resource="SubjectTeacher",
+            resource_id=str(assignment.pk),
+            description=(
+                f"{data['teacher'].user.full_name} "
+                f"{'assigned to' if created else 'updated for'} "
+                f"{data['subject'].name} in {data['klass'].name}"
+            ),
+            request=request,
+        )
+
+        return ApiResponse.created(
+            data=SubjectTeacherSerializer(assignment).data,
+            message=(
+                f"{data['teacher'].user.full_name} "
+                f"{'assigned to' if created else 'updated for'} "
+                f"{data['subject'].name} in {data['klass'].name} successfully."
+            ),
+        )
+
+
+class SubjectTeacherDetailView(APIView):
+    """Retrieve, update or remove a single assignment."""
+    permission_classes = [IsAdmin]
+
+    def get_object(self, pk, school):
+        try:
+            return SubjectTeacher.objects.select_related(
+                "klass", "subject",
+                "teacher__user",
+                "academic_year", "term",
+            ).get(pk=pk, school=school)
+        except SubjectTeacher.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        assignment = self.get_object(pk, request.user.school)
+        if not assignment:
+            return ApiResponse.error(
+                message="Assignment not found.", status_code=404
+            )
+        return ApiResponse.success(
+            data=SubjectTeacherSerializer(assignment).data
+        )
+
+    def patch(self, request, pk):
+        assignment = self.get_object(pk, request.user.school)
+        if not assignment:
+            return ApiResponse.error(
+                message="Assignment not found.", status_code=404
+            )
+
+        # Only teacher_id and is_active can be updated
+        teacher_id = request.data.get("teacher_id")
+        is_active = request.data.get("is_active")
+
+        if teacher_id:
+            from staff.models import StaffProfile
+            try:
+                teacher = StaffProfile.objects.get(
+                    id=teacher_id,
+                    school=request.user.school,
+                    status="active",
+                )
+                if not teacher.has_permission("exams.enter_scores"):
+                    return ApiResponse.error(
+                        message=(
+                            f"{teacher.user.full_name} does not "
+                            f"have teaching permissions."
+                        ),
+                        status_code=400,
+                    )
+                assignment.teacher = teacher
+            except StaffProfile.DoesNotExist:
+                return ApiResponse.error(
+                    message="Teacher not found or inactive.",
+                    status_code=404,
+                )
+
+        if is_active is not None:
+            assignment.is_active = is_active
+
+        assignment.save()
+
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="SubjectTeacher",
+            resource_id=str(assignment.pk),
+            description=(
+                f"Assignment updated: {assignment.subject.name} "
+                f"in {assignment.klass.name}"
+            ),
+            request=request,
+        )
+
+        return ApiResponse.success(
+            data=SubjectTeacherSerializer(assignment).data,
+            message="Assignment updated successfully.",
+        )
+
+    def delete(self, request, pk):
+        assignment = self.get_object(pk, request.user.school)
+        if not assignment:
+            return ApiResponse.error(
+                message="Assignment not found.", status_code=404
+            )
+
+        log_action(
+            action=AuditLog.Action.DELETE,
+            resource="SubjectTeacher",
+            resource_id=str(assignment.pk),
+            description=(
+                f"Assignment removed: "
+                f"{assignment.teacher.user.full_name} from "
+                f"{assignment.subject.name} in {assignment.klass.name}"
+            ),
+            request=request,
+        )
+
+        assignment.delete()
+        return ApiResponse.success(
+            message="Assignment removed successfully."
+        )
+
+
+class BulkSubjectTeacherAssignView(APIView):
+    """
+    Bulk assign teachers to class subjects in a single request.
+    All items share the same academic year and optional term.
+
+    Validates ALL items before saving ANY of them —
+    so either the entire batch succeeds or nothing is saved.
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        school = request.user.school
+        serializer = BulkSubjectTeacherSerializer(
+            data=request.data,
+            context={"school": school},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        assignments_data = serializer.validated_data[
+            "validated_assignments"
+        ]
+
+        created_list = []
+        updated_list = []
+
+        with transaction.atomic():
+            for item in assignments_data:
+                assignment, created = (
+                    SubjectTeacher.objects.update_or_create(
+                        school=school,
+                        klass=item["klass"],
+                        subject=item["subject"],
+                        academic_year=item["academic_year"],
+                        term=item["term"],
+                        defaults={
+                            "teacher": item["teacher"],
+                            "is_active": True,
+                        },
+                    )
+                )
+                if created:
+                    created_list.append(assignment)
+                else:
+                    updated_list.append(assignment)
+
+        all_assignments = created_list + updated_list
+
+        log_action(
+            action=AuditLog.Action.CREATE,
+            resource="SubjectTeacher",
+            description=(
+                f"Bulk assignment: {len(created_list)} created, "
+                f"{len(updated_list)} updated"
+            ),
+            request=request,
+            metadata={
+                "created": len(created_list),
+                "updated": len(updated_list),
+            },
+        )
+
+        return ApiResponse.created(
+            data={
+                "summary": {
+                    "total": len(all_assignments),
+                    "created": len(created_list),
+                    "updated": len(updated_list),
+                },
+                "assignments": SubjectTeacherSerializer(
+                    all_assignments, many=True
+                ).data,
+            },
+            message=(
+                f"Bulk assignment complete — "
+                f"{len(created_list)} created, "
+                f"{len(updated_list)} updated."
+            ),
+        )
+
+
+class ClassSubjectTeacherSummaryView(APIView):
+    """
+    Returns all subjects in a class along with their
+    assigned teacher for a given academic year/term.
+
+    Shows unassigned subjects too so the admin can see
+    what still needs a teacher.
+    """
+    permission_classes = [IsAdminOrTeacher]
+
+    def get(self, request, class_id):
+        school = request.user.school
+        academic_year_id = request.query_params.get("academic_year_id")
+        term_id = request.query_params.get("term_id")
+
+        # Validate class
+        try:
+            klass = Class.objects.get(
+                id=class_id, school=school, is_active=True
+            )
+        except Class.DoesNotExist:
+            return ApiResponse.error(
+                message="Class not found.", status_code=404
+            )
+
+        # Get all subjects assigned to this class
+        class_subjects = (
+            ClassSubject.objects
+            .filter(school=school, klass=klass)
+            .select_related("subject")
+        )
+
+        if not class_subjects.exists():
+            return ApiResponse.success(
+                data={
+                    "class_id": str(klass.id),
+                    "class_name": klass.name,
+                    "total_subjects": 0,
+                    "assigned": 0,
+                    "unassigned": 0,
+                    "subjects": [],
+                }
+            )
+
+        # Build teacher lookup for this class
+        teacher_qs = SubjectTeacher.objects.filter(
+            school=school,
+            klass=klass,
+            is_active=True,
+        ).select_related("teacher__user", "subject")
+
+        if academic_year_id:
+            teacher_qs = teacher_qs.filter(
+                academic_year_id=academic_year_id
+            )
+        if term_id:
+            teacher_qs = teacher_qs.filter(term_id=term_id)
+
+        # Build lookup dict: subject_id → assignment
+        teacher_map = {
+            str(st.subject_id): st
+            for st in teacher_qs
+        }
+
+        # Build summary
+        subjects = []
+        for cs in class_subjects:
+            subject = cs.subject
+            assignment = teacher_map.get(str(subject.id))
+            subjects.append({
+                "subject": subject,
+                "teacher": (
+                    assignment.teacher if assignment else None
+                ),
+                "assignment_id": (
+                    assignment.id if assignment else None
+                ),
+            })
+
+        serializer = ClassSubjectTeacherSummarySerializer(
+            subjects, many=True
+        )
+
+        assigned_count = sum(
+            1 for s in subjects if s["teacher"] is not None
+        )
+
+        return ApiResponse.success(
+            data={
+                "class_id": str(klass.id),
+                "class_name": klass.name,
+                "total_subjects": len(subjects),
+                "assigned": assigned_count,
+                "unassigned": len(subjects) - assigned_count,
+                "subjects": serializer.data,
+            }
+        )
+
+
+class SubjectTeacherExportView(ExportMixin, generics.ListAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = SubjectTeacherSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = SubjectTeacherFilter
+    search_fields = [
+        "teacher__user__first_name",
+        "teacher__user__last_name",
+        "subject__name",
+        "klass__name",
+    ]
+    ordering = ["klass__name", "subject__name"]
+
+    def get_queryset(self):
+        return (
+            SubjectTeacher.objects
+            .filter(school=self.request.user.school)
+            .select_related(
+                "klass", "subject",
+                "teacher__user",
+                "academic_year", "term",
+            )
+        )
+
+    def get(self, request, *args, **kwargs):
+        return self.export(request, *args, **kwargs)

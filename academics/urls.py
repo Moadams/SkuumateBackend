@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView,
+    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, BulkSubjectTeacherAssignView, ClassSubjectTeacherSummaryView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView, SubjectTeacherAssignView, SubjectTeacherDetailView, SubjectTeacherExportView, SubjectTeacherListView,
     TermListCreateView, TermDetailView, TermExportView,
     SubjectListCreateView, SubjectDetailView, SubjectExportView,
     ClassListCreateView, ClassDetailView, ClassExportView,
@@ -64,5 +64,38 @@ urlpatterns = [
         "grade-scales/<uuid:pk>/",
         GradeScaleUpdateView.as_view(),
         name="grade-scale-detail",
+    ),
+
+
+    # Subject Teacher Assignments
+    path(
+        "subject-teachers/",
+        SubjectTeacherListView.as_view(),
+        name="subject-teacher-list",
+    ),
+    path(
+        "subject-teachers/assign/",
+        SubjectTeacherAssignView.as_view(),
+        name="subject-teacher-assign",
+    ),
+    path(
+        "subject-teachers/bulk-assign/",
+        BulkSubjectTeacherAssignView.as_view(),
+        name="subject-teacher-bulk-assign",
+    ),
+    path(
+        "subject-teachers/export/",
+        SubjectTeacherExportView.as_view(),
+        name="subject-teacher-export",
+    ),
+    path(
+        "subject-teachers/<uuid:pk>/",
+        SubjectTeacherDetailView.as_view(),
+        name="subject-teacher-detail",
+    ),
+    path(
+        "subject-teachers/class/<uuid:class_id>/summary/",
+        ClassSubjectTeacherSummaryView.as_view(),
+        name="class-subject-teacher-summary",
     ),
 ]

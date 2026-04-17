@@ -15,8 +15,8 @@ class AuditLogMixin:
     def get_audit_description(self, instance):
         return f"{self.audit_action.capitalize()} {self.audit_resource}"
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
+    def perform_create(self, serializer, **kwargs):
+        instance = serializer.save(**kwargs)
         log_action(
             action=AuditLog.Action.CREATE,
             resource=self.audit_resource,
