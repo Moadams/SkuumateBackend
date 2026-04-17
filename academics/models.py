@@ -173,3 +173,65 @@ class ClassTeacher(TimestampedModel):
 
     def __str__(self):
         return f"{self.teacher.full_name} → {self.klass.name} ({self.academic_year.name})"
+
+class GradingSystem(TimestampedModel):
+    """
+        A named grading system for the school.
+        A school can have multiple grading systems
+        e.g one for primary one for jhs etc
+    """
+    school = models.ForeignKey("schools.School", on_delete = models.CASCADE,related_name="grading_systems")
+    name = models.CharField(max_length = 100)
+    description = models.TextField(blank=True)
+    is_default = models.BooleanField(default = True)
+    max_score = models.PositiveBigIntegerField(
+        default = 100, help_text = "Maximum possible score for the grade system"
+    )
+    pass_mark = models.PositiveBigIntegerField(
+        default = 50, help_text = "Minimum score considered a pass."
+    )
+
+    class Meta:
+        ordering = ['-is_default','name']
+        unique_together = ["school","name"]
+
+    def __str__(self):
+        return f"{self.name} - {self.school.name}"
+    
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            GradingSystem.objects.filter(
+                school = self.school,
+                is_default = True
+            ).exclude(id = self.pk).update(is_default = False)
+        super().save(*args, **kwargs)
+
+
+class GradeScale(TimestampedModel):
+    grading_system = models.ForeignKey(GradingSystem, on_delete = models.CASCADE,related_name="grade_scales")
+    school = models.ForeignKey("schools.School", on_delete = models.CASCADE,
+        related_name="grade_scales")
+    grade = models.CharField(max_length = 10, help_text = "Grade label e.g A1, B2")
+    label = models.CharField(max_length = 50, help_text = "Descriptive label e.g Excellent, Very good")
+    min_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Minimum score for this grade (inclusive)")
+    max_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Maximum score for this grade (inclusive)")
+    remark = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional remark e.g 'Distinction', 'Credit', 'Fail'",
+    )
+    is_passing = models.BooleanField(default = True, help_text = "Whether is grade is considered as a passing grade")
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order — lower number appears first.",
+    )
+
+    class Meta:
+        ordering = ["grading_system", "position", "-min_score"]
+        unique_together = ["grading_system", "grade"]
+
+    def __str__(self):
+        return (
+            f"{self.grade} ({self.min_score}–{self.max_score}) "
+            f"— {self.grading_system.name}"
+        )

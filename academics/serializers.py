@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from staff.models import StaffProfile
-from .models import AcademicYear, Term, Subject, Class, ClassSubject, ClassTeacher
+from .models import AcademicYear, GradeScale, GradingSystem, Term, Subject, Class, ClassSubject, ClassTeacher
 
 
 class AcademicYearSerializer(serializers.ModelSerializer):
@@ -277,3 +277,249 @@ class AssignTeacherSerializer(serializers.Serializer):
 
         attrs["teacher"] = teacher.user
         return attrs
+    
+
+class GradeScaleSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GradeScale
+        fields = [
+            "id",
+            "grade",
+            "label",
+            "min_score",
+            "max_score",
+            "remark",
+            "is_passing",
+            "position",
+        ]
+        read_only_fields = ["id"]
+
+    def validate_grade(self, value):
+        return value.strip().upper()
+
+    def validate_label(self, value):
+        return value.strip().title()
+
+    def validate_min_score(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Min score cannot be negative."
+            )
+        return value
+
+    def validate_max_score(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Max score cannot be negative."
+            )
+        return value
+
+    def validate(self, attrs):
+        min_score = attrs.get(
+            "min_score",
+            getattr(self.instance, "min_score", None)
+        )
+        max_score = attrs.get(
+            "max_score",
+            getattr(self.instance, "max_score", None)
+        )
+
+        if min_score is not None and max_score is not None:
+            if min_score >= max_score:
+                raise serializers.ValidationError(
+                    "min_score must be less than max_score."
+                )
+
+        return attrs
+
+
+class GradingSystemSerializer(serializers.ModelSerializer):
+    grade_scales = GradeScaleSerializer(many=True, read_only=True)
+    total_grades = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GradingSystem
+        fields = [
+            "id",
+            "name",
+            "description",
+            "is_default",
+            "max_score",
+            "pass_mark",
+            "total_grades",
+            "grade_scales",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_total_grades(self, obj):
+        return obj.grade_scales.count()
+
+    def validate_pass_mark(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Pass mark cannot be negative."
+            )
+        return value
+
+    def validate(self, attrs):
+        max_score = attrs.get(
+            "max_score",
+            getattr(self.instance, "max_score", None)
+        )
+        pass_mark = attrs.get(
+            "pass_mark",
+            getattr(self.instance, "pass_mark", None)
+        )
+        if max_score and pass_mark and pass_mark >= max_score:
+            raise serializers.ValidationError({
+                "pass_mark": (
+                    f"Pass mark ({pass_mark}) must be "
+                    f"less than max score ({max_score})."
+                )
+            })
+        return attrs
+
+
+class GradingSystemWriteSerializer(GradingSystemSerializer):
+    """
+    Used for create/update.
+    Validates name uniqueness per school.
+    """
+    def validate_name(self, value):
+        school = self.context["school"]
+        qs = GradingSystem.objects.filter(
+            school=school,
+            name__iexact=value,
+        )
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                f"A grading system named '{value}' already exists."
+            )
+        return value
+
+
+class BulkGradeScaleSerializer(serializers.Serializer):
+    """
+    Used to set all grade scales for a grading system at once.
+    Replaces all existing scales with the submitted ones.
+    """
+    grades = GradeScaleSerializer(many=True, allow_empty=False)
+
+    def validate_grades(self, value):
+        if len(value) < 2:
+            raise serializers.ValidationError(
+                "A grading system must have at least 2 grade bands."
+            )
+
+        grading_system = self.context.get("grading_system")
+        max_score = (
+            grading_system.max_score if grading_system else 100
+        )
+
+        # ── Check grade labels are unique ─────────────────────────
+        grades = [g["grade"].strip().upper() for g in value]
+        if len(grades) != len(set(grades)):
+            raise serializers.ValidationError(
+                "Duplicate grade labels found. "
+                "Each grade must be unique."
+            )
+
+        # ── Check scores are within system max ────────────────────
+        for item in value:
+            if float(item["max_score"]) > float(max_score):
+                raise serializers.ValidationError(
+                    f"Grade '{item['grade']}' max_score "
+                    f"({item['max_score']}) exceeds the grading "
+                    f"system's max score ({max_score})."
+                )
+            if float(item["min_score"]) < 0:
+                raise serializers.ValidationError(
+                    f"Grade '{item['grade']}' min_score "
+                    f"cannot be negative."
+                )
+
+        # ── Sort by min_score descending for overlap checking ─────
+        sorted_grades = sorted(
+            value,
+            key=lambda x: float(x["min_score"]),
+            reverse=True,
+        )
+
+        # ── Check for gaps ────────────────────────────────────────
+        # Highest max must equal system max_score
+        highest_max = float(sorted_grades[0]["max_score"])
+        if highest_max != float(max_score):
+            raise serializers.ValidationError(
+                f"The highest grade's max_score must equal the "
+                f"grading system's max score ({max_score}). "
+                f"Got {highest_max}."
+            )
+
+        # Lowest min must be 0
+        lowest_min = float(sorted_grades[-1]["min_score"])
+        if lowest_min != 0:
+            raise serializers.ValidationError(
+                f"The lowest grade's min_score must be 0. "
+                f"Got {lowest_min}."
+            )
+
+        # ── Check for overlaps and gaps between bands ─────────────
+        for i in range(len(sorted_grades) - 1):
+            current = sorted_grades[i]
+            next_grade = sorted_grades[i + 1]
+
+            current_min = float(current["min_score"])
+            next_max = float(next_grade["max_score"])
+
+            # Overlap: next band's max >= current band's min
+            if next_max >= current_min:
+                raise serializers.ValidationError(
+                    f"Grade ranges overlap between "
+                    f"'{current['grade']}' "
+                    f"({current['min_score']}–{current['max_score']}) "
+                    f"and '{next_grade['grade']}' "
+                    f"({next_grade['min_score']}–{next_grade['max_score']})."
+                )
+
+            # Gap: next band's max is not exactly one step below
+            # current band's min
+            expected_next_max = current_min - 1
+            if next_max != expected_next_max:
+                raise serializers.ValidationError(
+                    f"Gap detected between '{next_grade['grade']}' "
+                    f"(max: {next_grade['max_score']}) and "
+                    f"'{current['grade']}' "
+                    f"(min: {current['min_score']}). "
+                    f"Ranges must be continuous with no gaps. "
+                    f"Expected '{next_grade['grade']}' max_score "
+                    f"to be {expected_next_max}."
+                )
+
+        return value
+
+
+class GradeResolverSerializer(serializers.Serializer):
+    """
+    Given a score, returns the matching grade from a grading system.
+    Used to test a grading system before applying it.
+    """
+    score = serializers.DecimalField(max_digits=5, decimal_places=2)
+
+    def validate_score(self, value):
+        grading_system = self.context.get("grading_system")
+        if grading_system:
+            if float(value) < 0:
+                raise serializers.ValidationError(
+                    "Score cannot be negative."
+                )
+            if float(value) > float(grading_system.max_score):
+                raise serializers.ValidationError(
+                    f"Score ({value}) exceeds the grading system's "
+                    f"max score ({grading_system.max_score})."
+                )
+        return value

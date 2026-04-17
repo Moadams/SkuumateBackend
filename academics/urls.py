@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView,
+    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView,
     TermListCreateView, TermDetailView, TermExportView,
     SubjectListCreateView, SubjectDetailView, SubjectExportView,
     ClassListCreateView, ClassDetailView, ClassExportView,
@@ -31,4 +31,38 @@ urlpatterns = [
     path("classes/<uuid:pk>/", ClassDetailView.as_view(), name="class-detail"),
     path("classes/<uuid:pk>/subjects/", ClassSubjectAssignView.as_view(), name="class-subjects"),
     path("classes/<uuid:pk>/teacher/", ClassTeacherAssignView.as_view(), name="class-teacher"),
+
+    # Grading Systems
+    path(
+        "grading-systems/",
+        GradingSystemListCreateView.as_view(),
+        name="grading-system-list",
+    ),
+    path(
+        "grading-systems/<uuid:pk>/",
+        GradingSystemDetailView.as_view(),
+        name="grading-system-detail",
+    ),
+    path(
+        "grading-systems/<uuid:pk>/set-default/",
+        GradingSystemSetDefaultView.as_view(),
+        name="grading-system-set-default",
+    ),
+    path(
+        "grading-systems/<uuid:pk>/grades/",
+        GradeScaleBulkSetView.as_view(),
+        name="grade-scale-bulk",
+    ),
+    path(
+        "grading-systems/<uuid:pk>/resolve/",
+        GradeResolverView.as_view(),
+        name="grade-resolver",
+    ),
+
+    # Individual grade scale
+    path(
+        "grade-scales/<uuid:pk>/",
+        GradeScaleUpdateView.as_view(),
+        name="grade-scale-detail",
+    ),
 ]
