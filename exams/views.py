@@ -45,3 +45,31 @@ class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCrea
         return ApiResponse.created(
             message = "Assessment type created successfully"
         )
+    
+class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = AssessmentTypeSerializer
+    audit_resource = "AssessmentType"
+
+    def get_queryset(self):
+        return AssessmentType.objects.filter(school = self.request.user.school)
+    
+    def retrieve(self, reqeust, *args, **kwargs):
+        instance = self.get_object()
+        return ApiResponse.success(data = self.get_serializer(instance).data)
+    
+    def update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data = request.data, partial = True)
+        serializer.is_valid(raise_exception = True)
+        self.perform_update(serializer)
+        return ApiResponse.success(
+            message = "Assessment type updated successfully"
+        )
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return ApiResponse.success(message = "Assessment type deleted successfully")
+    

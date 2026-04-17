@@ -3,5 +3,6 @@ from . import views
 
 
 urlpatterns = [
-    path("exams/assessment-types/", views.AssessmentTypeListCreateView().as_view(),  name = "assessment-types")
+    path("exams/assessment-types/", views.AssessmentTypeListCreateView().as_view(),  name = "assessment-types"),
+    path("exams/assessment-types/<uuid:pk>/", views.AssementTypeDetailView().as_view(), name = "assessment-type-detail")
 ]
