@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 
 class AssessmentTypeSerializer(serializers.ModelSerializer):
-    school_name = serializers.CharField(source = "school.name")
+    school_name = serializers.CharField(source = "school.name", read_only = True)
     class Meta:
         model = AssessmentType
         fields = [
@@ -14,7 +14,7 @@ class AssessmentTypeSerializer(serializers.ModelSerializer):
             "is_active"
         ]
 
-        read_only_fields = ["school_name"]
+        
 
     def validate_name(self, value):
         school = self.context["request"].user.school
