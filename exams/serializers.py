@@ -1,4 +1,5 @@
-from exams.models import AssessmentType
+from academics.models import Term
+from exams.models import AssessmentType, ReportScheme
 from rest_framework import serializers
 
 
@@ -14,6 +15,7 @@ class AssessmentTypeSerializer(serializers.ModelSerializer):
             "is_active"
         ]
 
+        read_only_fields = ['id','school_name']
         
 
     def validate_name(self, value):
@@ -26,3 +28,62 @@ class AssessmentTypeSerializer(serializers.ModelSerializer):
         if 'name' in validated_data:
             validated_data['name'] = validated_data['name'].title()
         return super().create(validated_data)
+    
+
+class ReportSchemeSerializer(serializers.ModelSerializer):
+    sba_component_names = serializers.StringRelatedField(source = "sba_components", read_only = True, many = True)
+    main_exam_name = serializers.CharField(source = "main_exam.name", read_only = True)
+    class Meta:
+        model = ReportScheme
+        fields = [
+            "id",
+            "name",
+            "sba_components",
+            "sba_component_names",
+            "main_exam",
+            "main_exam_name",
+            "sba_scaling",
+            "exam_scaling"
+        ]
+
+        
+        
+    def validate(self, data):
+        sba = data.get('sba_scaling')
+        if sba is None:
+            sba = self.instance.sba_scaling if self.instance else 50
+            
+        exam = data.get('exam_scaling')
+        if exam is None:
+            exam = self.instance.exam_scaling if self.instance else 50
+
+        if (sba + exam) != 100:
+            raise serializers.ValidationError("SBA and exam scaling should sum up to 100")
+
+        # check for conflicts
+        sba_components = data.get("sba_components")
+        main_exam = data.get("main_exam")
+
+        if sba_components is None and self.instance:
+            sba_components = self.instance.sba_components.all()
+        if main_exam is None and self.instance:
+            main_exam = self.instance.main_exam
+
+        if sba_components and main_exam:
+            if main_exam in sba_components:
+                raise serializers.ValidationError({
+                    "Conflict":f"{main_exam.name} cannot be the main exam and in the sba components."
+                })
+
+        if not self.instance:
+            school = self.context['request'].user.school
+            term = Term.objects.filter(school=school, is_current=True).first()
+            
+            if term:
+                data['term'] = term
+                data['academic_year'] = term.academic_year
+                data['school'] = school # Ensure school is also set here
+            else:
+                raise serializers.ValidationError("Current academic term not found")
+        
+        return data
