@@ -87,6 +87,20 @@ class StudentSerializer(serializers.ModelSerializer):
             return EnrollmentSerializer(enrollment).data
         return None
 
+class StudentMinimalSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Student
+        fields = [
+            "id",
+            "student_id",
+            "first_name",
+            "last_name",
+            "other_names",
+            "full_name",
+        ]
+        read_only_fields = ["id", "student_id"]
 
 class StudentCreateSerializer(serializers.ModelSerializer):
     """

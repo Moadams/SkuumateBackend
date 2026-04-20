@@ -1,5 +1,5 @@
 from academics.models import Term
-from exams.models import AssessmentType, ReportScheme
+from exams.models import AssessmentType, ReportScheme, StudentMark
 from rest_framework import serializers
 
 
@@ -87,3 +87,39 @@ class ReportSchemeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Current academic term not found")
         
         return data
+    
+class StudentMarkSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source = "student.full_name", read_only = True)
+    subject_name = serializers.CharField(source = "subject.name", read_only = True)
+    assessment_name = serializers.CharField(source = "assessment.name", read_only = True)
+    class Meta:
+        model = StudentMark
+        fields = [
+            "id",
+            "student",
+            "student_name",
+            "academic_year",
+            "term",
+            "subject",
+            "subject_name",
+            "assessment",
+            "assessment_name",
+            "student_class",
+            "score",
+            "teacher",
+            "teacher_remarks",
+        ]
+        read_only_fields = ['id', 'student_name', 'subject_name', 'assessment_name']
+
+    def validate_score(self, value):
+        assessment = self.initial_data.get("assessment")
+        if not assessment:
+            raise serializers.ValidationError("Assessment is required to validate score")
+        try:
+            assessment_instance = AssessmentType.objects.get(id = assessment)
+        except AssessmentType.DoesNotExist:
+            raise serializers.ValidationError("Invalid assessment ID")
+        
+        if value < 0 or value > assessment_instance.max_score:
+            raise serializers.ValidationError(f"Score must be between 0 and {assessment_instance.max_score}")
+        return value

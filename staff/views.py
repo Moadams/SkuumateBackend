@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework import status
 
 from core.permissions import IsAdmin
 from core.responses import ApiResponse
@@ -17,6 +18,7 @@ from .models import (
     SYSTEM_POSITIONS,
 )
 from .serializers import (
+    ResetPasswordSerializer,
     StaffPositionSerializer,
     StaffPositionWriteSerializer,
     StaffProfileSerializer,
@@ -463,3 +465,21 @@ class MyStaffProfileView(APIView):
         if "dashboard.teacher" in perms:
             return "/dashboard/teacher"
         return "/dashboard"
+
+class ResetStaffPasswordView(APIView):
+    permission_classes = [IsAdmin]
+    def post(self, request, pk):
+        try:
+            staff = StaffProfile.objects.get(id = pk, school = request.user.school)
+        except StaffProfile.DoesNotExist:
+            return ApiResponse.error(
+                message ="Staff not found", status_code = status.HTTP_404_NOT_FOUND
+            )
+        serializer = ResetPasswordSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        user_account = staff.user
+        user_account.set_password(serializer.validated_data['password'])
+        user_account.save()
+        return ApiResponse.success(
+            message = f"Password for {staff.user.full_name} has been reset successfully."
+        )

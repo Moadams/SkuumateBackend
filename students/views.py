@@ -16,7 +16,7 @@ from subscriptions.utils import check_limit
 
 from .models import Student, Guardian, Enrollment
 from .serializers import (
-    StudentSerializer, StudentCreateSerializer,
+    StudentMinimalSerializer, StudentSerializer, StudentCreateSerializer,
     GuardianSerializer, EnrollStudentSerializer,
     EnrollmentSerializer,
 )
@@ -652,5 +652,27 @@ class StudentEnrollmentHistoryView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data=serializer.data)
+
+
+class ClassStudentsListView(generics.ListAPIView):
+    '''List of students currently enrolled in a specific class.'''
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = StudentMinimalSerializer
+
+    def get_queryset(self):
+        return Student.objects.filter(
+            school=self.request.user.school,
+            enrollments__klass_id=self.kwargs["class_id"],
+            enrollments__is_active=True,
+        ).distinct().prefetch_related("guardians","enrollments__klass", "enrollments__academic_year")
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)

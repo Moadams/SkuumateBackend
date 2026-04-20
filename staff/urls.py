@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     PermissionListView,
+    ResetStaffPasswordView,
     StaffPositionListCreateView,
     StaffPositionDetailView,
     StaffListCreateView,
@@ -56,4 +57,9 @@ urlpatterns = [
         StaffPhotoUploadView.as_view(),
         name="staff-photo",
     ),
+    path(
+        "staff/<uuid:pk>/reset-password/",
+        ResetStaffPasswordView.as_view(),
+        name="staff-reset-password",
+    )
 ]

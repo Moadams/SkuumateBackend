@@ -42,3 +42,25 @@ class ReportScheme(TimestampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+class StudentMark(TimestampedModel):
+    school = models.ForeignKey('schools.School', on_delete=models.CASCADE)
+    student = models.ForeignKey("students.Student", on_delete = models.CASCADE)
+    academic_year = models.ForeignKey("academics.AcademicYear", on_delete = models.PROTECT)
+    term = models.ForeignKey("academics.Term", on_delete = models.PROTECT)
+    subject = models.ForeignKey("academics.Subject", on_delete = models.PROTECT)
+    assessment = models.ForeignKey(AssessmentType, on_delete = models.CASCADE)
+    student_class = models.ForeignKey("academics.Class", on_delete = models.PROTECT)
+    score = models.DecimalField(max_digits = 5, decimal_places = 2, null=True, blank=True)
+    teacher_remarks = models.TextField(blank = True)
+    teacher = models.ForeignKey("staff.StaffProfile", on_delete = models.SET_NULL, null = True, blank = True, related_name = "given_marks")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields = ["student", "assessment", "term", "subject", "student_class"], name = "unique_student_assessment_score")
+        ]
+        ordering = ["student", "assessment", "term", "subject"]
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.assessment.name} ({self.term.name})"
+    

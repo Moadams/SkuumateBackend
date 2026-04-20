@@ -9,7 +9,8 @@ from .models import (
     PERMISSION_KEYS,
     SYSTEM_POSITIONS,
 )
-
+from django.core import exceptions
+from django.contrib.auth.password_validation import validate_password
 
 class PermissionChoiceSerializer(serializers.Serializer):
     """Returns all available permission keys grouped by module."""
@@ -280,3 +281,22 @@ class UpdateStaffSerializer(serializers.ModelSerializer):
             instance.positions.set(positions)
 
         return instance
+    
+
+class ResetPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only = True, required = True)
+    confirm_password = serializers.CharField(write_only = True, required = True)
+
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except exceptions.ValidationError as e:
+            raise serializers.ValidationError(list(e.messages()))
+        return value
+
+    def validate(self, data):
+        if data.get('password') != data.get('confirm_password'):
+            raise serializers.ValidationError({
+                "password":"New password and confirm password do not match"
+            })
+        return data
