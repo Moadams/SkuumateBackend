@@ -3,13 +3,13 @@ from core.models import AuditLog
 from core.responses import ApiResponse
 from core.utils import log_action
 from exams.filters import AssessmentTypeFilter
-from exams.models import AssessmentType, ReportScheme, StudentMark, StudentReport
+from exams.models import AssessmentType, ReportScheme, StudentMark, StudentReport, StudentReportSubjectScore
 from rest_framework import generics, viewsets, filters, status
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
-from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer, StudentReportUpdateSerializer
+from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer, StudentReportUpdateSerializer, SubjectScoreSerializer
 from core.mixins import ExportMixin, AuditLogMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -363,3 +363,28 @@ class StudentReportDetailView(generics.RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception = True)
         self.perform_update(serializer)
         return ApiResponse.success(message = "Report updated successfully")
+    
+
+class StudentReportSubjectScoreListView(generics.ListAPIView):
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = SubjectScoreSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ["student__first_name", "student__last_name"]
+    ordering_fields = ["student__first_name"]
+    ordering = ["-student__first_name"]
+
+    def get_queryset(self):
+        return StudentReportSubjectScore.objects.filter(
+            subject_id = self.kwargs['subject_id'],
+            student_report__term_id = self.kwargs['term_id'],
+            student_report__student_class_id = self.kwargs['class_id']
+        ).select_related("student")
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data = serializer.data)

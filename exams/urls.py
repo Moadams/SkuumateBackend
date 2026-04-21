@@ -15,4 +15,5 @@ urlpatterns = [
     path("reports/generate/", views.GenerateClassReportView.as_view(), name="generate-reports"),
     path("reports/class/<uuid:class_id>/term/<uuid:term_id>/", views.StudentReportListView.as_view(), name="class-students-report"),
     path("reports/<uuid:pk>/", views.StudentReportDetailView.as_view(), name="student-report-detail"),
+    path("reports/subject-score/term/<uuid:term_id>/subject/<uuid:subject_id>/class/<uuid:class_id>/", views.StudentReportSubjectScoreListView.as_view(), name = "student-report-subject-score")
 ]

@@ -167,10 +167,13 @@ class StudentMarkSerializer(serializers.ModelSerializer):
 class SubjectScoreSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source="subject.name")
     subject_code = serializers.CharField(source="subject.code")
+    student_name = serializers.CharField(source="student.full_name")
+    student_id = serializers.CharField(source="student.student_id")
 
     class Meta:
         model = StudentReportSubjectScore
         fields = [
+            "subject",
             "subject_name",
             "subject_code",
             "sba_score",
@@ -178,6 +181,8 @@ class SubjectScoreSerializer(serializers.ModelSerializer):
             "total_score",
             "grade",
             "rank",
+            "student_name",
+            "student_id",
         ]
 
 
