@@ -213,3 +213,12 @@ class GenerateReportResponseSerializer(serializers.Serializer):
     generated = serializers.IntegerField()
     updated = serializers.IntegerField()
     reports = StudentReportSerializer(many=True)
+
+
+class StudentReportUpdateSerializer(serializers.ModelSerializer):
+    teacher_remarks = serializers.CharField(required=False, allow_blank=True)
+    class Meta:
+        model = StudentReport
+        fields = [
+            "teacher_remarks"
+        ]

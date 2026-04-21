@@ -93,7 +93,11 @@ class StudentReport(TimestampedModel):
 
     def __str__(self):
         return f"{self.student.full_name} - {self.term.name} Report"
-    
+
+    def save(self, *args, **kwargs):
+        if self.teacher_remarks:
+            self.status = self.ReportStatus.READY
+        super().save(*args, **kwargs)
 
 class StudentReportSubjectScore(TimestampedModel):
     student_report = models.ForeignKey(StudentReport, on_delete = models.CASCADE, related_name = "subject_scores")

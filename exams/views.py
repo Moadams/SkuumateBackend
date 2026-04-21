@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
-from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer
+from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer, StudentReportUpdateSerializer
 from core.mixins import ExportMixin, AuditLogMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -341,3 +341,25 @@ class StudentReportListView(generics.ListAPIView):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
+    
+class StudentReportDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = StudentReportSerializer
+
+    def get_queryset(self):
+        return StudentReport.objects.filter(
+            school=self.request.user.school
+        ).select_related('student', 'term', 'academic_year'
+        ).prefetch_related('subject_scores__student_report')
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return ApiResponse.success(data = serializer.data)
+    
+    def update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        instance = self.get_object()
+        serializer = StudentReportUpdateSerializer(instance, data = request.data, partial = True)
+        serializer.is_valid(raise_exception = True)
+        self.perform_update(serializer)
+        return ApiResponse.success(message = "Report updated successfully")
