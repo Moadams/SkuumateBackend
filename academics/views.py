@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.permissions import IsAdmin, IsAdminOrTeacher
+from core.permissions import IsAdmin, IsAdminOrTeacher, IsAdminOrTeacherReadOnly, IsTeacher
 from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
@@ -13,7 +13,7 @@ from schools.utils import check_and_complete_onboarding
 
 from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
 from .serializers import (
-    AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TermSerializer, SubjectSerializer,
+    AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
     ClassSubjectSerializer, ClassTeacherSerializer,
 )
@@ -24,7 +24,7 @@ from django.db import transaction
 # ─── Academic Year ───────────────────────────────────────────────
 
 class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrTeacherReadOnly]
     serializer_class = AcademicYearSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AcademicYearFilter
@@ -34,7 +34,7 @@ class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
     audit_resource = "AcademicYear"
 
     def get_queryset(self):
-        return AcademicYear.objects.filter(school=self.request.user.school)
+        return AcademicYear.objects.filter(school=self.request.user.school).prefetch_related("terms")
 
     def perform_create(self, serializer):
         instance = serializer.save(school=self.request.user.school)
@@ -605,6 +605,22 @@ class ClassTeacherAssignView(APIView):
 
         return ApiResponse.success(message="Teacher removed successfully.")
     
+
+class ClassTeacherListView(generics.ListAPIView):
+    permission_classes = [IsTeacher]
+    serializer_class = TeacherClassesListSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return ClassTeacher.objects.filter(
+            school=self.request.user.school,
+            teacher = self.request.user,
+        ).select_related("klass", "academic_year")
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data=serializer.data)
 
 # ─── Grading System ───────────────────────────────────────────────
 

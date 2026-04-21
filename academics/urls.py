@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, BulkSubjectTeacherAssignView, ClassSubjectTeacherSummaryView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView, SubjectTeacherAssignView, SubjectTeacherDetailView, SubjectTeacherExportView, SubjectTeacherListView,
+    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, BulkSubjectTeacherAssignView, ClassSubjectTeacherSummaryView, ClassTeacherListView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView, SubjectTeacherAssignView, SubjectTeacherDetailView, SubjectTeacherExportView, SubjectTeacherListView,
     TermListCreateView, TermDetailView, TermExportView,
     SubjectListCreateView, SubjectDetailView, SubjectExportView,
     ClassListCreateView, ClassDetailView, ClassExportView,
@@ -98,4 +98,7 @@ urlpatterns = [
         ClassSubjectTeacherSummaryView.as_view(),
         name="class-subject-teacher-summary",
     ),
+    path(
+        "teacher/me/classes/", ClassTeacherListView.as_view(), name="teacher-classes"
+    )
 ]

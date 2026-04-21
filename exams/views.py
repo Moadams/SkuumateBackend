@@ -1,19 +1,20 @@
-from academics.models import Term
+from academics.models import Class, GradingSystem, Term
 from core.models import AuditLog
 from core.responses import ApiResponse
 from core.utils import log_action
 from exams.filters import AssessmentTypeFilter
-from exams.models import AssessmentType, ReportScheme, StudentMark
-from rest_framework import generics, viewsets, filters
+from exams.models import AssessmentType, ReportScheme, StudentMark, StudentReport
+from rest_framework import generics, viewsets, filters, status
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from core.permissions import IsAdmin, IsAdminOrTeacher
-from exams.serializers import AssessmentTypeSerializer, ReportSchemeSerializer, StudentMarkSerializer
+from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
+from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer
 from core.mixins import ExportMixin, AuditLogMixin
 from django.db import transaction
-
+from django.shortcuts import get_object_or_404
 from students.models import Enrollment
-
+from exams.services import generate_class_report
 class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdminOrTeacher]
     serializer_class = AssessmentTypeSerializer
@@ -239,3 +240,104 @@ class StudentMarkBulkView(generics.ListCreateAPIView):
             results.append(serializer.data)
 
         return ApiResponse.success(message="Marks updated successfully")
+    
+class ClassReportGenerationValidityView(APIView):
+    permission_classes = [IsAdminOrTeacher]
+    def get(self, request, class_id):
+        school = request.user.school
+        current_term = Term.objects.filter(school=school, is_current=True).first()
+        
+        try:
+            school_class = Class.objects.get(id=class_id, school=school)
+        except Class.DoesNotExist:
+            return ApiResponse.error(message="Class not found.", status=404)
+
+        # check if the class is assigned a report scheme for the current term
+        scheme = school_class.report_schemes.filter(term = current_term).first()
+        
+        grading_scheme = GradingSystem.objects.filter(school=school, is_default=True).first()
+
+
+        context = {
+            "scheme": scheme.id,
+            "grading_scheme_name": grading_scheme.name if grading_scheme else None,
+            "sba_scaling": scheme.sba_scaling if scheme else None,
+            "exam_scaling": scheme.exam_scaling if scheme else None,
+            "subjects_count": school_class.class_subjects.count(),
+            "grading_scheme": grading_scheme.id if grading_scheme else None,
+            "term": current_term.get_name_display(),
+            "academic_year": current_term.academic_year.name
+        }
+
+        if not current_term:
+            return ApiResponse.error(message="No active term found for this school.", status_code=status.HTTP_400_BAD_REQUEST)
+        return ApiResponse.success(data=context)
+
+class GenerateClassReportView(APIView):
+    permission_classes = [IsTeacher]
+    def post(self, request):
+        school = request.user.school
+        class_id = request.data.get("class_id")
+        report_scheme_id = request.data.get("report_scheme_id")
+        grading_system_id = request.data.get("grading_system_id")
+
+        if not all([class_id, report_scheme_id, grading_system_id]):
+            return ApiResponse.error(message = "Class, report scheme and grading system are required", status_code = status.HTTP_400_BAD_REQUEST)
+        
+        klass = get_object_or_404(
+            Class, id = class_id, school = school, is_active = True
+        )
+
+        report_scheme = get_object_or_404(
+            ReportScheme.objects.prefetch_related("sba_components"), id = report_scheme_id, school = school
+        )
+
+        grading_system = get_object_or_404(
+            GradingSystem, id = grading_system_id, school = school
+        )
+
+        term = (
+            Term.objects.filter(school = school, is_current = True).select_related("academic_year").first()
+        )
+        if not Term:
+            return ApiResponse.error(
+                message = "There is no current active term."
+            )
+
+        academic_year = term.academic_year
+
+        result = generate_class_report(
+            klass=klass,
+            report_scheme=report_scheme,
+            grading_system=grading_system,
+            term=term,
+            academic_year=academic_year,
+            school=school,
+        )
+
+        serializer = GenerateReportResponseSerializer(result)
+
+        return ApiResponse.success(message = "Reports generated", data = serializer.data)
+
+class StudentReportListView(generics.ListAPIView):
+    serializer_class = StudentReportSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ["student__full_name", "student__student_id"]
+    ordering_fields = ["created_at"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        return StudentReport.objects.filter(
+            school=self.request.user.school,
+            term = self.kwargs['term_id'],
+            student_class_id = self.kwargs['class_id']
+        ).select_related('student', 'term', 'academic_year')
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data = serializer.data)

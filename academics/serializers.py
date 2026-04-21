@@ -1,10 +1,19 @@
 from rest_framework import serializers
 from staff.models import StaffProfile
+from students.models import Enrollment
 from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
 
 
+class TermMinimalSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="get_name_display", read_only=True)
+    class Meta:
+        model = Term
+        fields = ["id", "name"]
+        read_only_fields = fields
+
 class AcademicYearSerializer(serializers.ModelSerializer):
     terms_count = serializers.SerializerMethodField()
+    terms = TermMinimalSerializer(many=True, read_only=True)
 
     class Meta:
         model = AcademicYear
@@ -15,6 +24,7 @@ class AcademicYearSerializer(serializers.ModelSerializer):
             "end_date",
             "is_current",
             "terms_count",
+            "terms",
             "created_at",
             "updated_at",
         ]
@@ -198,7 +208,32 @@ class ClassTeacherSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
+class TeacherClassesListSerializer(serializers.ModelSerializer):
+    class_name = serializers.CharField(source="klass.name", read_only=True)
+    students_count = serializers.SerializerMethodField()
+    
 
+    class Meta:
+        model = ClassTeacher
+        fields = [
+            "id",
+            "klass",
+            "class_name",
+            "students_count"
+        ]
+        read_only_fields = ["id", "class_name", "students_count"]
+
+    def get_students_count(self, obj):
+        current_year = AcademicYear.objects.filter(school=obj.school, is_current=True).first()
+        return Enrollment.objects.filter(
+            school=obj.school,
+            klass=obj.klass,
+            academic_year=current_year,
+            is_active=True,
+        ).count()
+    
+
+    
 class ClassSerializer(serializers.ModelSerializer):
     current_student_count = serializers.IntegerField(read_only=True)
     subjects = ClassSubjectSerializer(

@@ -25,6 +25,7 @@ class ReportScheme(TimestampedModel):
     term = models.ForeignKey("academics.Term", on_delete = models.PROTECT)
     sba_scaling = models.DecimalField(max_digits = 5, decimal_places = 2, default=50, help_text = "Weight for SBA (e.g 40 for 40%)")
     exam_scaling = models.DecimalField(max_digits = 5, decimal_places = 2, default=50, help_text = "Weight for Main exam (e.g 60 for 60%)")
+    assigned_classes = models.ManyToManyField("academics.Class", related_name = "report_schemes", blank = True, help_text = "Classes that this report scheme applies to.")
 
     class Meta:
         # make sure that no two schemes in the same term has the same name
@@ -64,3 +65,51 @@ class StudentMark(TimestampedModel):
     def __str__(self):
         return f"{self.student.full_name} - {self.assessment.name} ({self.term.name})"
     
+class StudentReport(TimestampedModel):
+    class ReportStatus(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        READY = "READY", "Ready"
+        PUBLISHED = "PUBLISHED", "Published"
+        PENDING_REMARKS = "PENDING_REMARKS", "Pending Remarks"
+
+    school = models.ForeignKey('schools.School', on_delete=models.CASCADE)
+    student = models.ForeignKey("students.Student", on_delete = models.CASCADE)
+    academic_year = models.ForeignKey("academics.AcademicYear", on_delete = models.PROTECT)
+    term = models.ForeignKey("academics.Term", on_delete = models.PROTECT)
+    student_class = models.ForeignKey("academics.Class", on_delete = models.PROTECT)
+    report_scheme = models.ForeignKey(ReportScheme, on_delete = models.PROTECT)
+    overall_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
+    overall_attendance = models.PositiveSmallIntegerField(default = 0, help_text = "Number of days attended")
+    total_school_days = models.PositiveSmallIntegerField(default = 0, help_text = "Total number of school days in the term")
+    teacher_remarks = models.TextField(blank = True)
+    teacher = models.ForeignKey("staff.StaffProfile", on_delete = models.SET_NULL, null = True, blank = True, related_name = "given_reports")
+    status = models.CharField(max_length = 20, choices = ReportStatus.choices, default = ReportStatus.DRAFT)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields = ["student", "term", "student_class"], name = "unique_student_report_per_term_year")
+        ]
+        ordering = ["student", "term", "academic_year"]
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.term.name} Report"
+    
+
+class StudentReportSubjectScore(TimestampedModel):
+    student_report = models.ForeignKey(StudentReport, on_delete = models.CASCADE, related_name = "subject_scores")
+    student = models.ForeignKey("students.Student", on_delete = models.CASCADE,blank = True, null=True, related_name = "report_subject_scores")
+    rank = models.PositiveIntegerField(null = True, blank = True)
+    subject = models.ForeignKey("academics.Subject", on_delete = models.PROTECT)
+    exam_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
+    sba_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
+    total_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
+    grade = models.CharField(max_length = 2, blank = True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields = ["student_report", "subject"], name = "unique_subject_score_per_report")
+        ]
+        ordering = ["student_report", "subject"]
+
+    def __str__(self):
+        return f"{self.student_report.student.full_name} - {self.subject.name} Score"

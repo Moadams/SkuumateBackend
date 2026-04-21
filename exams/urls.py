@@ -11,4 +11,7 @@ urlpatterns = [
         views.StudentMarkBulkView.as_view(), 
         name="student-mark-bulk"
     ),
+    path("exams/generate-report/class/<uuid:class_id>/info/", views.ClassReportGenerationValidityView.as_view(), name="generate-report"),
+    path("reports/generate/", views.GenerateClassReportView.as_view(), name="generate-reports"),
+    path("reports/class/<uuid:class_id>/term/<uuid:term_id>/", views.StudentReportListView.as_view(), name="class-students-report"),
 ]
