@@ -89,7 +89,7 @@ class BulkAttendanceSerializer(serializers.Serializer):
         from students.models import Student
 
         school = self.context["school"]
-        klass = attrs["class_id"]     # already resolved to Class instance
+        klass = attrs["class_id"]
         records = attrs["records"]
         student_ids = [str(r["student_id"]) for r in records]
 
@@ -100,6 +100,7 @@ class BulkAttendanceSerializer(serializers.Serializer):
             status="active",
             enrollments__klass=klass,
             enrollments__is_active=True,
+            enrollments__academic_year=attrs["term_id"].academic_year
         ).values_list("id", flat=True)
 
         valid_ids = [str(sid) for sid in valid_students]

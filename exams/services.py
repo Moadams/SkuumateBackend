@@ -4,6 +4,7 @@ import uuid
 from django.db import transaction
 
 from academics.models import AcademicYear, Class, GradeScale, GradingSystem, Term
+from attendance.models import Attendance
 from exams.models import ReportScheme, StudentMark, StudentReport, StudentReportSubjectScore
 from schools.models import School
 from students.models import Enrollment
@@ -170,11 +171,22 @@ def generate_class_report(
             data = student_subject_scores.get(student.id, {"rows": [], "overall": Decimal("0.00")})
             overall = data["overall"]
 
+            # GET ATTENDANCE DATA 
+            attendance = Attendance.objects.filter(
+                student = student,
+                klass = klass,
+                term = term
+            )
+            days_present = attendance.filter(status = Attendance.Status.PRESENT)
+            print(attendance)
+            print(days_present)
             if student.id in existing_reports:
                 report = existing_reports[student.id]
                 report.overall_score = overall
                 report.report_scheme = report_scheme
                 report.academic_year = academic_year
+                report.overall_attendance = days_present.count()
+                report.total_school_days = attendance.count()
                 to_update.append(report)
             else:
                 to_create.append(
@@ -187,13 +199,15 @@ def generate_class_report(
                         report_scheme=report_scheme,
                         overall_score=overall,
                         status=StudentReport.ReportStatus.DRAFT,
+                        overall_attendance = days_present.count(),
+                        total_school_days = attendance.count()
                     )
                 )
 
         if to_create:
             StudentReport.objects.bulk_create(to_create)
         if to_update:
-            StudentReport.objects.bulk_update(to_update, ["overall_score", "report_scheme", "academic_year"])
+            StudentReport.objects.bulk_update(to_update, ["overall_score", "report_scheme", "academic_year", "total_school_days", "overall_attendance"])
 
         # Re-fetch with PKs
         all_reports = {
