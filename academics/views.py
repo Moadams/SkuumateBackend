@@ -11,11 +11,11 @@ from core.models import AuditLog
 from core.utils import log_action
 from schools.utils import check_and_complete_onboarding
 
-from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
+from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher, TimeTableSlot
 from .serializers import (
     AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
-    ClassSubjectSerializer, ClassTeacherSerializer,
+    ClassSubjectSerializer, ClassTeacherSerializer, TimeTableSlotSerializer,
 )
 from .filters import AcademicYearFilter, SubjectTeacherFilter, TermFilter, SubjectFilter, ClassFilter
 
@@ -1471,3 +1471,58 @@ class SubjectTeacherExportView(ExportMixin, generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         return self.export(request, *args, **kwargs)
+    
+class TimeTableSlotListCreateView(
+    AuditLogMixin, generics.ListCreateAPIView
+):
+    """List or create timetable slots for a class."""
+    permission_classes = [IsAdminOrTeacherReadOnly]
+    serializer_class = TimeTableSlotSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = [
+        "subject__name",
+        "teacher__user__first_name",
+        "teacher__user__last_name",
+    ]
+    ordering_fields = ["start_time", "end_time", "created_at"]
+    ordering = ["start_time"]
+    audit_resource = "TimeTableSlot"
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            TimeTableSlot.objects
+            .filter(school=self.request.user.school, klass_id=self.kwargs["class_id"])
+            .select_related(
+                "klass", "subject", "teacher__user", "term"
+            )
+        )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return ApiResponse.success(data=serializer.data)    
+
+    def perform_create(self, serializer):
+        current_term = Term.objects.filter(school=self.request.user.school, is_current=True).first()
+        serializer.save(school=self.request.user.school, term=current_term)
+
+    def get_audit_description(self, instance):
+        return f"Timetable slot created for {instance.klass.name}"
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["school"] = self.request.user.school
+        current_term = Term.objects.filter(school=self.request.user.school, is_current=True).first()
+        ctx["term"] = current_term
+        return ctx
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return ApiResponse.created(
+            data=serializer.data,
+            message="Timetable slot created successfully"
+        )
+

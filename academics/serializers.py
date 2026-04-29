@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from staff.models import StaffProfile
 from students.models import Enrollment
-from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher
+from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher, TimeTableSlot
 
 
 class TermMinimalSerializer(serializers.ModelSerializer):
@@ -873,3 +873,65 @@ class ClassSubjectTeacherSummarySerializer(serializers.Serializer):
                 if instance["assignment_id"] else None
             ),
         }
+
+class TimeTableSlotSerializer(serializers.ModelSerializer):
+    school_name = serializers.CharField(source="school.name", read_only=True)
+    class_name = serializers.CharField(source="klass.name", read_only=True)
+    subject_name = serializers.CharField(source="subject.name", read_only=True)
+    teacher_name = serializers.CharField(source="teacher.full_name", read_only=True)
+    term_name = serializers.CharField(source="term.get_name_display", read_only=True)
+
+    class Meta:
+        model = TimeTableSlot
+        fields = [
+            "id",
+            "start_time",
+            "end_time",
+            "school",
+            "school_name",
+            "klass",
+            "class_name",
+            "subject",
+            "subject_name",
+            "teacher",
+            "teacher_name",
+            "day_of_week",
+            "term",
+            "term_name",
+        ]
+        read_only_fields = ["id", "school", "school_name", "class_name", "subject_name", "teacher_name", "term", "term_name"]
+
+    def validate(self, attrs):
+        start_time = attrs.get("start_time")
+        end_time = attrs.get("end_time")
+        if start_time and end_time and end_time <= start_time:
+            raise serializers.ValidationError({
+                "end_time": "End time must be after start time."
+            })
+        
+        school = self.context.get("school")
+        term = self.context.get("term")
+        
+        if TimeTableSlot.objects.filter(
+            school=school,
+            klass=attrs["klass"],
+            term=term,
+            start_time__lt=end_time,
+            end_time__gt=start_time,
+            day_of_week = attrs["day_of_week"]
+        ).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError(
+                "This class already has a timetable slot that overlaps with the specified time and term."
+            )
+        
+        if not ClassSubject.objects.filter(
+            school=school,
+            klass=attrs["klass"],
+            subject=attrs["subject"]
+        ).exists():
+            raise serializers.ValidationError(
+                "This subject is not assigned to this class"
+            )
+
+        return attrs
+    

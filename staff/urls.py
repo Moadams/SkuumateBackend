@@ -1,4 +1,6 @@
 from django.urls import path
+
+from staff.dashboard_views import TeacherDasbhoardView
 from .views import (
     PermissionListView,
     ResetStaffPasswordView,
@@ -61,5 +63,8 @@ urlpatterns = [
         "staff/<uuid:pk>/reset-password/",
         ResetStaffPasswordView.as_view(),
         name="staff-reset-password",
-    )
+    ),
+
+    path("dashboard/teacher/", TeacherDasbhoardView.as_view(), name= "teacher-dashboard")
 ]
+

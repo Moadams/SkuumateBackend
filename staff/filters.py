@@ -16,7 +16,11 @@ class StaffProfileFilter(django_filters.FilterSet):
         field_name="positions__id",
         label="Position ID",
     )
+    role = django_filters.CharFilter(
+        field_name = "user__role",
+        label="User Role",
+    )
 
     class Meta:
         model = StaffProfile
-        fields = ["status", "employment_type", "position_id"]
+        fields = ["status", "employment_type", "position_id", "role"]

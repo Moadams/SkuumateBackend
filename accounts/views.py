@@ -16,25 +16,20 @@ from .models import User
 from .serializers import LoginSerializer, UserSerializer, CreateUserSerializer
 
 
+import time
 class LoginView(APIView):
     permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        start = time.time()
         serializer = LoginSerializer(data=request.data, context={"request": request})
+        
         serializer.is_valid(raise_exception=True)
+        print("Login validation time:", time.time() - start)
 
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
-
-        log_action(
-            action=AuditLog.Action.LOGIN,
-            resource="User",
-            resource_id=str(user.id),
-            description=f"{user.full_name} logged in",
-            actor=user,
-            school=user.school,
-            request=request,
-        )
+        
 
         return ApiResponse.success(
             data={

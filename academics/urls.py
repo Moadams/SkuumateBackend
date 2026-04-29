@@ -4,7 +4,7 @@ from .views import (
     TermListCreateView, TermDetailView, TermExportView,
     SubjectListCreateView, SubjectDetailView, SubjectExportView,
     ClassListCreateView, ClassDetailView, ClassExportView,
-    ClassSubjectAssignView, ClassTeacherAssignView,
+    ClassSubjectAssignView, ClassTeacherAssignView, TimeTableSlotListCreateView,
 )
 
 urlpatterns = [
@@ -100,5 +100,6 @@ urlpatterns = [
     ),
     path(
         "teacher/me/classes/", ClassTeacherListView.as_view(), name="teacher-classes"
-    )
+    ), 
+    path("timetable-slots/<uuid:class_id>/", TimeTableSlotListCreateView.as_view(), name="timetable-slot-list-create"),
 ]

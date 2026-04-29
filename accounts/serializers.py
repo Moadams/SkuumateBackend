@@ -12,17 +12,16 @@ class LoginSerializer(serializers.Serializer):
         email = attrs.get("email")
         password = attrs.get("password")
 
-        user = authenticate(
-            request=self.context.get("request"),
-            username=email,
-            password=password,
-        )
-
-        if not user:
+        try:
+            user = User.objects.select_related("staff_profile").get(email=email)
+        except User.DoesNotExist:
             raise serializers.ValidationError("Invalid email or password.")
 
         if not user.is_active:
             raise serializers.ValidationError("This account has been deactivated.")
+        
+        if not user.check_password(password):
+            raise serializers.ValidationError("Invalid email or password.")
 
         attrs["user"] = user
         return attrs

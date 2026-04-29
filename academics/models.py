@@ -290,3 +290,21 @@ class SubjectTeacher(TimestampedModel):
             f"{self.subject.name} in {self.klass.name} "
             f"({self.academic_year.name})"
         )
+
+
+class TimeTableSlot(TimestampedModel):
+    class DaysOfWeek(models.TextChoices):
+        MONDAY = "Monday","monday"
+        TUESDAY = "Tuesday","tuesday"
+        WEDNESDAY = "Wednesday","wednesday"
+        THURSDAY = "Thursday","thursday"
+        FRIDAY = "Friday","friday"
+
+    day_of_week = models.CharField(choices = DaysOfWeek.choices, max_length = 150)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    school = models.ForeignKey("schools.School", on_delete = models.CASCADE, related_name = "timetable_slots")
+    term = models.ForeignKey(Term, on_delete = models.CASCADE, related_name = "timetable_slots")
+    klass = models.ForeignKey(Class, on_delete = models.CASCADE, related_name = "timetable_slots")
+    subject = models.ForeignKey(Subject, on_delete = models.CASCADE, related_name = "timetable_slots")
+    teacher = models.ForeignKey("staff.StaffProfile", on_delete = models.SET_NULL, null = True, related_name = "timetable_slots")
