@@ -5,6 +5,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from core.responses import ApiResponse
 from core.permissions import IsAdmin, IsSuperAdmin
+from core.cache import CacheKeys
 from schools.utils import check_and_complete_onboarding
 
 from .models import School
@@ -13,6 +14,7 @@ from .serializers import SchoolSerializer, SchoolCreateSerializer
 from django.db.models import Count, Sum, Q
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -132,15 +134,20 @@ class SuperadminDashboardView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def get(self, request):
+        cached = cache.get(CacheKeys.SUPERADMIN_DASHBOARD)
+        if cached is not None:
+            print("from cache")
+            return ApiResponse.success(data=cached)
 
-        return ApiResponse.success(
-            data={
-                "stats": self._get_stats(),
-                "revenue_analytics": self._get_revenue_analytics(),
-                "recent_onboarding": self._get_recent_onboarding(),
-                "subscription_distribution": self._get_subscription_distribution(),
-            }
-        )
+        print("not cache")
+        data = {
+            "stats": self._get_stats(),
+            "revenue_analytics": self._get_revenue_analytics(),
+            "recent_onboarding": self._get_recent_onboarding(),
+            "subscription_distribution": self._get_subscription_distribution(),
+        }
+        cache.set(CacheKeys.SUPERADMIN_DASHBOARD, data, timeout=60 * 5)
+        return ApiResponse.success(data=data)
 
     # ─── Private helpers ──────────────────────────────────────────
 
@@ -401,6 +408,11 @@ class OnboardingStatusView(APIView):
                 status_code=404,
             )
         
+        cache_key = CacheKeys.school_onboarding(str(school.id))
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return ApiResponse.success(data=cached)
+
         check_and_complete_onboarding(self.request.user.school)
 
         steps = {
@@ -413,14 +425,14 @@ class OnboardingStatusView(APIView):
             ).exists(),
         }
 
-        return ApiResponse.success(
-            data={
-                "onboarding_completed": school.onboarding_completed,
-                "steps": steps,
-                "completed_count": sum(steps.values()),
-                "total_steps": len(steps),
-            }
-        )
+        data = {
+            "onboarding_completed": school.onboarding_completed,
+            "steps": steps,
+            "completed_count": sum(steps.values()),
+            "total_steps": len(steps),
+        }
+        cache.set(cache_key, data, timeout=60 * 2)
+        return ApiResponse.success(data=data)
 
 
 class AdminDashboardView(APIView):
@@ -428,7 +440,7 @@ class AdminDashboardView(APIView):
     School admin dashboard — returns all data needed
     for the admin dashboard page in one request.
     """
-    permission_classes = [IsAdmin]  # Only school admins can access this view
+    permission_classes = [IsAdmin]
 
     def get(self, request):
         school = request.user.school
@@ -439,13 +451,20 @@ class AdminDashboardView(APIView):
                 status_code=404,
             )
 
-        return ApiResponse.success(
-            data={
-                "stats": self._get_stats(school),
-                "academic_overview": self._get_academic_overview(school),
-                "recent_activity": self._get_recent_activity(school),
-            }
-        )
+        cache_key = CacheKeys.school_dashboard(str(school.id))
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return ApiResponse.success(data=cached)
+
+        data = {
+            "stats": self._get_stats(school),
+            "academic_overview": self._get_academic_overview(school),
+            "recent_activity": self._get_recent_activity(school),
+        }
+        cache.set(cache_key, data, timeout=60 * 5)
+        return ApiResponse.success(data=data)
+
+       
 
     # ─── Stats ───────────────────────────────────────────────────
 

@@ -3,10 +3,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from core.responses import ApiResponse
+from core.cache import CacheKeys
 from schools.utils import check_and_complete_onboarding
 from subscriptions.models import Plan
 
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -29,8 +31,14 @@ class PlanListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        cached = cache.get(CacheKeys.PLAN_LIST)
+        if cached is not None:
+            return ApiResponse.success(data=cached)
+
         plans = Plan.objects.filter(is_active=True)
-        return ApiResponse.success(data=PlanSerializer(plans, many=True).data)
+        data = PlanSerializer(plans, many=True).data
+        cache.set(CacheKeys.PLAN_LIST, data, timeout=60 * 60)
+        return ApiResponse.success(data=data)
 
 
 class CurrentSubscriptionView(APIView):
@@ -204,14 +212,18 @@ class PlanFeaturesView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        cached = cache.get(CacheKeys.PLAN_FEATURES)
+        if cached is not None:
+            return ApiResponse.success(data=cached)
+
         plans = Plan.objects.filter(is_active=True).order_by("price_per_term")
 
-        return ApiResponse.success(
-            data={
-                "plans": [self._format_plan(plan) for plan in plans],
-                "feature_categories": self._get_feature_categories(),
-            }
-        )
+        data = {
+            "plans": [self._format_plan(plan) for plan in plans],
+            "feature_categories": self._get_feature_categories(),
+        }
+        cache.set(CacheKeys.PLAN_FEATURES, data, timeout=60 * 60)
+        return ApiResponse.success(data=data)
 
     def _format_plan(self, plan):
         return {
@@ -594,3 +606,7 @@ class SubscribeToPlanView(APIView):
             amount_paid=amount_paid or plan.price_per_term,
             setup_fee_paid=bool(payment_reference),
         )
+
+
+def invalidate_plan_cache(**kwargs):
+    cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])
