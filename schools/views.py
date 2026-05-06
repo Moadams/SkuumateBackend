@@ -136,10 +136,8 @@ class SuperadminDashboardView(APIView):
     def get(self, request):
         cached = cache.get(CacheKeys.SUPERADMIN_DASHBOARD)
         if cached is not None:
-            print("from cache")
             return ApiResponse.success(data=cached)
-
-        print("not cache")
+        
         data = {
             "stats": self._get_stats(),
             "revenue_analytics": self._get_revenue_analytics(),
