@@ -13,7 +13,7 @@ from schools.utils import check_and_complete_onboarding
 
 from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher, TimeTableSlot
 from .serializers import (
-    AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
+    AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, ClassSubjectTeacherSummarySerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
     ClassSubjectSerializer, ClassTeacherSerializer, TimeTableSlotSerializer,
 )
