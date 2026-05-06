@@ -73,7 +73,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "skuumate.wsgi.application"
 
-# Database
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
