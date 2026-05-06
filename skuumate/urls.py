@@ -13,5 +13,6 @@ urlpatterns = [
     path("api/v1/", include("subscriptions.urls")), 
     path("api/v1/", include("attendance.urls")),  
     path("api/v1/", include("staff.urls")), 
-    path("api/v1/", include("exams.urls"))
+    path("api/v1/", include("exams.urls")),
+    path("api/v1/", include("dashboard.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
