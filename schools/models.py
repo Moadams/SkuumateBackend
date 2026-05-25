@@ -3,6 +3,11 @@ from core.models import TimestampedModel
 
 
 class School(TimestampedModel):
+    class SchoolStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+        PENDING = "pending", "Pending"
+
     name = models.CharField(max_length=255)
     logo = models.ImageField(upload_to="schools/logos/", null=True, blank=True)
     email = models.EmailField(unique=True)
@@ -12,6 +17,9 @@ class School(TimestampedModel):
     country = models.CharField(max_length=100, default="Ghana")
     is_active = models.BooleanField(default=True)
     onboarding_completed = models.BooleanField(default=False) 
+    status = models.CharField(choices = SchoolStatus, default=SchoolStatus.ACTIVE) 
+    joined = models.DateTimeField(auto_now_add=True)
+    
 
     class Meta:
         ordering = ["name"]

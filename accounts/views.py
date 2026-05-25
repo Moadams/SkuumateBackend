@@ -25,7 +25,6 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data, context={"request": request})
         
         serializer.is_valid(raise_exception=True)
-        print("Login validation time:", time.time() - start)
 
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.email import send_welcome_school_email
-from .models import School
+from ..models import School
 
 
 class SchoolListSerializer(serializers.ModelSerializer):

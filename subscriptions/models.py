@@ -152,6 +152,7 @@ class Subscription(TimestampedModel):
         related_name="activated_subscriptions",
     )
     notes = models.TextField(blank=True)
+    is_current = models.BooleanField(default = False)
 
     TRIAL_DAYS = 90
     GRACE_DAYS = 7

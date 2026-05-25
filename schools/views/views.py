@@ -8,8 +8,8 @@ from core.permissions import IsAdmin, IsSuperAdmin
 from core.cache import CacheKeys
 from schools.utils import check_and_complete_onboarding
 
-from .models import School
-from .serializers import SchoolSerializer, SchoolCreateSerializer
+from ..models import School
+from ..serializers.serializers import SchoolSerializer, SchoolCreateSerializer
 
 from django.core.cache import cache
 from rest_framework.views import APIView
@@ -23,13 +23,13 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 
 from core.mixins import ExportMixin
 
-from .models import School
-from .serializers import (
+from ..models import School
+from ..serializers.serializers import (
     SchoolSerializer,
     SchoolListSerializer,
     SchoolCreateSerializer,
 )
-from .filters import SchoolFilter
+from ..filters import SchoolFilter
 
 
 class SchoolListView(ExportMixin, generics.ListAPIView):
@@ -158,13 +158,13 @@ class SchoolDetailView(APIView):
         return request.user.school
 
     def get(self, request):
-        school = self.get_object(request)
-        if not school:
+        if school := self.get_object(request):
+            return ApiResponse.success(data=SchoolSerializer(school).data)
+        else:
             return ApiResponse.error(
                 message="No school associated with this account.",
                 status_code=404,
             )
-        return ApiResponse.success(data=SchoolSerializer(school).data)
 
     def patch(self, request):
         if request.user.role != "admin":
