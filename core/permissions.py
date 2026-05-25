@@ -21,6 +21,23 @@ class IsTeacher(BasePermission):
             request.user.role == "teacher"
         )
 
+class IsStudent(BasePermission):
+    """Only students can access."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == "student"
+        )
+    
+class IsFinanceManager(BasePermission):
+    """Only finance managers can access."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == "finance_manager"
+        )
 
 class IsAdminOrTeacher(BasePermission):
     """Admins and teachers can access."""
