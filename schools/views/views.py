@@ -23,11 +23,8 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 
 from core.mixins import ExportMixin
 
-from ..models import School
 from ..serializers.serializers import (
-    SchoolSerializer,
     SchoolListSerializer,
-    SchoolCreateSerializer,
 )
 from ..filters import SchoolFilter
 

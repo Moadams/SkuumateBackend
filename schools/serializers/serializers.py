@@ -114,14 +114,17 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             "name",
             "email",
             "phone",
-            "address",
-            "city",
-            "country",
+            "school_code",
             "admin_first_name",
             "admin_last_name",
             "admin_email",
             "admin_password",
         ]
+
+    def validate_school_code(self, value):
+        if value and School.objects.filter(school_code=value).exists():
+            raise serializers.ValidationError("A school with this school code already exists.")
+        return value
 
     def validate_admin_email(self, value):
         from accounts.models import User

@@ -18,14 +18,14 @@ class TermAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ["name", "code", "school", "is_active"]
+    list_display = ["name", "code", "school"]
     list_filter = ["is_active", "school"]
     search_fields = ["name", "code"]
 
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ["name", "school", "capacity", "is_active"]
+    list_display = ["name", "school", "capacity"]
     list_filter = ["is_active", "school"]
     search_fields = ["name"]
 
