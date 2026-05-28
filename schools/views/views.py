@@ -6,10 +6,11 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from core.responses import ApiResponse
 from core.permissions import IsAdmin, IsSuperAdmin
 from core.cache import CacheKeys
+from schools.serializers.superadmin_serializers import SchoolCreateSerializer
 from schools.utils import check_and_complete_onboarding
 
 from ..models import School
-from ..serializers.serializers import SchoolSerializer, SchoolCreateSerializer
+from ..serializers.serializers import SchoolSerializer
 
 from django.core.cache import cache
 from rest_framework.views import APIView
@@ -21,7 +22,7 @@ from rest_framework import generics
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.mixins import ExportMixin
+from core.mixins import AuditLogMixin, ExportMixin
 
 from ..serializers.serializers import (
     SchoolListSerializer,
@@ -29,57 +30,6 @@ from ..serializers.serializers import (
 from ..filters import SchoolFilter
 
 
-class SchoolListView(ExportMixin, generics.ListAPIView):
-    """
-    Superadmin only — paginated, filtered, searchable list of all schools.
-    Matches the Schools management page on the frontend.
-    """
-    permission_classes = [IsSuperAdmin]
-    serializer_class = SchoolListSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_class = SchoolFilter
-    search_fields = ["name", "email", "city", "country"]
-    ordering_fields = ["name", "created_at", "city"]
-    ordering = ["-created_at"]
-
-    def get_queryset(self):
-        return School.objects.all().order_by("-created_at")
-
-    def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        queryset = self.filter_queryset(self.get_queryset())
-        school_ids = queryset.values_list("id", flat=True)
-
-        from subscriptions.models import Subscription
-
-        # SQLite-compatible: fetch all, deduplicate in Python
-        subscriptions = (
-            Subscription.objects
-            .filter(school_id__in=school_ids)
-            .select_related("plan")
-            .order_by("school_id", "-start_date")
-        )
-
-        # Keep only the latest subscription per school
-        seen = set()
-        sub_map = {}
-        for sub in subscriptions:
-            sid = str(sub.school_id)
-            if sid not in seen:
-                seen.add(sid)
-                sub_map[sid] = sub
-
-        ctx["subscriptions"] = sub_map
-        return ctx
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return ApiResponse.success(data=serializer.data)
 
 
 class SchoolListExportView(ExportMixin, generics.ListAPIView):

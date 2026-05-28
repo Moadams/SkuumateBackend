@@ -4,6 +4,8 @@ from rest_framework.exceptions import PermissionDenied
 
 
 def get_active_subscription(school):
+    if not school:
+        return None
     subscription = (
         school.subscriptions
         .select_related("plan")

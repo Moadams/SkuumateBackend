@@ -29,7 +29,7 @@ def log_action(
     if request:
         ip = get_client_ip(request)
         if actor is None:
-            actor = request.user if request.user.is_authenticated else None
+            actor = resolve_actor(request, actor)
         if school is None and hasattr(request.user, "school"):
             school = request.user.school
 
@@ -44,6 +44,14 @@ def log_action(
         ip_address=ip,
     )
 
+def resolve_actor(request, actor):
+    if actor is not None:
+        return actor
+    
+    if request and hasattr(request, "user"):
+        return request.user if request.user.is_authenticated else None
+    
+    return None
 
 def get_client_ip(request):
     forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")

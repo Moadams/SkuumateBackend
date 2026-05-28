@@ -12,6 +12,13 @@ class AuditLogMixin:
     audit_action = AuditLog.Action.OTHER
     audit_resource = ""
 
+    def get_audit_metadata(self, instance=None):
+        return {
+            "instance": str(instance) if instance else None,
+            "user": f"{self.request.user.first_name} {self.request.user.last_name}" if self.request.user.is_authenticated else None,
+            "data": self.request.data,
+        }
+
     def get_audit_description(self, instance):
         return f"{self.audit_action.capitalize()} {self.audit_resource}"
 
@@ -23,6 +30,7 @@ class AuditLogMixin:
             resource_id=str(instance.pk),
             description=self.get_audit_description(instance),
             request=self.request,
+            metadata=self.get_audit_metadata(instance),
         )
         return instance
 
@@ -34,6 +42,7 @@ class AuditLogMixin:
             resource_id=str(instance.pk),
             description=self.get_audit_description(instance),
             request=self.request,
+            metadata=self.get_audit_metadata(instance),
         )
         return instance
 
@@ -44,6 +53,7 @@ class AuditLogMixin:
             resource_id=str(instance.pk),
             description=self.get_audit_description(instance),
             request=self.request,
+            metadata=getattr(instance, "audit_metadata", None) or {},
         )
         instance.delete()
 

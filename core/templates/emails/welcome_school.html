@@ -142,6 +142,7 @@
       background: #dbeafe;
       padding: 4px 10px;
       border-radius: 6px;
+      word-break: break-all;
     }
 
     .security-note {
@@ -331,8 +332,7 @@
       <p class="greeting">
         Hi <strong>{{ admin_name }}</strong>, <br/><br/>
         We're excited to have <strong>{{ school_name }}</strong> on board.
-        Your account has been successfully created and you're now on a
-        
+        Your account has been successfully created and you're ready to get started!
       </p>
 
       <!-- Credentials -->
@@ -340,25 +340,28 @@
         <div class="box-title">🔐 Your Login Credentials</div>
 
         <div class="credential-row">
-          <span class="label">Portal URL</span>
-          <span class="value">{{ login_url }}</span>
-        </div>
-        <div class="credential-row">
           <span class="label">Email Address</span>
           <span class="value">{{ admin_email }}</span>
         </div>
         <div class="credential-row">
-          <span class="label">Temporary Password</span>
-          <span class="value">{{ admin_password }}</span>
+          <span class="label">Portal URL</span>
+          <span class="value">{{ login_url }}</span>
         </div>
 
         <div class="security-note">
           <span class="icon">⚠️</span>
           <p>
-            For your security, please <strong>change your password</strong> immediately
-            after your first login. Never share these credentials with anyone.
+            Click the button below to set your password and log in to your dashboard.
+            This link is valid for 24 hours.
           </p>
         </div>
+      </div>
+
+      <!-- CTA - Password Reset Link -->
+      <div class="cta-container">
+        <a href="{{ reset_link }}" class="cta-button">
+          Set Your Password & Log In →
+        </a>
       </div>
 
       <!-- Onboarding Steps -->
@@ -367,8 +370,8 @@
         <li>
           <div class="step-number">1</div>
           <div class="step-content">
-            <div class="step-name">Log In to Your Dashboard</div>
-            <div class="step-desc">Use the credentials above to access your school's admin portal.</div>
+            <div class="step-name">Set Your Password</div>
+            <div class="step-desc">Click the button above to set a secure password for your account.</div>
           </div>
         </li>
         <li>
@@ -402,18 +405,6 @@
           </div>
         </li>
       </ul>
-
-      <hr class="divider" />
-
-      <!-- CTA -->
-      <div class="cta-container">
-        <a href="{{ login_url }}" class="cta-button">
-          Log In to Your Dashboard →
-        </a>
-        <p class="login-url">
-          Or copy this link: <a href="{{ login_url }}">{{ login_url }}</a>
-        </p>
-      </div>
 
       <hr class="divider" />
 

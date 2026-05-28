@@ -13,7 +13,7 @@ from core.permissions import IsAdmin
 from core.utils import log_action
 
 from .models import User
-from .serializers import LoginSerializer, UserSerializer, CreateUserSerializer
+from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, UserSerializer, CreateUserSerializer
 
 
 import time
@@ -157,3 +157,13 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.is_active = False  # soft deactivate, never hard delete
         instance.save()
         return ApiResponse.success(message="User deactivated successfully.")
+
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return ApiResponse.success(message="Password reset successful.")

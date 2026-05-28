@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
 from .models import User
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 
 
 class LoginSerializer(serializers.Serializer):
@@ -71,4 +73,56 @@ class CreateUserSerializer(serializers.ModelSerializer):
         # school is injected by the view from request.user.school
         school = self.context.get("school")
         user = User.objects.create_user(**validated_data, school=school)
+        return user
+    
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        uid = attrs.get("uid")
+        token = attrs.get("token")
+        password = attrs.get("password")
+        confirm_password = attrs.get("confirm_password")
+
+        if password != confirm_password:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+
+        except Exception:
+            raise serializers.ValidationError(
+                {"uid": "Invalid reset link."}
+            )
+
+        if not default_token_generator.check_token(user, token):
+            raise serializers.ValidationError(
+                {"token": "Invalid or expired token."}
+            )
+
+        validate_password(password, user)
+
+        attrs["user"] = user
+
+        return attrs
+
+    def save(self):
+        user = self.validated_data["user"]
+        password = self.validated_data["password"]
+
+        user.set_password(password)
+
+        # Optional: mark first login complete
+        if hasattr(user, "must_change_password"):
+            user.must_change_password = False
+
+        user.save()
+
         return user

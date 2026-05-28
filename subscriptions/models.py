@@ -164,6 +164,17 @@ class Subscription(TimestampedModel):
         return f"{self.school.name} — {self.plan.name} ({self.status})"
 
     @property
+    def activate(self):
+        
+        trail_days = self.TRIAL_DAYS if self.status == self.Status.TRIAL else 0
+        self.start_date = self.term.start_date if self.term else timezone.now()
+        self.end_date = self.start_date + timedelta(days=trail_days) if self.status == self.Status.TRIAL else self.term.end_date if self.term else self.start_date + timedelta(trail_days)
+        self.grace_end_date = None
+        Subscription.objects.filter(school=self.school, is_current=True).update(is_current=False)
+        self.is_current = True
+        self.save(update_fields=["status", "start_date", "end_date", "grace_end_date"])
+
+    @property
     def is_on_trial(self):
         return self.status == self.Status.TRIAL
 
@@ -199,7 +210,7 @@ class Subscription(TimestampedModel):
         if self.status in (self.Status.TRIAL, self.Status.ACTIVE):
             if now > self.end_date:
                 self.status = self.Status.GRACE
-                self.grace_end_date = now + timedelta(days=self.GRACE_DAYS)
+                self.grace_end_date = self.end_date + timedelta(days=self.GRACE_DAYS)
                 changed = True
 
         elif self.status == self.Status.GRACE:

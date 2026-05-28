@@ -15,7 +15,7 @@ from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Ter
 from .serializers import (
     AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, ClassSubjectTeacherSummarySerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
-    ClassSubjectSerializer, ClassTeacherSerializer, TimeTableSlotSerializer,
+    ClassTeacherSerializer, TimeTableSlotSerializer,
 )
 from .filters import AcademicYearFilter, SubjectTeacherFilter, TermFilter, SubjectFilter, ClassFilter
 

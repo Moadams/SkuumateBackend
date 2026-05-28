@@ -1,5 +1,7 @@
 from rest_framework.permissions import BasePermission
 
+from subscriptions.permissions import HasAuditLogAccess
+
 
 class IsAdmin(BasePermission):
     """Only school admins can access."""
@@ -66,3 +68,31 @@ class IsSuperAdmin(BasePermission):
             request.user.is_authenticated and
             request.user.role == "superadmin"
         )
+    
+class OrPermission(BasePermission):
+    """
+    Grants access if ANY of the listed permission classes pass.
+    """
+
+    permissions = []  # override in subclasses
+
+    def has_permission(self, request, view):
+        return any(
+            perm().has_permission(request, view)
+            for perm in self.permissions
+        )
+
+    def has_object_permission(self, request, view, obj):
+        return any(
+            perm().has_object_permission(request, view, obj)
+            for perm in self.permissions
+            if hasattr(perm(), "has_object_permission")
+        )
+    
+
+class CanAccessAuditLogs(OrPermission):
+
+    permissions = [
+        IsAdmin,
+        IsSuperAdmin,
+    ]

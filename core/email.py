@@ -59,7 +59,7 @@ def send_templated_email(
 def send_welcome_school_email(
     admin_name: str,
     admin_email: str,
-    admin_password: str,
+    reset_link: str,
     school_name: str
 ):
     """
@@ -70,7 +70,7 @@ def send_welcome_school_email(
     context = {
         "admin_name": admin_name,
         "admin_email": admin_email,
-        "admin_password": admin_password,
+        "reset_link": reset_link,
         "school_name": school_name,
         "login_url": f"{settings.FRONTEND_URL}",
         "frontend_url": settings.FRONTEND_URL,
@@ -80,7 +80,7 @@ def send_welcome_school_email(
     }
 
     send_templated_email(
-        subject=f"Welcome to SkuuMate — Your Account is Ready 🎉",
+        subject="Welcome to SkuuMate — Your Account is Ready",
         template="emails/welcome_school.html",
         context=context,
         recipient=admin_email,
@@ -97,7 +97,7 @@ def _html_to_text(context: dict) -> str:
         f"─────────────────\n"
         f"Portal URL : {context.get('login_url')}\n"
         f"Email      : {context.get('admin_email')}\n"
-        f"Password   : {context.get('admin_password')}\n\n"
+        f"Password   : {context.get('reset_link')}\n\n"
         f"Please change your password after your first login.\n\n"
         f"NEXT STEPS\n"
         f"──────────\n"
@@ -115,13 +115,13 @@ def _html_to_text(context: dict) -> str:
 def send_staff_welcome_mail(
         staff_name: str,
         staff_email: str,
-        staff_password: str,
+        reset_link: str,
         school_name: str
 ):
     context = {
         "staff_name":staff_name,
         "staff_email": staff_email,
-        "staff_password":staff_password,
+        "reset_link": reset_link,
         "school_name":school_name,
         "login_url": f"{settings.FRONTEND_URL}",
         "frontend_url": settings.FRONTEND_URL,

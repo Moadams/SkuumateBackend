@@ -1,6 +1,4 @@
 from rest_framework import serializers
-
-from core.email import send_welcome_school_email
 from ..models import School
 
 
@@ -85,7 +83,7 @@ class SchoolSerializer(serializers.ModelSerializer):
             "address",
             "city",
             "country",
-            "is_active",
+            "status",
             "total_students",
             "total_users",
             "created_at",
@@ -101,89 +99,3 @@ class SchoolSerializer(serializers.ModelSerializer):
         return obj.users.filter(is_active=True).count()
 
 
-class SchoolCreateSerializer(serializers.ModelSerializer):
-    # Admin user fields only
-    admin_first_name = serializers.CharField(write_only=True)
-    admin_last_name = serializers.CharField(write_only=True)
-    admin_email = serializers.EmailField(write_only=True)
-    admin_password = serializers.CharField(write_only=True, min_length=8)
-
-    class Meta:
-        model = School
-        fields = [
-            "name",
-            "email",
-            "phone",
-            "school_code",
-            "admin_first_name",
-            "admin_last_name",
-            "admin_email",
-            "admin_password",
-        ]
-
-    def validate_school_code(self, value):
-        if value and School.objects.filter(school_code=value).exists():
-            raise serializers.ValidationError("A school with this school code already exists.")
-        return value
-
-    def validate_admin_email(self, value):
-        from accounts.models import User
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
-
-    def validate_email(self, value):
-        if School.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A school with this email already exists.")
-        return value
-
-    def create(self, validated_data):
-        from accounts.models import User
-
-        # Pop admin fields
-        admin_first_name = validated_data.pop("admin_first_name")
-        admin_last_name = validated_data.pop("admin_last_name")
-        admin_email = validated_data.pop("admin_email")
-        admin_password = validated_data.pop("admin_password")
-
-        # 1. Create the school
-        school = School.objects.create(**validated_data)
-
-        # 2. Create the first admin user
-        User.objects.create_user(
-            email=admin_email,
-            password=admin_password,
-            first_name=admin_first_name,
-            last_name=admin_last_name,
-            role="admin",
-            school=school,
-        )
-
-        # Seed system positions for this new school
-        self._seed_system_positions(school)
-
-        send_welcome_school_email(
-            admin_name=f"{admin_first_name} {admin_last_name}",
-            admin_email=admin_email,
-            admin_password=admin_password,
-            school_name=school.name
-        )
-
-        return school
-
-    @staticmethod
-    def _seed_system_positions(school):
-        from staff.models import StaffPosition
-        from staff.management.commands.seed_staff_positions import (
-            SYSTEM_POSITIONS,
-        )
-        for pos_data in SYSTEM_POSITIONS:
-            StaffPosition.objects.get_or_create(
-                school=school,
-                name=pos_data["name"],
-                defaults={
-                    "description": pos_data["description"],
-                    "permissions": pos_data["permissions"],
-                    "is_system": True,
-                },
-            )

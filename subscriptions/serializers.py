@@ -83,32 +83,47 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class ManualActivationSerializer(serializers.Serializer):
-    plan_id = serializers.UUIDField()
-    term_id = serializers.UUIDField(required=False)
-    amount_paid = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False
-    )
-    setup_fee_paid = serializers.BooleanField(default=False)
-    payment_reference = serializers.CharField(required=False, allow_blank=True)
-    notes = serializers.CharField(required=False, allow_blank=True)
+class ManualActivationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = [
+            "school",
+            "plan",
+            "status",
+            "term",
+            "amount_paid",
+            "setup_fee_paid",
+            "setup_fee_amount",
+            "payment_reference",
+            "payment_provider",
+            "notes"
+        ]
 
-    def validate_plan_id(self, value):
-        from .models import Plan
-        try:
-            Plan.objects.get(id=value, is_active=True)
-        except Plan.DoesNotExist:
-            raise serializers.ValidationError("Plan not found.")
-        return value
+    def validate(self, attrs):
+        plan = attrs.get("plan_id")
+        school = attrs.get("school_id")
+        term = attrs.get("term_id")
 
-    def validate_term_id(self, value):
-        from academics.models import Term
-        try:
-            Term.objects.get(id=value)
-        except Term.DoesNotExist:
-            raise serializers.ValidationError("Term not found.")
-        return value
+        # Prevent a school from having multiple free trial subscriptions
+        status = attrs.get("status", Subscription.Status.TRIAL)
+        if status == Subscription.Status.TRIAL:
+            if school.subscriptions.filter(status=Subscription.Status.TRIAL).exists():
+                raise serializers.ValidationError("This school already has a free trial subscription.")
+        
+        # Prevent activating a subscription for an inactive plan or mismatched term/school
+        if not plan.is_active:
+            raise serializers.ValidationError("Selected plan is not active.")
 
+        if term.school != school:
+            raise serializers.ValidationError("Term does not belong to the specified school.")
+
+        return attrs
+    
+    def create(self, validated_data):
+        subscription = Subscription.objects.create(**validated_data)
+        subscription.activate(activated_by=self.context["request"].user)
+        return subscription
+    
 
 class InitiatePaymentSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()

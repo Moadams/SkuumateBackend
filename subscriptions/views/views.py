@@ -1,29 +1,27 @@
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import generics
+from core.mixins import AuditLogMixin
 
 from core.responses import ApiResponse
 from core.cache import CacheKeys
 from schools.utils import check_and_complete_onboarding
-from subscriptions.models import Plan
+from subscriptions.models import Plan, Subscription
 
 from django.utils import timezone
 from django.core.cache import cache
 from datetime import timedelta
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from core.permissions import IsAdmin
-from core.responses import ApiResponse
 from core.models import AuditLog
 from core.utils import log_action
 
-from .models import Plan, Subscription
-from .serializers import (
+
+from ..serializers import (
     PlanSerializer, SubscribeToPlanSerializer, SubscriptionSerializer,
     ManualActivationSerializer, InitiatePaymentSerializer,
 )
-from .utils import get_active_subscription
+from ..utils import get_active_subscription
 
 
 class PlanListView(APIView):
@@ -54,76 +52,6 @@ class CurrentSubscriptionView(APIView):
         return ApiResponse.success(data=SubscriptionSerializer(subscription).data)
 
 
-class ManualActivationView(APIView):
-    """
-    Superuser only — manually activate a subscription for a school.
-    Used for offline payments or admin overrides.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, school_id):
-        # Only superusers can manually activate
-        if not request.user.is_superuser:
-            return ApiResponse.error(
-                message="Only superusers can manually activate subscriptions.",
-                status_code=403,
-            )
-
-        from schools.models import School
-        try:
-            school = School.objects.get(id=school_id)
-        except School.DoesNotExist:
-            return ApiResponse.error(message="School not found.", status_code=404)
-
-        serializer = ManualActivationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        plan = Plan.objects.get(id=serializer.validated_data["plan_id"])
-        billing_cycle = serializer.validated_data["billing_cycle"]
-        notes = serializer.validated_data.get("notes", "")
-
-        # Calculate end date
-        duration_days = 365 if billing_cycle == "annual" else 30
-        now = timezone.now()
-
-        # Deactivate any existing active/grace subscriptions
-        school.subscriptions.filter(
-            status__in=[
-                Subscription.Status.ACTIVE,
-                Subscription.Status.TRIAL,
-                Subscription.Status.GRACE,
-            ]
-        ).update(status=Subscription.Status.CANCELLED)
-
-        subscription = Subscription.objects.create(
-            school=school,
-            plan=plan,
-            status=Subscription.Status.ACTIVE,
-            billing_cycle=billing_cycle,
-            start_date=now,
-            end_date=now + timedelta(days=duration_days),
-            activated_by=request.user,
-            payment_provider="manual",
-            notes=notes,
-        )
-
-        log_action(
-            action=AuditLog.Action.CREATE,
-            resource="Subscription",
-            resource_id=str(subscription.pk),
-            description=(
-                f"Manual subscription activated for {school.name} "
-                f"— {plan.name} ({billing_cycle})"
-            ),
-            actor=request.user,
-            school=school,
-            request=request,
-        )
-
-        return ApiResponse.created(
-            data=SubscriptionSerializer(subscription).data,
-            message=f"Subscription activated for {school.name}.",
-        )
 
 
 class InitiatePaymentView(APIView):
