@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -6,22 +6,21 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
+from accounts.utils.password_reset import generate_password_setup_link
+from core.email import send_forgot_password_mail
 from core.mixins import ExportMixin
 from core.models import AuditLog
 from core.responses import ApiResponse
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, IsSuperAdmin
 from core.utils import log_action
 
 from .models import User
-from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, UserSerializer, CreateUserSerializer
+from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer
 
-
-import time
 class LoginView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        start = time.time()
         serializer = LoginSerializer(data=request.data, context={"request": request})
         
         serializer.is_valid(raise_exception=True)
@@ -34,7 +33,7 @@ class LoginView(APIView):
             data={
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": UserSerializer(user).data,
+                "user": UserLoginSerializer(user).data,
             },
             message="Login successful",
         )
@@ -89,7 +88,7 @@ class UserExportView(ExportMixin, generics.ListAPIView):
 
 class UserListCreateView(generics.ListCreateAPIView):
     """Admin only — list all users in their school / create a new user."""
-    permission_classes = [IsAdmin]
+    permission_classes = [IsSuperAdmin]
     serializer_class = UserSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["role", "is_active"]
@@ -98,7 +97,7 @@ class UserListCreateView(generics.ListCreateAPIView):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return User.objects.filter(school=self.request.user.school)
+        return User.objects.all()
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -158,6 +157,28 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.save()
         return ApiResponse.success(message="User deactivated successfully.")
 
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        if not email:
+            return ApiResponse.error(message="Email is required.")
+        
+        try:
+            user = User.objects.get(email=email)
+    
+            reset_link = generate_password_setup_link(user)
+            send_forgot_password_mail(
+                name=user.full_name,
+                email=email,
+                reset_link=reset_link
+            )
+            
+        except User.DoesNotExist:
+            pass  # Don't reveal that the email doesn't exist
+
+        return ApiResponse.success(message="If an account with that email exists, a password reset link has been sent.")
 
 class ResetPasswordConfirmView(APIView):
     permission_classes = [AllowAny]

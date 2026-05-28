@@ -19,7 +19,7 @@ from core.utils import log_action
 
 from ..serializers import (
     PlanSerializer, SubscribeToPlanSerializer, SubscriptionSerializer,
-    ManualActivationSerializer, InitiatePaymentSerializer,
+     InitiatePaymentSerializer,
 )
 from ..utils import get_active_subscription
 
@@ -345,6 +345,12 @@ class PlanFeaturesView(APIView):
             return f"{plan.min_students}+ Students"
         return f"{plan.min_students}–{plan.max_students} Students"
 
+class SubscribeMySchool(APIView):
+    def post(self, request):
+        # This is a placeholder endpoint for the frontend to call when
+        # subscribing. The actual subscription logic is handled in
+        # SubscribeToPlanView which is called after payment confirmation.
+        return ApiResponse.success(message="Subscription endpoint placeholder.")
 
 class SubscribeToPlanView(APIView):
     """

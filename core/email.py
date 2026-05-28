@@ -55,6 +55,33 @@ def send_templated_email(
             exc_info=True,
         )
 
+def send_forgot_password_mail(
+    name: str,
+    email: str,
+    reset_link: str
+):
+    """
+    Sends the forgot password email.
+    """
+    
+
+    context = {
+        "name": name,
+        "email": email,
+        "reset_link": reset_link,
+        "login_url": f"{settings.FRONTEND_URL}",
+        "frontend_url": settings.FRONTEND_URL,
+        "support_email": "info@hubtekgh.com",
+        "support_phone": "+233(0)241874219",
+        "current_year": datetime.date.today().year,
+    }
+
+    send_templated_email(
+        subject="Forgot Password Request for SkuuMate",
+        template="emails/forgot_password.html",
+        context=context,
+        recipient=email,
+    )
 
 def send_welcome_school_email(
     admin_name: str,

@@ -87,7 +87,9 @@ class Subscription(TimestampedModel):
 
     class Status(models.TextChoices):
         TRIAL = "trial", "Trial"
+        PENDING_PAYMENT = "pending_payment", "Pending Payment"
         ACTIVE = "active", "Active"
+        PAST_DUE = "past_due", "Past Due"
         EXPIRED = "expired", "Expired"
         GRACE = "grace", "Grace Period"
         LOCKED = "locked", "Locked"
@@ -100,6 +102,8 @@ class Subscription(TimestampedModel):
     )
     plan = models.ForeignKey(
         Plan,
+        blank=True,
+        null=True,
         on_delete=models.PROTECT,
         related_name="subscriptions",
     )
@@ -108,6 +112,7 @@ class Subscription(TimestampedModel):
         choices=Status.choices,
         default=Status.TRIAL,
     )
+    is_paid = models.BooleanField(default=False)
 
     # ── Term reference ────────────────────────────────────────────
     # Subscription is tied to an academic term
@@ -123,26 +128,6 @@ class Subscription(TimestampedModel):
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField()
     grace_end_date = models.DateTimeField(null=True, blank=True)
-
-    # ── Payment info ──────────────────────────────────────────────
-    amount_paid = models.DecimalField(
-        max_digits=10, decimal_places=2,
-        null=True, blank=True,
-        help_text="Term subscription amount paid in GHS"
-    )
-    setup_fee_paid = models.BooleanField(
-        default=False,
-        help_text="Whether the one-time setup fee has been collected"
-    )
-    setup_fee_amount = models.DecimalField(
-        max_digits=10, decimal_places=2,
-        null=True, blank=True,
-    )
-    payment_reference = models.CharField(max_length=255, blank=True)
-    payment_provider = models.CharField(
-        max_length=50, blank=True,
-        help_text="e.g. paystack, momo, manual"
-    )
 
     # ── Activation ────────────────────────────────────────────────
     activated_by = models.ForeignKey(
@@ -222,3 +207,22 @@ class Subscription(TimestampedModel):
             self.save(update_fields=["status", "grace_end_date"])
 
         return self
+
+
+class SubscriptionPayment(TimestampedModel):
+    class PaymentStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCESSFUL = "successful", "Successful"
+        FAILED = "failed", "Failed"
+
+    subscription = models.ForeignKey(
+        Subscription, on_delete=models.CASCADE, related_name="payments"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_reference = models.CharField(max_length=255, blank=True)
+    provider = models.CharField(max_length=50, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PENDING,
+    )

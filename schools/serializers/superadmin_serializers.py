@@ -6,6 +6,7 @@ from rest_framework import serializers
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
+from subscriptions.services import SubscriptionService
 
 class SchoolUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -66,6 +67,7 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
             "name",
             "email",
             "phone",
+            "school_code",
             "address",
             "status",
             "joined",
@@ -106,6 +108,7 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
         fields = [
+            "id",
             "name",
             "email",
             "phone",
@@ -114,6 +117,8 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             "admin_last_name",
             "admin_email"
         ]
+
+        read_only_fields = ["id"]
 
     def validate_name(self, value):
         school_name = value.lower()
@@ -173,11 +178,14 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             first_name=admin_first_name,
             last_name=admin_last_name,
             role=User.Role.ADMIN,
-            school=school,
+            must_change_password=True,
+            school=school
         )
 
         # Seed system positions for this new school
         self._seed_system_positions(school)
+
+        SubscriptionService.free_trial_subscription(school, user)
 
         reset_link = generate_password_setup_link(user)
 

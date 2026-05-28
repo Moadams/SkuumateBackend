@@ -28,6 +28,24 @@ class LoginSerializer(serializers.Serializer):
         attrs["user"] = user
         return attrs
 
+class UserLoginSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(read_only=True)
+    school_name = serializers.CharField(source="school.name", read_only=True, allow_null = True)
+    onboarding_completed = serializers.BooleanField(source="school.onboarding_completed", read_only=True, allow_null = True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "full_name",
+            "role",
+            "school",
+            "school_name",
+            "onboarding_completed", 
+            "must_change_password"
+        ]
+        read_only_fields = ["id", "created_at", "school"]
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
@@ -95,9 +113,11 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
 
         try:
             user_id = force_str(urlsafe_base64_decode(uid))
+            print("Decoded UID:", user_id)  # Debugging line
             user = User.objects.get(pk=user_id)
 
-        except Exception:
+        except Exception as e:
+            print("RESET PASSWORD ERROR:", str(e))  # Debugging line
             raise serializers.ValidationError(
                 {"uid": "Invalid reset link."}
             )

@@ -1,8 +1,14 @@
 from django.urls import path
 
 from subscriptions.views.superadmin_views import PlanRetrieveUpdateView, SchoolSubscriptionView
-from subscriptions.views.views import CurrentSubscriptionView, InitiatePaymentView, PaymentWebhookView, PlanFeaturesView, PlanListView, SubscribeToPlanView
-
+from .views.views import (
+    PlanListView,
+    PlanFeaturesView,        
+    CurrentSubscriptionView,
+    InitiatePaymentView,
+    PaymentWebhookView,
+    SubscribeToPlanView,
+)
 
 urlpatterns = [
     

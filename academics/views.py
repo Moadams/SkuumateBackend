@@ -15,7 +15,7 @@ from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Ter
 from .serializers import (
     AcademicYearSerializer, BulkGradeScaleSerializer, BulkSubjectTeacherSerializer, ClassSubjectTeacherSummarySerializer, GradeResolverSerializer, GradeScaleSerializer, GradingSystemSerializer, GradingSystemWriteSerializer, SubjectTeacherSerializer, SubjectTeacherWriteSerializer, TeacherClassesListSerializer, TermSerializer, SubjectSerializer,
     ClassSerializer, AssignSubjectsSerializer, AssignTeacherSerializer,
-    ClassTeacherSerializer, TimeTableSlotSerializer,
+    ClassTeacherSerializer, TimeTableSlotSerializer,TermUpdateSerializer
 )
 from .filters import AcademicYearFilter, SubjectTeacherFilter, TermFilter, SubjectFilter, ClassFilter
 
@@ -153,13 +153,14 @@ class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView)
     def get_queryset(self):
         return Term.objects.filter(school=self.request.user.school)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         instance = serializer.save(school=self.request.user.school)
         log_action(
             action=AuditLog.Action.CREATE,
             resource="Term",
             resource_id=str(instance.pk),
-            description=f"Term '{instance.get_name_display()}' created",
+            description=f"Term '{instance.get_name_display()}' created by {self.request.user.full_name()}",
             request=self.request,
         )
         check_and_complete_onboarding(self.request.user.school) 
@@ -198,7 +199,7 @@ class TermDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = TermUpdateSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return ApiResponse.success(

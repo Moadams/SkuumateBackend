@@ -1,8 +1,9 @@
 from django.db import transaction
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
+from core.models import AuditLog
 from core.responses import ApiResponse
 from core.permissions import IsAdmin, IsSuperAdmin
 from core.cache import CacheKeys
@@ -10,13 +11,9 @@ from schools.serializers.superadmin_serializers import SchoolCreateSerializer
 from schools.utils import check_and_complete_onboarding
 
 from ..models import School
-from ..serializers.serializers import SchoolSerializer
+from ..serializers.serializers import MySchoolUpdateSerializer, SchoolSerializer
 
 from django.core.cache import cache
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-
-from core.responses import ApiResponse
 
 from rest_framework import generics
 from django_filters.rest_framework import DjangoFilterBackend
@@ -69,71 +66,34 @@ class SchoolListExportView(ExportMixin, generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return self.export(request, *args, **kwargs)
 
+class MySchoolRetrieveUpdateView(AuditLogMixin, generics.RetrieveUpdateAPIView):
+    """Retrieve or update the current user's school."""
+    permission_classes = [IsAdmin]
+    serializer_class = SchoolSerializer
 
+    audit_action = AuditLog.Action.UPDATE
+    audit_resource = "School"
 
-
-class SchoolOnboardView(APIView):
-    """
-    Public endpoint — creates a new school + first admin user.
-    Called once during signup. No auth required.
-    """
-    permission_classes = [IsSuperAdmin]
-
-    @transaction.atomic
-    def post(self, request):
-        serializer = SchoolCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        with transaction.atomic():
-            school = serializer.save()
-
-        return ApiResponse.created(
-            data=SchoolSerializer(school).data,
-            message="School created successfully. Check your email for login details.",
+    def get_object(self):
+        return self.request.user.school
+    
+    def get_audit_description(self, instance):
+        return f"{self.request.user.full_name} updated school details for {instance.name}"
+    
+    def update(self, request, *args, **kwargs):
+        serializer = MySchoolUpdateSerializer(
+            self.get_object(), data=request.data, partial=True
         )
-
-
-class SchoolDetailView(APIView):
-    """
-    Authenticated endpoint — retrieve or update the current user's school.
-    Only admins can update.
-    """
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-
-    def get_object(self, request):
-        return request.user.school
-
-    def get(self, request):
-        if school := self.get_object(request):
-            return ApiResponse.success(data=SchoolSerializer(school).data)
-        else:
-            return ApiResponse.error(
-                message="No school associated with this account.",
-                status_code=404,
-            )
-
-    def patch(self, request):
-        if request.user.role != "admin":
-            return ApiResponse.error(
-                message="Only admins can update school details.",
-                status_code=403,
-            )
-        school = self.get_object(request)
-        serializer = SchoolSerializer(school, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return ApiResponse.success(
-            data=serializer.data,
-            message="School updated successfully.",
-        )
-    
-class OnboardingStatusView(APIView):
+        cache.delete(CacheKeys.school_dashboard(str(request.user.school.id)))
+        cache.delete(CacheKeys.school_onboarding(str(request.user.school.id)))
+        return ApiResponse.success(data=serializer.data)
     """
     Returns the current school's onboarding status
     and which steps have been completed.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdmin]
 
     def get(self, request):
         school = request.user.school

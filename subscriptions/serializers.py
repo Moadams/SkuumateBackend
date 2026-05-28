@@ -139,6 +139,22 @@ class InitiatePaymentSerializer(serializers.Serializer):
             raise serializers.ValidationError("Plan not found.")
         return value
 
+class SubscribeSchoolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = [
+            "school",
+            "plan",
+            "status",
+            "term"
+        ]
+
+    def validate_status(self, value):
+        if value not in [Subscription.Status.TRIAL, Subscription.Status.ACTIVE]:
+            raise serializers.ValidationError("Status must be either 'trial' or 'active'.")
+        return value
+    
+
 
 class SubscribeToPlanSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()

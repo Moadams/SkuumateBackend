@@ -234,3 +234,6 @@ LOGGING = {
         "level": "ERROR",
     },
 }
+
+
+PASSWORD_RESET_TIMEOUT = 900 # 15 minutes in seconds

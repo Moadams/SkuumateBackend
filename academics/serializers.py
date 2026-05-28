@@ -49,7 +49,7 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         if AcademicYear.objects.filter(
             school=self.context["request"].user.school,
             is_current=True,
-        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", False):
+        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", True):
             raise serializers.ValidationError({
                 "is_current": "Another academic year is already marked as current."
             })
@@ -68,7 +68,7 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 class TermSerializer(serializers.ModelSerializer):
     academic_year = serializers.PrimaryKeyRelatedField(
         queryset=AcademicYear.objects.all(),
-        required=False,
+        required=True,
         allow_null=True,
     )
     academic_year_name = serializers.CharField(
@@ -160,6 +160,46 @@ class TermSerializer(serializers.ModelSerializer):
                 })
         
         return super().create(validated_data)
+
+class TermUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Term
+        fields = [
+            "academic_year",
+            "name",
+            "start_date",
+            "end_date",
+            "next_reopening_date",
+            "is_current",
+        ]
+
+    def validate(self, attrs):
+        if "start_date" in attrs and "end_date" in attrs:
+            start = attrs["start_date"]
+            end = attrs["end_date"]
+            if end <= start:
+                raise serializers.ValidationError({
+                    "end_date": "End date must be after start date."
+                })
+        if "name" in attrs:
+            academic_year = attrs.get("academic_year") or self.instance.academic_year
+            if Term.objects.filter(name=attrs["name"], school=self.instance.school, academic_year=academic_year).exclude(id=self.instance.id).exists():
+                raise serializers.ValidationError({
+                    "name": "A term with this name already exists for the selected academic year."
+                })
+                    
+        # if the new value for current is false, check if there is at least one other term marked as current for the same academic year
+        if "is_current" in attrs and not attrs["is_current"]:
+            academic_year = attrs.get("academic_year") or self.instance.academic_year
+            if not Term.objects.filter(
+                school=self.instance.school,
+                academic_year=academic_year,
+                is_current=True,
+            ).exclude(id=self.instance.id).exists():
+                raise serializers.ValidationError({
+                    "is_current": "At least one term must be marked as current for the academic year."
+                })
+        return attrs
 
 
 class SubjectSerializer(serializers.ModelSerializer):
