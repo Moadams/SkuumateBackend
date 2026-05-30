@@ -381,8 +381,9 @@ class ClassListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView
             action=AuditLog.Action.CREATE,
             resource="Class",
             resource_id=str(instance.pk),
-            description=f"Class '{instance.name}' created",
+            description=f"Class '{instance.name}' created by {self.request.user.full_name}",
             request=self.request,
+            metadata = self.request.data
         )
         return instance
 
