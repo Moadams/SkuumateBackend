@@ -1,13 +1,16 @@
+import secrets
+from django.db import transaction
+from accounts.models import User
 from core.email import send_staff_welcome_mail
 from rest_framework import serializers
+from core.validations import validate_date, validate_name, validate_phone_number
 from staff.enums.employment_type import EmploymentType
 from staff.enums.staff_status import StaffStatus
 from .models import (
     StaffPosition,
     StaffProfile,
     PERMISSION_CHOICES,
-    PERMISSION_KEYS,
-    SYSTEM_POSITIONS,
+    PERMISSION_KEYS
 )
 from django.core import exceptions
 from django.contrib.auth.password_validation import validate_password
@@ -85,6 +88,18 @@ class StaffPositionWriteSerializer(StaffPositionSerializer):
             )
         return value
 
+class StaffListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StaffProfile
+        fields = [
+            "id",
+            "employee_id",
+            "full_name",
+            "email",
+            "profile_photo",
+            "status",
+            "employment_type"
+        ]
 
 class StaffProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(
@@ -130,6 +145,59 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.profile_photo.url)
         return None
 
+
+class StaffCreationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StaffProfile
+        fields = [
+            "first_name",
+            "last_name",
+            "positions",
+            "employee_id",
+            "date_joined",
+            "employment_type",
+            "email",
+            "phone",
+            "address",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "profile_photo"
+        ]
+
+    def validate_first_name(self, value):
+        return validate_name(value, "First name")
+    
+    def validate_last_name(self, value):
+        return validate_name(value, "Last name")
+    
+    def validate_phone(self, value):
+        return validate_phone_number(value, "Phone number")
+    
+    def validate_date_joined(self, value):
+        return validate_date(value, "Date joined")
+    
+    def validate_emergency_contact_phone(self, value):
+        return validate_phone_number(value, "Emergency contact phone")
+    
+    def validate_emergency_contact_name(self, value):
+        return validate_name(value, "Emergency contact name")
+    
+    @transaction.atomic
+    def create(self, validated_data):
+        positions = validated_data.pop("positions", [])
+        temporary_password = secrets.token_urlsafe(16)
+        user = User.objects.create_user(
+            email=validated_data.get("email"),
+            password=temporary_password,
+            first_name=validated_data.get("first_name"),
+            last_name=validated_data.get("last_name"),
+            role = User.Role.TEACHER,
+            must_change_password = True,
+            school = self.context["school"]
+        )
+        staff = StaffProfile.objects.create(school = self.context["school"], user = user, **validated_data)
+        staff.positions.set(positions)
+        return staff
 
 class CreateStaffSerializer(serializers.Serializer):
     """Creates a User + StaffProfile + assigns positions in one call."""

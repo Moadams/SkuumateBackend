@@ -18,12 +18,21 @@ class Student(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="students",
     )
+    user_account = models.OneToOneField(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="student_profile",
+    )
     student_id = models.CharField(max_length=20, unique=True, editable=False)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     other_names = models.CharField(max_length=100, blank=True)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=10, choices=Gender.choices)
+    email = models.EmailField(blank=True)
+    phone_number = models.CharField(max_length=20, blank=True)
     profile_photo = models.ImageField(
         upload_to="students/photos/", null=True, blank=True
     )
@@ -53,9 +62,16 @@ class Student(TimestampedModel):
     def _generate_student_id(self):
         import datetime
         year = datetime.date.today().year
-        school_prefix = self.school.name[:3].upper()
-        # Count existing students in this school to generate a sequence
+        school_prefix = self.school.school_code.upper() if self.school.school_code else "SCH"
         count = Student.objects.filter(school=self.school).count() + 1
+        
+        if self.admission_date:
+            year = self.admission_date.year
+            count = Student.objects.filter(
+                school=self.school,
+                admission_date__year=year
+            ).count() + 1
+        
         return f"{school_prefix}-{year}-{count:04d}"
 
 

@@ -217,7 +217,18 @@ class SubjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-
+    def validate_name(self, value):
+        school = self.context["request"].user.school
+        if Subject.objects.filter(name=value, school=school).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("A subject with this name already exists.")
+        return value
+    
+    def validate_code(self, value):
+        school = self.context["request"].user.school
+        if Subject.objects.filter(code=value, school=school).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("A subject with this code already exists.")
+        return value.upper()
+    
 class ClassSubjectSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source="subject.name", read_only=True)
     subject_code = serializers.CharField(source="subject.code", read_only=True)

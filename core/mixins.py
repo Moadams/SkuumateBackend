@@ -23,6 +23,9 @@ class AuditLogMixin:
         return f"{self.audit_action.capitalize()} {self.audit_resource}"
 
     def perform_create(self, serializer, **kwargs):
+        school = self.request.user.school
+        if school:
+            kwargs["school"] = school
         instance = serializer.save(**kwargs)
         log_action(
             action=AuditLog.Action.CREATE,
@@ -53,7 +56,7 @@ class AuditLogMixin:
             resource_id=str(instance.pk),
             description=self.get_audit_description(instance),
             request=self.request,
-            metadata=getattr(instance, "audit_metadata", None) or {},
+            metadata=self.get_audit_metadata(instance),
         )
         instance.delete()
 

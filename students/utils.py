@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+from exams.tests import User
+
 
 REQUIRED_COLUMNS = [
     "first_name",
@@ -233,3 +235,17 @@ def _validate_guardian(g_data, g_index, row_index):
         "address": g_data.get("address", "").strip(),
         "is_primary": is_primary,
     }
+
+def generate_student_email(first_name, last_name, domain="school.com"):
+    """
+    Generates a unique email for a student based on their name and ID.
+    Example: generate_student_email("John", "Doe", "S12345") => "john.doe.S12345@school.com"
+    """
+    base_email = f"{first_name.lower()}.{last_name.lower()}".replace(" ", "")
+    user_email = f"{base_email}@{domain}"
+    if User.objects.filter(email=user_email).exists():
+        # If email already exists, append a random number
+        import random
+        user_email = f"{base_email}{random.randint(1000,9999)}@{domain}"
+    return user_email
+    

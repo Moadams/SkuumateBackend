@@ -16,9 +16,9 @@ from subscriptions.utils import check_limit
 
 from .models import Student, Guardian, Enrollment
 from .serializers import (
-    StudentMinimalSerializer, StudentSerializer, StudentCreateSerializer,
+    StudentListSerializer, StudentMinimalSerializer, StudentSerializer, StudentCreateSerializer,
     GuardianSerializer, EnrollStudentSerializer,
-    EnrollmentSerializer,
+    EnrollmentSerializer, StudentUpdateSerializer,
 )
 from .filters import StudentFilter
 from django.db import transaction
@@ -363,7 +363,7 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
     def get_serializer_class(self):
         if self.request.method == "POST":
             return StudentCreateSerializer
-        return StudentSerializer
+        return StudentListSerializer
 
     def get_queryset(self):
         return Student.objects.filter(
@@ -379,13 +379,13 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = StudentSerializer(page, many=True)
+            serializer = StudentListSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        serializer = StudentSerializer(queryset, many=True)
+        serializer = StudentListSerializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
 
     def create(self, request, *args, **kwargs):
-        check_limit(request.user.school, "students") 
+        # check_limit(request.user.school, "students") 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student = serializer.save()
@@ -397,7 +397,7 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
             request=request,
         )
         return ApiResponse.created(
-            data=StudentSerializer(student).data,
+            data=StudentListSerializer(student).data,
             message="Student registered successfully.",
         )
 
@@ -408,13 +408,13 @@ class StudentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
     audit_resource = "Student"
 
     def get_permissions(self):
-        if self.request.method in ["PATCH", "DELETE"]:
+        if self.request.method in ["PUT","PATCH", "DELETE"]:
             return [IsAdmin()]
         return [IsAdminOrTeacher()]
 
     def get_serializer_class(self):
-        if self.request.method == "PATCH":
-            return StudentCreateSerializer
+        if self.request.method in ["PATCH","PUT"]:
+            return StudentUpdateSerializer
         return StudentSerializer
 
     def get_queryset(self):
@@ -433,36 +433,16 @@ class StudentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = StudentCreateSerializer(
+        serializer = StudentUpdateSerializer(
             instance, data=request.data, partial=True,
             context={"school": request.user.school}
         )
         serializer.is_valid(raise_exception=True)
-        student = serializer.save()
-        log_action(
-            action=AuditLog.Action.UPDATE,
-            resource="Student",
-            resource_id=str(student.pk),
-            description=f"Student {student.full_name} updated",
-            request=request,
-        )
+        self.perform_update(serializer)
         return ApiResponse.success(
-            data=StudentSerializer(student).data,
+            data=StudentListSerializer(serializer.instance).data,
             message="Student updated successfully.",
         )
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.status = Student.Status.WITHDRAWN
-        instance.save()
-        log_action(
-            action=AuditLog.Action.UPDATE,
-            resource="Student",
-            resource_id=str(instance.pk),
-            description=f"Student {instance.full_name} withdrawn",
-            request=request,
-        )
-        return ApiResponse.success(message="Student withdrawn successfully.")
 
 
 class StudentExportView(ExportMixin, generics.ListAPIView):

@@ -1,4 +1,10 @@
+import re
+import secrets
+from django.db import transaction
 from rest_framework import serializers
+
+from accounts.models import User
+from students.utils import generate_student_email
 from .models import Student, Guardian, Enrollment
 
 
@@ -19,6 +25,10 @@ class GuardianSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at"]
 
+    def validate_phone(self, value):
+        if not re.match(r"^\+?\d{7,15}$", value):
+            raise serializers.ValidationError("Phone number must be between 7 and 15 digits, and can start with +.")
+        return value
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source="klass.name", read_only=True)
@@ -39,6 +49,30 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at"]
 
+
+class StudentListSerializer(serializers.ModelSerializer):
+    student_class = serializers.SerializerMethodField()
+    class Meta:
+        model = Student
+        fields = [
+            "id",
+            "student_id",
+            "full_name",
+            "email",
+            "profile_photo",
+            "status",
+            "student_class",
+            "gender"
+        ]
+
+    def get_student_class(self, obj):
+        enrollment = obj.enrollments.filter(
+            academic_year__is_current=True,
+            is_active=True,
+        ).first()
+        if enrollment:
+            return enrollment.klass.name
+        return None
 
 class StudentSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
@@ -102,6 +136,66 @@ class StudentMinimalSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "student_id"]
 
+class StudentUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Student
+        fields = [
+            "first_name",
+            "last_name",
+            "other_names",
+            "student_id",
+            "date_of_birth",
+            "gender",
+            "profile_photo",
+            "address",
+            "admission_date",
+            "previous_school",
+            "status",
+            "email",
+            "phone_number"
+        ]
+
+    def validate_first_name(self, value):
+        if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+    
+    def validate_last_name(self, value):
+        if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+    
+    def validate_other_names(self, value):
+        if value and not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("Other names must contain only letters.")
+        return value
+
+    def validate_phone_number(self, value):
+        if value and not re.match(r"^\+?\d{7,15}$", value):
+            raise serializers.ValidationError("Phone number must be between 7 and 15 digits, and can start with +.")
+        return value
+
+    def validate_date_of_birth(self, value):
+        import datetime
+        today = datetime.date.today()
+        if value > today:
+            raise serializers.ValidationError("Date of birth cannot be in the future.")
+        
+        return value
+    
+    def validate_admission_date(self, value):
+        import datetime
+        if value > datetime.date.today():
+            raise serializers.ValidationError("Admission date cannot be in the future.")
+        return value
+    
+    def validate_student_id(self, value):
+        student = self.instance
+        school = self.context["school"]
+        if Student.objects.filter(school=school, student_id=value).exclude(id=student.id).exists():
+            raise serializers.ValidationError("Student ID must be unique.")
+        return value
+    
 class StudentCreateSerializer(serializers.ModelSerializer):
     """
     Used for creating a student — accepts guardian data
@@ -109,7 +203,6 @@ class StudentCreateSerializer(serializers.ModelSerializer):
     """
     guardians = GuardianSerializer(many=True, required=False)
     class_id = serializers.UUIDField(write_only=True, required=False)
-    academic_year_id = serializers.UUIDField(write_only=True, required=False)
 
     class Meta:
         model = Student
@@ -117,28 +210,140 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "other_names",
+            "student_id",
             "date_of_birth",
             "gender",
             "profile_photo",
+            "email",
+            "phone_number",
             "address",
             "admission_date",
             "previous_school",
             "guardians",
-            "class_id",
-            "academic_year_id",
+            "class_id"
         ]
 
+    def validate(self, attrs):
+        class_id = attrs.get("class_id")
+        student_id = attrs.get("student_id")
+        email = attrs.get("email", None)
+        first_name = attrs.get("first_name", "")
+        last_name = attrs.get("last_name", "")
+        if not email:
+            email = generate_student_email(first_name, last_name, domain="school.com")
+
+        if not student_id:
+            if not self.context["school"].school_code:
+                raise serializers.ValidationError({
+                    "student_id": (
+                        "Student ID is required if school does not have a "
+                        "school code for auto-generation."
+                    )
+                })
+        # Validate class_id if provided
+        if class_id is not None:
+            if not class_id:
+                raise serializers.ValidationError({
+                    "class_id": "If provided, class_id cannot be empty."
+                })
+
+            school = self.context["school"]
+
+            # Check for active academic year
+            active_academic_year = school.academic_years.filter(
+                is_current=True
+            ).first()
+
+            if not active_academic_year:
+                raise serializers.ValidationError({
+                    "class_id": (
+                        "Cannot enroll student because there is no active "
+                        "academic year. Please create and activate an "
+                        "academic year first."
+                    )
+                })
+
+            # Validate class existence and status
+            school_class = school.classes.filter(
+                id=class_id,
+                is_active=True
+            ).first()
+
+            if not school_class:
+                raise serializers.ValidationError({
+                    "class_id": "Class not found or inactive."
+                })
+
+            # Optional: attach validated class object
+            attrs["school_class"] = school_class
+            attrs["academic_year"] = active_academic_year
+            attrs["email"] = email
+
+        return attrs
+
+    def validate_first_name(self, value):
+        if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("First name must contain only letters.")
+        return value
+
+    def validate_last_name(self, value):
+        if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("Last name must contain only letters.")
+        return value
+
+    def validate_other_names(self, value):
+        if value and not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
+            raise serializers.ValidationError("Other names must contain only letters.")
+        return value
+
+    def validate_phone_number(self, value):
+        if value and not re.match(r"^\+?\d{7,15}$", value):
+            raise serializers.ValidationError("Phone number must be between 7 and 15 digits, and can start with +.")
+        return value
     
+    def validate_admission_date(self, value):
+        import datetime
+        if value > datetime.date.today():
+            raise serializers.ValidationError("Admission date cannot be in the future.")
+        return value
+    
+    def validate_student_id(self, value):
+        if Student.objects.filter(school=self.context["school"], student_id=value).exists():
+            raise serializers.ValidationError("Student ID must be unique.")
+        return value
+    
+    def validate_date_of_birth(self, value):
+        import datetime
+        today = datetime.date.today()
+        if value > today:
+            raise serializers.ValidationError("Date of birth cannot be in the future.")
+        
+        return value
 
+    @transaction.atomic
     def create(self, validated_data):
-        from academics.models import Class, AcademicYear
-
         guardians_data = validated_data.pop("guardians", [])
-        class_id = validated_data.pop("class_id", None)
+        validated_data.pop("class_id", None) 
         school = self.context["school"]
+        school_class = validated_data.pop("school_class", None)
+        academic_year = validated_data.pop("academic_year", None)
+
+        # User account
+        temporary_password = secrets.token_urlsafe(16)
+
+        # 2. Create the first admin user
+        user = User.objects.create_user(
+            email=validated_data.get("email"),
+            password=temporary_password,
+            first_name=validated_data.get("first_name"),
+            last_name=validated_data.get("last_name"),
+            role=User.Role.STUDENT,
+            must_change_password=True,
+            school=school
+        )
 
         # Create the student
-        student = Student.objects.create(school=school, **validated_data)
+        student = Student.objects.create(school=school, user_account = user, **validated_data)
 
         # Create guardians
         for guardian_data in guardians_data:
@@ -149,21 +354,14 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             )
 
         # Optionally enroll immediately
-        if class_id:
-            try:
-                klass = Class.objects.get(id=class_id, school=school)
-                academic_year = AcademicYear.objects.get(
-                    school=school, is_current=True
-                )
-                Enrollment.objects.create(
-                    school=school,
-                    student=student,
-                    klass=klass,
-                    academic_year=academic_year,
-                )
-            except (Class.DoesNotExist, AcademicYear.DoesNotExist):
-                pass  # enrollment is optional — don't block student creation
-
+        if school_class and academic_year:
+            Enrollment.objects.create(
+                school=school,
+                student=student,
+                klass=school_class,
+                academic_year=academic_year,
+            )
+           
         return student
 
 

@@ -281,17 +281,8 @@ class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
             return [IsAdmin()]
         return [IsAdminOrTeacher()]
 
-    def perform_create(self, serializer):
-        instance = serializer.save(school=self.request.user.school)
-        log_action(
-            action=AuditLog.Action.CREATE,
-            resource="Subject",
-            resource_id=str(instance.pk),
-            description=f"Subject '{instance.name}' created",
-            request=self.request,
-        )
-        check_and_complete_onboarding(self.request.user.school)
-        return instance
+    def get_audit_description(self, instance):
+        return f"Subject '{instance.name}' created by {self.request.user.full_name}"
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -302,10 +293,12 @@ class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        check_and_complete_onboarding(self.request.user.school)
         return ApiResponse.created(
             data=serializer.data,
             message="Subject created successfully.",
@@ -324,6 +317,7 @@ class SubjectDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         return ApiResponse.success(data=self.get_serializer(instance).data)
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -333,7 +327,8 @@ class SubjectDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
             data=serializer.data,
             message="Subject updated successfully.",
         )
-
+    
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
@@ -375,6 +370,7 @@ class ClassListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView
             return [IsAdmin()]
         return [IsAdminOrTeacher()]
 
+    @transaction.atomic
     def perform_create(self, serializer):
         instance = serializer.save(school=self.request.user.school)
         log_action(

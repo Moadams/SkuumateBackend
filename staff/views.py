@@ -19,6 +19,7 @@ from .models import (
 )
 from .serializers import (
     ResetPasswordSerializer,
+    StaffCreationSerializer,
     StaffPositionSerializer,
     StaffPositionWriteSerializer,
     StaffProfileSerializer,
@@ -225,7 +226,7 @@ class StaffListCreateView(
 
     def get_serializer_class(self):
         if self.request.method == "POST":
-            return CreateStaffSerializer
+            return StaffCreationSerializer
         return StaffProfileSerializer
 
     def get_queryset(self):
@@ -257,27 +258,10 @@ class StaffListCreateView(
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        profile = serializer.save()
-
-        log_action(
-            action=AuditLog.Action.CREATE,
-            resource="StaffProfile",
-            resource_id=str(profile.pk),
-            description=(
-                f"Staff member {profile.user.full_name} "
-                f"({profile.employee_id}) created"
-            ),
-            request=request,
-        )
+        self.perform_create(serializer)
 
         return ApiResponse.created(
-            data=StaffProfileSerializer(
-                profile, context={"request": request}
-            ).data,
-            message=(
-                f"Staff member {profile.user.full_name} "
-                f"created successfully."
-            ),
+            message = f"Staff profile for {serializer.instance.user.full_name} created successfully. "
         )
 
 

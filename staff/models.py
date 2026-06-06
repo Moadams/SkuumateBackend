@@ -116,6 +116,8 @@ class StaffProfile(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="staff_profiles",
     )
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
     user = models.OneToOneField(
         "accounts.User",
         on_delete=models.CASCADE,
@@ -142,6 +144,7 @@ class StaffProfile(TimestampedModel):
         choices=StaffStatus.choices,
         default=StaffStatus.ACTIVE,
     )
+    email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
     emergency_contact_name = models.CharField(
@@ -158,24 +161,40 @@ class StaffProfile(TimestampedModel):
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ["user__last_name", "user__first_name"]
+        ordering = ["last_name", "first_name"]
 
     def __str__(self):
-        return f"{self.user.full_name} — {self.school.name}"
+        return f"{self.first_name} {self.last_name} — {self.school.name}"
 
     def save(self, *args, **kwargs):
         if not self.employee_id:
             self.employee_id = self._generate_employee_id()
+        if self.first_name != self.user.first_name or self.last_name != self.user.last_name or self.email != self.user.email:
+            # Keep User's name in sync with StaffProfile
+            self.user.first_name = self.first_name
+            self.user.last_name = self.last_name
+            self.user.email = self.email    
+            self.user.save()
         super().save(*args, **kwargs)
 
     def _generate_employee_id(self):
         import datetime
         year = datetime.date.today().year
-        prefix = self.school.name[:3].upper()
-        count = StaffProfile.objects.filter(
-            school=self.school
-        ).count() + 1
-        return f"{prefix}-EMP-{year}-{count:03d}"
+        school_code = self.school.school_code if self.school.school_code else "SCH"
+        count = StaffProfile.objects.filter(school=self.school).count() + 1
+        if self.date_joined:
+            year = self.date_joined.year
+            count = StaffProfile.objects.filter(
+                school=self.school,
+                date_joined__year=year
+            ).count() + 1
+        return f"{school_code}-EMP-{year}-{count:04d}"
+
+    @property
+    def full_name(self):
+        names = [self.first_name, self.last_name]
+        return " ".join(n for n in names if n).strip()
+
 
     @property
     def all_permissions(self):
