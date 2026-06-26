@@ -6,6 +6,7 @@ from rest_framework import serializers
 from core.validations import validate_date, validate_name, validate_phone_number
 from staff.enums.employment_type import EmploymentType
 from staff.enums.staff_status import StaffStatus
+from students.utils import generate_user_email
 from .models import (
     StaffPosition,
     StaffProfile,
@@ -89,10 +90,12 @@ class StaffPositionWriteSerializer(StaffPositionSerializer):
         return value
 
 class StaffListSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source="user.id", allow_null=True, required=False)
     class Meta:
         model = StaffProfile
         fields = [
             "id",
+            "user_id",
             "employee_id",
             "full_name",
             "email",
@@ -101,17 +104,10 @@ class StaffListSerializer(serializers.ModelSerializer):
             "employment_type"
         ]
 
+        read_only_fields = ["id", "user_id"]
+
 class StaffProfileSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(
-        source="user.full_name", read_only=True
-    )
-    email = serializers.CharField(
-        source="user.email", read_only=True
-    )
-    positions_detail = StaffPositionSerializer(
-        source="positions", many=True, read_only=True
-    )
-    all_permissions = serializers.ListField(read_only=True)
+    role = serializers.CharField(source="user.role", read_only=True)
     profile_photo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -119,21 +115,17 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "employee_id",
-            "full_name",
+            "first_name",
+            "last_name",
             "email",
-            "positions_detail",
-            "all_permissions",
+            "phone",
             "employment_type",
             "status",
             "date_joined",
             "phone",
             "address",
-            "emergency_contact_name",
-            "emergency_contact_phone",
             "profile_photo_url",
-            "notes",
-            "created_at",
-            "updated_at",
+            "role"
         ]
         read_only_fields = [
             "id", "employee_id", "created_at", "updated_at"
@@ -147,6 +139,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
 
 class StaffCreationSerializer(serializers.ModelSerializer):
+    role = serializers.CharField()
     class Meta:
         model = StaffProfile
         fields = [
@@ -159,11 +152,35 @@ class StaffCreationSerializer(serializers.ModelSerializer):
             "email",
             "phone",
             "address",
-            "emergency_contact_name",
-            "emergency_contact_phone",
-            "profile_photo"
+            "profile_photo",
+            "role"
         ]
 
+    def validate(self, attrs):
+        if not attrs.get("email"):
+            attrs["email"] = generate_user_email(
+                attrs.get("first_name", ""),
+                attrs.get("last_name", ""),
+                domain=self.context["school"].school_email_domain or "school.com"
+            )
+        return attrs
+
+    def validate_role(self, value):
+        if value not in User.Role.values:
+            raise serializers.ValidationError(
+                f"Invalid role '{value}'. Must be one of: "
+                f"{', '.join(User.Role.values)}."
+            )
+        return value
+
+    def validate_employment_type(self, value):
+        if value not in EmploymentType.values:
+            raise serializers.ValidationError(
+                f"Invalid employment type '{value}'. Must be one of: "
+                f"{', '.join(EmploymentType.values)}."
+            )
+        return value
+    
     def validate_first_name(self, value):
         return validate_name(value, "First name")
     
@@ -176,11 +193,6 @@ class StaffCreationSerializer(serializers.ModelSerializer):
     def validate_date_joined(self, value):
         return validate_date(value, "Date joined")
     
-    def validate_emergency_contact_phone(self, value):
-        return validate_phone_number(value, "Emergency contact phone")
-    
-    def validate_emergency_contact_name(self, value):
-        return validate_name(value, "Emergency contact name")
     
     @transaction.atomic
     def create(self, validated_data):
@@ -191,11 +203,12 @@ class StaffCreationSerializer(serializers.ModelSerializer):
             password=temporary_password,
             first_name=validated_data.get("first_name"),
             last_name=validated_data.get("last_name"),
-            role = User.Role.TEACHER,
+            role = validated_data.get("role"),
             must_change_password = True,
             school = self.context["school"]
         )
-        staff = StaffProfile.objects.create(school = self.context["school"], user = user, **validated_data)
+        validated_data.pop("role", None)  # remove role as it's not a StaffProfile field
+        staff = StaffProfile.objects.create(user = user, **validated_data)
         staff.positions.set(positions)
         return staff
 
@@ -224,15 +237,8 @@ class CreateStaffSerializer(serializers.Serializer):
     address = serializers.CharField(
         required=False, allow_blank=True
     )
-    emergency_contact_name = serializers.CharField(
-        max_length=100, required=False, allow_blank=True
-    )
-    emergency_contact_phone = serializers.CharField(
-        max_length=20, required=False, allow_blank=True
-    )
-    notes = serializers.CharField(
-        required=False, allow_blank=True
-    )
+    
+    
     employee_id = serializers.CharField(required=False, allow_blank=True)
 
     profile_photo = serializers.FileField(required=False)
@@ -309,47 +315,22 @@ class CreateStaffSerializer(serializers.Serializer):
 
 
 class UpdateStaffSerializer(serializers.ModelSerializer):
-    position_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        required=False,
-    )
-
+    
     class Meta:
         model = StaffProfile
         fields = [
+            "first_name",
+            "last_name",
+            "employee_id",
+            "date_joined",
             "employment_type",
             "status",
-            "date_joined",
+            "email",
             "phone",
             "address",
-            "emergency_contact_name",
-            "emergency_contact_phone",
-            "notes",
-            "position_ids",
+            "profile_photo",
         ]
 
-    def validate_position_ids(self, value):
-        school = self.context["school"]
-        positions = StaffPosition.objects.filter(
-            id__in=value, school=school
-        )
-        if positions.count() != len(value):
-            raise serializers.ValidationError(
-                "One or more positions are invalid."
-            )
-        return list(positions)
-
-    def update(self, instance, validated_data):
-        positions = validated_data.pop("position_ids", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        if positions is not None:
-            instance.positions.set(positions)
-
-        return instance
-    
 
 class ResetPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(write_only = True, required = True)

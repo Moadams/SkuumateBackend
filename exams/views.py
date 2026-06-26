@@ -1,20 +1,40 @@
-from academics.models import Class, GradingSystem, Term
-from core.models import AuditLog
-from core.responses import ApiResponse
-from core.utils import log_action
-from exams.filters import AssessmentTypeFilter
-from exams.models import AssessmentType, ReportScheme, StudentMark, StudentReport, StudentReportSubjectScore
-from rest_framework import generics, viewsets, filters, status
-from rest_framework.views import APIView
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
-from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
-from exams.serializers import AssessmentTypeSerializer, GenerateReportResponseSerializer, ReportSchemeSerializer, StudentMarkSerializer, StudentReportSerializer, StudentReportUpdateSerializer, SubjectScoreSerializer
-from core.mixins import ExportMixin, AuditLogMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics, status
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.views import APIView
+
+from academics.models import Class, GradingSystem, Term
+from core.mixins import AuditLogMixin, ExportMixin
+from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
+from core.responses import ApiResponse
+from exams.filters import AssessmentTypeFilter
+from exams.models import (
+    AssessmentType,
+    ReportScheme,
+    StudentMark,
+    StudentReport,
+    StudentReportSubjectScore,
+)
+from exams.serializers import (
+    AssessmentTypeSerializer,
+    GenerateReportResponseSerializer,
+    HeadTeacherRemarksSerializer,
+    ReportSchemeSerializer,
+    ReportTeacherRemarksSerializer,
+    StudentMarkCreationSerializer,
+    StudentMarkSerializer,
+    StudentReportDetailSerializer,
+    StudentReportGeneratorSerializer,
+    StudentReportSerializer,
+    SubjectScoreSerializer,
+)
+from exams.services.report_generation_service import ReportGenerationService
 from students.models import Enrollment
-from exams.services import generate_class_report
+
+
+# from exams.services import generate_class_report
 class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdminOrTeacher]
     serializer_class = AssessmentTypeSerializer
@@ -27,10 +47,7 @@ class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCrea
 
     def get_queryset(self):
         return AssessmentType.objects.filter(school = self.request.user.school)
-    
-    def perform_create(self, serializer):
-        super().perform_create(serializer, school = self.request.user.school)
-    
+
     def get_audit_description(self, instance):
         return f"Assessment type {instance.name} created."
 
@@ -42,15 +59,16 @@ class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCrea
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
-    
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data = request.data)
         serializer.is_valid(raise_exception =  True)
-        self.perform_create(serializer)
+        assessment_type = self.perform_create(serializer)
         return ApiResponse.created(
-            message = "Assessment type created successfully"
+            message = "Assessment type created successfully",
+            data = self.get_serializer(assessment_type).data
         )
-    
+
 class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AssessmentTypeSerializer
@@ -58,26 +76,12 @@ class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
     def get_queryset(self):
         return AssessmentType.objects.filter(school = self.request.user.school)
-    
+
     def retrieve(self, reqeust, *args, **kwargs):
         instance = self.get_object()
         return ApiResponse.success(data = self.get_serializer(instance).data)
-    
-    def update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data = request.data, partial = True)
-        serializer.is_valid(raise_exception = True)
-        self.perform_update(serializer)
-        return ApiResponse.success(
-            message = "Assessment type updated successfully"
-        )
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return ApiResponse.success(message = "Assessment type deleted successfully")
-    
+
+
 class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = ReportSchemeSerializer
@@ -88,18 +92,11 @@ class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
     audit_resource = "ReportScheme"
 
     def get_queryset(self):
-        try:
-            current_term = Term.objects.get(school = self.request.user.school, is_current = True)
-            return ReportScheme.objects.filter(term = current_term, school = self.request.user.school)
-        except Term.DoesNotExist:
-            return ReportScheme.objects.none()
-        
-    def perform_create(self, serializer):
-        super().perform_create(serializer, school = self.request.user.school)
+        return ReportScheme.objects.filter(school = self.request.user.school)
 
     def get_audit_description(self, instance):
         return f'Report scheme {instance.name} created'
-    
+
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -110,15 +107,6 @@ class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
 
-            
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        self.perform_create(serializer)
-        return ApiResponse.created(
-            message = "Report scheme created"
-        )
-
 class ReportSchemeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
     serializer_class = ReportSchemeSerializer
@@ -126,85 +114,111 @@ class ReportSchemeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
     def get_queryset(self):
         return ReportScheme.objects.filter(school = self.request.user.school)
-    
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        return ApiResponse.success(data = self.get_serializer(instance).data)
-    
-    def update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data = request.data, partial = True)
-        serializer.is_valid(raise_exception = True)
-        self.perform_update(serializer)
-        return ApiResponse.success(
-            message = "Report scheme updated successfully"
-        )
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return ApiResponse.success(
-            message = "Report Scheme deleted"
-        )
-    
 
-class StudentMarkBulkView(generics.ListCreateAPIView):
+class StudentMarksListView(generics.ListAPIView):
     serializer_class = StudentMarkSerializer
-    pagination_class = None 
+    pagination_class = None
 
     def get_queryset(self):
-        return StudentMark.objects.filter(
-            school=self.request.user.school,
-            student_class_id=self.kwargs['class_id'],
-            assessment_id=self.kwargs['assessment_id'],
-            subject_id=self.kwargs['subject_id'],
-            term__is_current=True
-        ).select_related('student')
+        school = self.request.user.school
+
+        assessment_id = self.request.query_params.get("assessment_id")
+        subject_id = self.request.query_params.get("subject_id")
+
+        queryset = StudentMark.objects.filter(
+            school=school,
+            student_class_id=self.kwargs["class_id"],
+            term__is_current=True,
+        ).select_related("student")
+
+        if assessment_id:
+            queryset = queryset.filter(assessment_id=assessment_id)
+
+        if subject_id:
+            queryset = queryset.filter(subject_id=subject_id)
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         school = request.user.school
-        class_id = self.kwargs['class_id']
-        
-        # 1. Identify the current Academic Year and Term
-        current_term = Term.objects.filter(school=school, is_current=True).first()
+        class_id = self.kwargs["class_id"]
+
+        assessment_id = request.query_params.get("assessment_id")
+        subject_id = request.query_params.get("subject_id")
+
+        if not assessment_id:
+            return ApiResponse.error(
+                message="assessment_id is required."
+            )
+
+        if not subject_id:
+            return ApiResponse.error(
+                message="subject_id is required."
+            )
+
+        current_term = (
+            Term.objects.select_related("academic_year")
+            .filter(
+                school=school,
+                is_current=True,
+            )
+            .first()
+        )
+
         if not current_term:
-            return ApiResponse.error(message="No current academic term set for this school.", status=400)
+            return ApiResponse.error(
+                message="No current academic term set for this school."
+            )
 
-        # 2. Get all students ENROLLED in this class for the current academic year
-        enrolled_students = Enrollment.objects.filter(
-            klass_id=class_id,
-            academic_year=current_term.academic_year,
-            is_active=True
-        ).select_related('student')
+        enrolled_students = (
+            Enrollment.objects.filter(
+                klass_id=class_id,
+                academic_year=current_term.academic_year,
+                is_active=True,
+            )
+            .select_related("student")
+            .order_by("student__last_name", "student__first_name")
+        )
 
-        # 3. Get existing marks for these students
         existing_marks = {
-            mark.student_id: mark 
+            mark.student_id: mark
             for mark in self.get_queryset()
         }
 
-        # 4. Build the registry for the React table
         registry_data = []
+
         for enrollment in enrolled_students:
             student = enrollment.student
             mark = existing_marks.get(student.id)
-            
-            registry_data.append({
-                "id": student.id, 
-                "name": student.full_name,
-                "student_id": student.student_id,
-                "score": mark.score if mark else "",
-                "teacher_remarks": mark.teacher_remarks if mark else ""
-            })
+
+            registry_data.append(
+                {
+                    "id": student.id,
+                    "name": student.full_name,
+                    "student_id": student.student_id,
+                    "score": mark.score if mark else "",
+                    "teacher_remarks": (
+                        mark.teacher_remarks if mark else ""
+                    ),
+                }
+            )
 
         return ApiResponse.success(data=registry_data)
+
+class StudentMarkBulkView(AuditLogMixin, generics.CreateAPIView):
+    serializer_class = StudentMarkCreationSerializer
+    audit_resource = "StudentMark"
+
+    def get_queryset(self):
+        return StudentMark.objects.filter(
+            school=self.request.user.school
+        ).select_related('student')
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         school = request.user.school
-        current_term = Term.objects.filter(school=school, is_current=True).first()
-        
+        current_term = Term.objects.select_related("academic_year").filter(school=school, is_current=True).first()
+
         if not current_term:
             return ApiResponse.error(message="Cannot save marks: No active term found.")
 
@@ -212,41 +226,42 @@ class StudentMarkBulkView(generics.ListCreateAPIView):
         results = []
 
         for item in marks_data:
-            
+
             instance = StudentMark.objects.filter(
-                student_id=item.get('id'),
-                assessment_id=self.kwargs['assessment_id'],
-                subject_id=self.kwargs['subject_id'],
+                student_id=item.get('student'),
+                assessment_id=request.data['assessment'],
+                subject_id=request.data['subject'],
                 term=current_term
             ).first()
+            print(instance)
 
             # Prepare data for the serializer
             data = {
-                "student": item.get('id'),
+                "student": item.get('student'),
                 "score": item.get('score') if item.get('score') != "" else None,
-                "assessment": self.kwargs['assessment_id'],
-                "subject": self.kwargs['subject_id'],
-                "student_class": self.kwargs['class_id'],
+                "assessment": request.data['assessment'],
+                "subject": request.data['subject'],
+                "student_class": request.data['student_class'],
                 "term": current_term.id,
                 "academic_year": current_term.academic_year.id,
                 "teacher_remarks": item.get('teacher_remarks', ""),
                 "teacher": getattr(request.user, 'staff_profile', None).id if hasattr(request.user, 'staff_profile') else None
             }
 
-            serializer = self.get_serializer(instance, data=data, partial=True) if instance else self.get_serializer(data=data)
-            
+            serializer = self.get_serializer(instance, data=data, partial=True, context = {"request":request}) if instance else self.get_serializer(data=data, context = {"request":request})
+
             serializer.is_valid(raise_exception=True)
-            serializer.save(school=school, teacher=getattr(request.user, 'staff_profile', None))
+            self.perform_create(serializer)
             results.append(serializer.data)
 
-        return ApiResponse.success(message="Marks updated successfully")
-    
+        return ApiResponse.success(message="Marks updated successfully", data=results)
+
 class ClassReportGenerationValidityView(APIView):
     permission_classes = [IsAdminOrTeacher]
     def get(self, request, class_id):
         school = request.user.school
         current_term = Term.objects.filter(school=school, is_current=True).first()
-        
+
         try:
             school_class = Class.objects.get(id=class_id, school=school)
         except Class.DoesNotExist:
@@ -254,7 +269,7 @@ class ClassReportGenerationValidityView(APIView):
 
         # check if the class is assigned a report scheme for the current term
         scheme = school_class.report_schemes.filter(term = current_term).first()
-        
+
         grading_scheme = GradingSystem.objects.filter(school=school, is_default=True).first()
 
 
@@ -274,50 +289,49 @@ class ClassReportGenerationValidityView(APIView):
         return ApiResponse.success(data=context)
 
 class GenerateClassReportView(APIView):
-    permission_classes = [IsTeacher]
+    permission_classes = [IsAdmin]
     def post(self, request):
-        school = request.user.school
-        class_id = request.data.get("class_id")
-        report_scheme_id = request.data.get("report_scheme_id")
-        grading_system_id = request.data.get("grading_system_id")
+        serializer = StudentReportGeneratorSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        data = serializer.validated_data
 
-        if not all([class_id, report_scheme_id, grading_system_id]):
-            return ApiResponse.error(message = "Class, report scheme and grading system are required", status_code = status.HTTP_400_BAD_REQUEST)
-        
+        school = request.user.school
+
         klass = get_object_or_404(
-            Class, id = class_id, school = school, is_active = True
+            Class, id=data["class_id"], school=school, is_active=True
         )
 
         report_scheme = get_object_or_404(
-            ReportScheme.objects.prefetch_related("sba_components"), id = report_scheme_id, school = school
+            ReportScheme.objects.prefetch_related("sba_components"),
+            id=data["report_scheme_id"],
+            school=school,
         )
 
         grading_system = get_object_or_404(
-            GradingSystem, id = grading_system_id, school = school
+            GradingSystem,
+            id=data["grading_system_id"],
+            school=school,
         )
 
         term = (
-            Term.objects.filter(school = school, is_current = True).select_related("academic_year").first()
+            Term.objects.select_related("academic_year")
+            .filter(school=school, is_current=True)
+            .first()
         )
-        if not Term:
+
+        if not term:
             return ApiResponse.error(
                 message = "There is no current active term."
             )
 
-        academic_year = term.academic_year
-
-        result = generate_class_report(
+        result = ReportGenerationService.generate(
+            school=school,
             klass=klass,
             report_scheme=report_scheme,
             grading_system=grading_system,
             term=term,
-            academic_year=academic_year,
-            school=school,
         )
-
-        serializer = GenerateReportResponseSerializer(result)
-
-        return ApiResponse.success(message = "Reports generated", data = serializer.data)
+        return ApiResponse.success(message = "Reports generated", data=result)
 
 class StudentReportListView(generics.ListAPIView):
     serializer_class = StudentReportSerializer
@@ -332,7 +346,7 @@ class StudentReportListView(generics.ListAPIView):
             term = self.kwargs['term_id'],
             student_class_id = self.kwargs['class_id']
         ).select_related('student', 'term', 'academic_year')
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
@@ -341,29 +355,16 @@ class StudentReportListView(generics.ListAPIView):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
-    
-class StudentReportDetailView(generics.RetrieveUpdateAPIView):
-    serializer_class = StudentReportSerializer
+
+class StudentReportDetailView(AuditLogMixin, generics.RetrieveAPIView):
+    serializer_class = StudentReportDetailSerializer
 
     def get_queryset(self):
         return StudentReport.objects.filter(
             school=self.request.user.school
-        ).select_related('student', 'term', 'academic_year'
+        ).select_related('student', 'term', 'academic_year', 'school'
         ).prefetch_related('subject_scores__student_report')
-    
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return ApiResponse.success(data = serializer.data)
-    
-    def update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        instance = self.get_object()
-        serializer = StudentReportUpdateSerializer(instance, data = request.data, partial = True)
-        serializer.is_valid(raise_exception = True)
-        self.perform_update(serializer)
-        return ApiResponse.success(message = "Report updated successfully")
-    
+
 
 class StudentReportSubjectScoreListView(generics.ListAPIView):
     permission_classes = [IsAdminOrTeacher]
@@ -388,3 +389,62 @@ class StudentReportSubjectScoreListView(generics.ListAPIView):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
+
+
+class StudentReportTeacherRemarksView(AuditLogMixin, generics.UpdateAPIView):
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = ReportTeacherRemarksSerializer
+    audit_resource = "StudentReport"
+
+    def get_queryset(self):
+        return StudentReport.objects.filter(school = self.request.user.school)
+
+    def get_audit_description(self, instance):
+        return "Student report's teacher remarks has been updated"
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        data = request.data.copy()
+        data["teacher"] = request.user.full_name
+
+        serializer = self.get_serializer(data = data, instance = instance, partial=True)
+        serializer.is_valid(raise_exception = True)
+        self.perform_update(serializer)
+        return ApiResponse.success("Teacher remarks updated")
+
+
+class StudentReportHeadteacherRemarksView(AuditLogMixin, generics.UpdateAPIView):
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = HeadTeacherRemarksSerializer
+    audit_resource = "StudentReport"
+
+    def get_queryset(self):
+        return StudentReport.objects.filter(school = self.request.user.school)
+
+    def get_audit_description(self, instance):
+        return "Student report's headteacher remarks has been updated"
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        data = request.data.copy()
+        data["headteacher"] = request.user.full_name
+
+        serializer = self.get_serializer(data = data, instance = instance, partial=True)
+        serializer.is_valid(raise_exception = True)
+        self.perform_update(serializer)
+        return ApiResponse.success("Head Teacher remarks updated")
+
+class PublishStudentReportsView(APIView):
+    permission_classes = [IsAdmin]
+    def post(self, request):
+        reports = request.data.get("reports",[])
+
+        StudentReport.objects.filter(
+            id__in=reports, school=request.user.school, status=StudentReport.ReportStatus.READY
+        ).update(
+            status=StudentReport.ReportStatus.PUBLISHED
+        )
+
+        return ApiResponse.success("Reports published")

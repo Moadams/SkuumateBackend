@@ -97,8 +97,8 @@ def generate_class_report(
     # ------------------------------------------------------------------ #
     # 5. Compute scores per student per subject                           #
     # ------------------------------------------------------------------ #
-    sba_weight = report_scheme.sba_scaling / Decimal(100)
-    exam_weight = report_scheme.exam_scaling / Decimal(100)
+    sba_weight = Decimal(report_scheme.sba_scaling) / Decimal(100)
+    exam_weight = Decimal(report_scheme.exam_scaling) / Decimal(100)
 
     all_subject_ids = set()
     for subj_map in mark_map.values():
@@ -178,8 +178,6 @@ def generate_class_report(
                 term = term
             )
             days_present = attendance.filter(status = Attendance.Status.PRESENT)
-            print(attendance)
-            print(days_present)
             if student.id in existing_reports:
                 report = existing_reports[student.id]
                 report.overall_score = overall

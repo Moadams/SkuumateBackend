@@ -236,10 +236,10 @@ def _validate_guardian(g_data, g_index, row_index):
         "is_primary": is_primary,
     }
 
-def generate_student_email(first_name, last_name, domain="school.com"):
+def generate_user_email(first_name, last_name, domain="school.com"):
     """
-    Generates a unique email for a student based on their name and ID.
-    Example: generate_student_email("John", "Doe", "S12345") => "john.doe.S12345@school.com"
+    Generates a unique email for a user based on their name and ID.
+    Example: generate_user_email("John", "Doe") => "john.doe@school.com"
     """
     base_email = f"{first_name.lower()}.{last_name.lower()}".replace(" ", "")
     user_email = f"{base_email}@{domain}"

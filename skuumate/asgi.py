@@ -11,6 +11,7 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'skuumate.settings')
+from skuumate.settings.loader import load as load_settings
+load_settings()
 
 application = get_asgi_application()

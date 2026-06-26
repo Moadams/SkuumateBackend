@@ -5,7 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework import status
 
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, IsTeacher
 from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
@@ -14,16 +14,14 @@ from core.utils import log_action
 from .models import (
     StaffPosition,
     StaffProfile,
-    PERMISSION_CHOICES,
-    SYSTEM_POSITIONS,
+    PERMISSION_CHOICES
 )
 from .serializers import (
-    ResetPasswordSerializer,
     StaffCreationSerializer,
+    StaffListSerializer,
     StaffPositionSerializer,
     StaffPositionWriteSerializer,
     StaffProfileSerializer,
-    CreateStaffSerializer,
     UpdateStaffSerializer,
 )
 from .filters import StaffProfileFilter
@@ -227,7 +225,7 @@ class StaffListCreateView(
     def get_serializer_class(self):
         if self.request.method == "POST":
             return StaffCreationSerializer
-        return StaffProfileSerializer
+        return StaffListSerializer
 
     def get_queryset(self):
         return (
@@ -246,11 +244,11 @@ class StaffListCreateView(
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = StaffProfileSerializer(
+            serializer = StaffListSerializer(
                 page, many=True, context={"request": request}
             )
             return self.get_paginated_response(serializer.data)
-        serializer = StaffProfileSerializer(
+        serializer = StaffListSerializer(
             queryset, many=True, context={"request": request}
         )
         return ApiResponse.success(data=serializer.data)
@@ -302,19 +300,8 @@ class StaffDetailView(
             context={"school": request.user.school},
         )
         serializer.is_valid(raise_exception=True)
-        profile = serializer.save()
-
-        log_action(
-            action=AuditLog.Action.UPDATE,
-            resource="StaffProfile",
-            resource_id=str(profile.pk),
-            description=(
-                f"Staff profile updated for "
-                f"{profile.user.full_name}"
-            ),
-            request=request,
-        )
-
+        profile = self.perform_update(serializer)
+        
         return ApiResponse.success(
             data=StaffProfileSerializer(
                 profile, context={"request": request}
@@ -349,43 +336,6 @@ class StaffDetailView(
         )
 
 
-class StaffPhotoUploadView(APIView):
-    """Upload or update a staff member's profile photo."""
-    permission_classes = [IsAdmin]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def patch(self, request, pk):
-        try:
-            profile = StaffProfile.objects.get(
-                pk=pk, school=request.user.school
-            )
-        except StaffProfile.DoesNotExist:
-            return ApiResponse.error(
-                message="Staff profile not found.", status_code=404
-            )
-
-        photo = request.FILES.get("profile_photo")
-        if not photo:
-            return ApiResponse.error(
-                message="No photo provided.", status_code=400
-            )
-
-        profile.profile_photo.save(
-            f"{profile.employee_id}_{photo.name}",
-            photo,
-            save=True,
-        )
-
-        return ApiResponse.success(
-            data={
-                "profile_photo": request.build_absolute_uri(
-                    profile.profile_photo.url
-                )
-            },
-            message="Profile photo updated successfully.",
-        )
-
-
 class StaffExportView(ExportMixin, generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = StaffProfileSerializer
@@ -415,7 +365,7 @@ class MyStaffProfileView(APIView):
     Used by the frontend after login to determine dashboard
     redirect and available navigation items.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [IsTeacher]
 
     def get(self, request):
         try:
@@ -431,39 +381,7 @@ class MyStaffProfileView(APIView):
             )
 
         return ApiResponse.success(
-            data={
-                **StaffProfileSerializer(
+            data=StaffProfileSerializer(
                     profile, context={"request": request}
-                ).data,
-                "dashboard_redirect": self._get_dashboard(profile),
-            }
-        )
-
-    @staticmethod
-    def _get_dashboard(profile):
-        perms = profile.all_permissions
-        if "dashboard.admin" in perms:
-            return "/dashboard/admin"
-        if "dashboard.finance" in perms:
-            return "/dashboard/finance"
-        if "dashboard.teacher" in perms:
-            return "/dashboard/teacher"
-        return "/dashboard"
-
-class ResetStaffPasswordView(APIView):
-    permission_classes = [IsAdmin]
-    def post(self, request, pk):
-        try:
-            staff = StaffProfile.objects.get(id = pk, school = request.user.school)
-        except StaffProfile.DoesNotExist:
-            return ApiResponse.error(
-                message ="Staff not found", status_code = status.HTTP_404_NOT_FOUND
-            )
-        serializer = ResetPasswordSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        user_account = staff.user
-        user_account.set_password(serializer.validated_data['password'])
-        user_account.save()
-        return ApiResponse.success(
-            message = f"Password for {staff.user.full_name} has been reset successfully."
+                ).data
         )

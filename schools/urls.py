@@ -9,5 +9,5 @@ urlpatterns = [
     path("schools/export/", SchoolListExportView.as_view(), name="school-list-export"),
     
     path("schools/me/", MySchoolRetrieveUpdateView.as_view(), name="school-detail"),
-    path("dashboard/admin/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    # path("dashboard/admin/", AdminDashboardView.as_view(), name="admin-dashboard"),
 ]

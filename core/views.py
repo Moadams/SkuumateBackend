@@ -1,11 +1,12 @@
-from rest_framework import generics
+from rest_framework import generics, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.permissions import CanAccessAuditLogs, IsAdmin, IsSuperAdmin
+from core.permissions import CanAccessAuditLogs
 from core.models import AuditLog
 from core.serializers import AuditLogSerializer
-from subscriptions.permissions import HasAuditLogAccess
 
 
 class AuditLogListView(generics.ListAPIView):
@@ -23,3 +24,14 @@ class AuditLogListView(generics.ListAPIView):
         if self.request.user.is_superuser:
             return AuditLog.objects.all()
         return AuditLog.objects.filter(school=self.request.user.school)
+
+
+class ClearAuditLogsView(APIView):
+    permission_classes = [CanAccessAuditLogs]
+
+    def delete(self, request, *args, **kwargs):
+        if request.user.is_superuser:
+            audit_logs = AuditLog.objects.all()
+        audit_logs = AuditLog.objects.filter(school=request.user.school)
+        audit_logs.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

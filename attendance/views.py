@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.permissions import IsAdmin, IsAdminOrTeacher
+from core.permissions import IsAdminOrTeacher
 from core.responses import ApiResponse
 from core.mixins import ExportMixin
 from core.models import AuditLog
@@ -30,7 +30,7 @@ class BulkMarkAttendanceView(APIView):
     Creates new records or updates existing ones for the given date.
     Accessible by both admins and teachers.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [IsAdminOrTeacher]
 
     def post(self, request):
         school = request.user.school
@@ -60,6 +60,13 @@ class BulkMarkAttendanceView(APIView):
                 f"{created} created, {updated} updated"
             ),
             request=request,
+            metadata = {
+                "date": str(data["date"]),
+                "class": data["klass"].name,
+                "created": created,
+                "updated": updated,
+                "total_processed": created + updated,
+            }
         )
 
         return ApiResponse.created(
@@ -85,7 +92,7 @@ class AttendanceListView(ExportMixin, generics.ListAPIView):
     Useful for viewing a student's attendance history
     or a class's attendance on a specific date.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [IsAdminOrTeacher]
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AttendanceFilter
@@ -319,7 +326,7 @@ class AttendanceSummaryListView(ExportMixin, generics.ListAPIView):
     Daily attendance summaries per class.
     Useful for admin overview and dashboard.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [IsAdminOrTeacher]
     serializer_class = AttendanceSummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AttendanceSummaryFilter

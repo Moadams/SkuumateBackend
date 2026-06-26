@@ -1,3 +1,4 @@
+import logging
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -15,7 +16,9 @@ from core.permissions import IsAdmin, IsSuperAdmin
 from core.utils import log_action
 
 from .models import User
-from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer
+from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, ResetUserPasswordSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer
+
+logger = logging.getLogger(__name__)
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -175,8 +178,8 @@ class ForgotPasswordView(APIView):
                 reset_link=reset_link
             )
             
-        except User.DoesNotExist:
-            pass  # Don't reveal that the email doesn't exist
+        except User.DoesNotExist as e:
+            logger.error(f"Forgot password request for {email}: {e}")  
 
         return ApiResponse.success(message="If an account with that email exists, a password reset link has been sent.")
 
@@ -188,3 +191,31 @@ class ResetPasswordConfirmView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return ApiResponse.success(message="Password reset successful.")
+    
+
+class ResetUserPassword(APIView):
+    permission_classes = [IsAdmin]
+    def put(self, request, user_id):
+        school = request.user.school
+        try:
+            user = User.objects.get(school = school, id = user_id)
+            data = request.data.copy()
+            data['user_id'] = user.id
+        except User.DoesNotExist:
+            return ApiResponse.error(
+                message="User not found", status_code=404
+            )
+        
+        serializer = ResetUserPasswordSerializer(data = data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="User",
+            resource_id=str(user.pk),
+            description=f"User {user.full_name} password updated",
+            request=self.request,
+        )
+        return ApiResponse.success(message="User's password reset successfully.")
+
+        

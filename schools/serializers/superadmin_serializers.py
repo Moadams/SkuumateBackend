@@ -1,5 +1,6 @@
 import re
 import secrets
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -7,6 +8,7 @@ from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
 from subscriptions.services import SubscriptionService
+
 
 class SchoolUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,7 +40,7 @@ class SchoolUpdateSerializer(serializers.ModelSerializer):
         if School.objects.filter(email=value).exclude(id=school_id).exists():
             raise serializers.ValidationError("A school with this email already exists.")
         return value
-    
+
     def validate_address(self, value):
         if value and len(value) > 255:
             raise serializers.ValidationError("Address cannot exceed 255 characters.")
@@ -49,7 +51,7 @@ class SchoolStatsSerializer(serializers.ModelSerializer):
     total_active_users = serializers.IntegerField()
     total_students = serializers.IntegerField()
     total_staff = serializers.IntegerField()
-    
+
 
     class Meta:
         model = School
@@ -83,7 +85,7 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
             "total_students": obj.total_students,
             "total_staff": obj.total_staff,
         }
-    
+
     def get_admin(self, obj):
         from accounts.models import User
         admin_user = User.objects.filter(school=obj, role = User.Role.ADMIN).first()
@@ -97,7 +99,19 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
     def get_plan(self, obj):
         current_sub = obj.subscriptions.filter(is_current=True).first()
         return current_sub.plan.name if current_sub else None
-    
+
+
+class SchoolInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = School
+        fields = [
+            "id",
+            "logo",
+            "name",
+            "email",
+            "phone",
+            "school_code",
+        ]
 
 class SchoolCreateSerializer(serializers.ModelSerializer):
     # Admin user fields only
@@ -135,7 +149,7 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
         if value and School.objects.filter(school_code=value).exists():
             raise serializers.ValidationError("A school with this school code already exists.")
         return value
-    
+
     def validate_admin_first_name(self, value):
         if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
             raise serializers.ValidationError("First name must contain only letters.")
@@ -156,7 +170,7 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
         if School.objects.filter(email=value).exists():
             raise serializers.ValidationError("A school with this email already exists.")
         return value
-    
+
     @transaction.atomic
     def create(self, validated_data):
         from accounts.models import User
@@ -168,7 +182,7 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
 
         # 1. Create the school
         school = School.objects.create(**validated_data)
-        
+
         temporary_password = secrets.token_urlsafe(16)
 
         # 2. Create the first admin user
@@ -200,10 +214,10 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def _seed_system_positions(school):
-        from staff.models import StaffPosition
         from staff.management.commands.seed_staff_positions import (
             SYSTEM_POSITIONS,
         )
+        from staff.models import StaffPosition
         for pos_data in SYSTEM_POSITIONS:
             StaffPosition.objects.get_or_create(
                 school=school,

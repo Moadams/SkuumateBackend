@@ -1,4 +1,6 @@
+from django.db import transaction
 from rest_framework import serializers
+from staff.enums.staff_status import StaffStatus
 from staff.models import StaffProfile
 from students.models import Enrollment
 from .models import AcademicYear, GradeScale, GradingSystem, SubjectTeacher, Term, Subject, Class, ClassSubject, ClassTeacher, TimeTableSlot
@@ -235,30 +237,75 @@ class ClassSubjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClassSubject
-        fields = ["id", "subject", "subject_name", "subject_code"]
+        fields = ["id", "klass", "subject", "subject_name", "subject_code"]
         read_only_fields = ["id"]
 
+    def validate(self, attrs):
+        school = self.context["request"].user.school
+        subject = attrs.get("subject")
+        klass = attrs.get("klass")
+        if not Subject.objects.filter(id=subject.id, school=school, is_active=True).exists():
+            raise serializers.ValidationError({
+                "subject": "Subject not found or inactive in this school."
+            })
+        
+        if ClassSubject.objects.filter(
+            school=school,
+            klass=klass,
+            subject=subject,
+        ).exists():
+            raise serializers.ValidationError("This subject is already assigned to the class.")
+
+        if not Class.objects.filter(
+            id=klass.id,
+            school=school,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError({
+                "klass": "Class not found or inactive in this school."
+            })
+        return attrs
 
 class ClassTeacherSerializer(serializers.ModelSerializer):
+    class_name = serializers.CharField(source="klass.name", read_only=True)
     teacher_name = serializers.CharField(source="teacher.full_name", read_only=True)
     teacher_email = serializers.CharField(source="teacher.email", read_only=True)
-    academic_year_name = serializers.CharField(
-        source="academic_year.name", read_only=True
-    )
 
     class Meta:
         model = ClassTeacher
         fields = [
             "id",
+            "klass",
+            "class_name",
             "teacher",
             "teacher_name",
-            "teacher_email",
-            "academic_year",
-            "academic_year_name",
-            "is_active",
+            "teacher_email"
         ]
         read_only_fields = ["id"]
 
+    def validate(self, attrs):
+        klass = attrs.get("klass")
+        teacher = attrs.get("teacher")
+        if not StaffProfile.objects.filter(
+            id=teacher.id,
+            school=self.context["school"],
+            user__role="teacher",
+            user__is_active=True,
+            status__in=[StaffStatus.ACTIVE, StaffStatus.ON_LEAVE]
+        ).exists():
+            raise serializers.ValidationError({
+                "teacher": "Invalid teacher. Teacher not found or not active"
+            })
+        if ClassTeacher.objects.filter(
+            school=self.context["school"],
+            klass=klass,
+            teacher=teacher,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError("This teacher is already assigned to this class.")
+
+        return attrs
+    
 class TeacherClassesListSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source="klass.name", read_only=True)
     students_count = serializers.SerializerMethodField()
@@ -371,15 +418,99 @@ class GradeScaleSerializer(serializers.ModelSerializer):
         model = GradeScale
         fields = [
             "id",
+            "grading_system",
             "grade",
             "label",
             "min_score",
             "max_score",
-            "remark",
             "is_passing",
             "position",
         ]
         read_only_fields = ["id"]
+
+        validations = []
+    def validate(self, attrs):
+        instance = self.instance
+
+        grade = attrs.get(
+            "grade",
+            getattr(instance, "grade", None)
+        )
+
+        grading_system = attrs.get(
+            "grading_system",
+            getattr(instance, "grading_system", None)
+        )
+
+        min_score = attrs.get(
+            "min_score",
+            getattr(instance, "min_score", None)
+        )
+
+        max_score = attrs.get(
+            "max_score",
+            getattr(instance, "max_score", None)
+        )
+
+        # --------------------------------------------------
+        # Grade uniqueness within grading system
+        # --------------------------------------------------
+        duplicate_grade = GradeScale.objects.filter(
+            grading_system=grading_system,
+            grade__iexact=grade
+        )
+
+        if instance:
+            duplicate_grade = duplicate_grade.exclude(pk=instance.pk)
+
+        if duplicate_grade.exists():
+            raise serializers.ValidationError({
+                "grade": (
+                    f"Grade '{grade}' already exists in "
+                    f"'{grading_system.name}'."
+                )
+            })
+
+        # --------------------------------------------------
+        # Score range validation
+        # --------------------------------------------------
+        if min_score is not None and max_score is not None:
+            if min_score >= max_score:
+                raise serializers.ValidationError({
+                    "min_score": (
+                        "min_score must be less than max_score."
+                    )
+                })
+
+        # --------------------------------------------------
+        # Prevent overlapping ranges
+        # Example:
+        # A = 80-100
+        # B = 70-90 overlaps
+        # --------------------------------------------------
+        overlapping_ranges = GradeScale.objects.filter(
+            grading_system=grading_system,
+            min_score__lte=max_score,
+            max_score__gte=min_score,
+        )
+
+        if instance:
+            overlapping_ranges = overlapping_ranges.exclude(
+                pk=instance.pk
+            )
+
+        if overlapping_ranges.exists():
+            overlap = overlapping_ranges.first()
+
+            raise serializers.ValidationError({
+                "min_score": (
+                    f"Score range overlaps with grade "
+                    f"'{overlap.grade}' "
+                    f"({overlap.min_score}-{overlap.max_score})."
+                )
+            })
+
+        return attrs
 
     def validate_grade(self, value):
         return value.strip().upper()
@@ -400,95 +531,98 @@ class GradeScaleSerializer(serializers.ModelSerializer):
                 "Max score cannot be negative."
             )
         return value
+    
 
-    def validate(self, attrs):
-        min_score = attrs.get(
-            "min_score",
-            getattr(self.instance, "min_score", None)
-        )
-        max_score = attrs.get(
-            "max_score",
-            getattr(self.instance, "max_score", None)
-        )
-
-        if min_score is not None and max_score is not None:
-            if min_score >= max_score:
-                raise serializers.ValidationError(
-                    "min_score must be less than max_score."
-                )
-
-        return attrs
-
-
-class GradingSystemSerializer(serializers.ModelSerializer):
-    grade_scales = GradeScaleSerializer(many=True, read_only=True)
-    total_grades = serializers.SerializerMethodField()
-
+class GradingSystemListSerializer(serializers.ModelSerializer):
     class Meta:
         model = GradingSystem
         fields = [
             "id",
             "name",
             "description",
-            "is_default",
+            "max_score",
+            "pass_mark"
+        ]
+class GradingSystemSerializer(serializers.ModelSerializer):
+    grade_scales = GradeScaleSerializer(many=True, required=False)
+    class Meta:
+        model = GradingSystem
+        fields = [
+            "id",
+            "name",
+            "description",
             "max_score",
             "pass_mark",
-            "total_grades",
-            "grade_scales",
-            "created_at",
-            "updated_at",
+            "grade_scales"
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
-
-    def get_total_grades(self, obj):
-        return obj.grade_scales.count()
-
-    def validate_pass_mark(self, value):
-        if value < 0:
-            raise serializers.ValidationError(
-                "Pass mark cannot be negative."
-            )
-        return value
+        read_only_fields = ["id"]
 
     def validate(self, attrs):
-        max_score = attrs.get(
-            "max_score",
-            getattr(self.instance, "max_score", None)
-        )
-        pass_mark = attrs.get(
-            "pass_mark",
-            getattr(self.instance, "pass_mark", None)
-        )
-        if max_score and pass_mark and pass_mark >= max_score:
+        name = attrs.get("name", "").strip()
+        if GradingSystem.objects.filter(name__iexact=name, school=self.context["school"]).exclude(id=self.instance.id if self.instance else None).exists():
             raise serializers.ValidationError({
-                "pass_mark": (
-                    f"Pass mark ({pass_mark}) must be "
-                    f"less than max score ({max_score})."
-                )
+                "name": "A grading system with this name already exists in this school."
             })
+        max_score = attrs.get("max_score")
+        pass_mark = attrs.get("pass_mark")
+
+        if pass_mark > max_score:
+            raise serializers.ValidationError({
+                "pass_mark": "Pass mark cannot exceed max score."
+            })
+        
+        grade_scales = attrs.get("grade_scales", [])
+
+        ranges = []
+
+        for scale in grade_scales:
+            start = scale["min_score"]
+            end = scale["max_score"]
+
+            for existing_start, existing_end in ranges:
+                if start <= existing_end and end >= existing_start:
+                    raise serializers.ValidationError(
+                        "Grade ranges cannot overlap."
+                    )
+
+            ranges.append((start, end))
+
         return attrs
 
+    @transaction.atomic
+    def create(self, validated_data):
+        scales_data = validated_data.pop("grade_scales", [])
+        grading_system = GradingSystem.objects.create(**validated_data)
+        for scale_data in scales_data:
+            GradeScale.objects.create(grading_system=grading_system, school=grading_system.school, **scale_data)
+        return grading_system
+    
 
-class GradingSystemWriteSerializer(GradingSystemSerializer):
-    """
-    Used for create/update.
-    Validates name uniqueness per school.
-    """
-    def validate_name(self, value):
-        school = self.context["school"]
-        qs = GradingSystem.objects.filter(
-            school=school,
-            name__iexact=value,
-        )
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError(
-                f"A grading system named '{value}' already exists."
-            )
-        return value
+class GradingSystemUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GradingSystem
+        fields = [
+            "name",
+            "description",
+            "max_score",
+            "pass_mark"
+        ]
 
+    def validate(self, attrs):
+        name = attrs.get("name", self.instance.name).strip()
+        if GradingSystem.objects.filter(name__iexact=name, school=self.context["school"]).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError({
+                "name": "A grading system with this name already exists in this school."
+            })
+        max_score = attrs.get("max_score", self.instance.max_score)
+        pass_mark = attrs.get("pass_mark", self.instance.pass_mark)
 
+        if pass_mark > max_score:
+            raise serializers.ValidationError({
+                "pass_mark": "Pass mark cannot exceed max score."
+            })
+        
+        return attrs
 class BulkGradeScaleSerializer(serializers.Serializer):
     """
     Used to set all grade scales for a grading system at once.
@@ -610,53 +744,64 @@ class GradeResolverSerializer(serializers.Serializer):
                 )
         return value
     
-class SubjectTeacherSerializer(serializers.ModelSerializer):
-    teacher_name = serializers.CharField(
-        source="teacher.user.full_name", read_only=True
-    )
-    teacher_employee_id = serializers.CharField(
-        source="teacher.employee_id", read_only=True
-    )
-    subject_name = serializers.CharField(
-        source="subject.name", read_only=True
-    )
-    subject_code = serializers.CharField(
-        source="subject.code", read_only=True
-    )
-    class_name = serializers.CharField(
-        source="klass.name", read_only=True
-    )
-    academic_year_name = serializers.CharField(
-        source="academic_year.name", read_only=True
-    )
-    term_name = serializers.SerializerMethodField()
+class SubjectTeacherCreationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubjectTeacher
+        fields = [
+            
+            "klass",
+            "subject",
+            "teacher"
+        ]
+        read_only_fields = ["id"]
 
+    def validate(self, attr):
+        school = self.context["school"]
+        teacher = attr.get("teacher")
+        klass = attr.get("klass")
+        if not Class.objects.filter(
+            id=klass.id,
+            school=school,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError({
+                "klass": "Class not found or inactive in this school."
+            })
+        if not StaffProfile.objects.filter(
+            id=teacher.id,
+            school=school,
+            user__role="teacher",
+            user__is_active=True,
+            status__in=[StaffStatus.ACTIVE, StaffStatus.ON_LEAVE]
+        ).exists():
+            raise serializers.ValidationError({
+                "teacher": "Invalid teacher. Teacher not found or not active"
+            })
+        
+        if SubjectTeacher.objects.filter(
+            school=school,
+            klass=klass,
+            teacher=teacher,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError( "This teacher is already assigned to this subject for this class."
+            )
+
+        
+        return attr
+
+class SubjectTeacherListSerializer(serializers.ModelSerializer):
+    class_name = serializers.CharField(source="klass.name", read_only=True)
+    teacher_name = serializers.CharField(source="teacher.full_name", read_only=True)
+    subject_name = serializers.CharField(source="subject.name", read_only=True)
     class Meta:
         model = SubjectTeacher
         fields = [
             "id",
-            "klass",
             "class_name",
-            "subject",
-            "subject_name",
-            "subject_code",
-            "teacher",
             "teacher_name",
-            "teacher_employee_id",
-            "academic_year",
-            "academic_year_name",
-            "term",
-            "term_name",
-            "is_active",
-            "created_at",
-            "updated_at",
+            "subject_name",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
-
-    def get_term_name(self, obj):
-        return obj.term.get_name_display() if obj.term else "All Terms"
-
-
 class SubjectTeacherWriteSerializer(serializers.Serializer):
     """Assigns a single teacher to a class subject."""
     class_id = serializers.UUIDField()

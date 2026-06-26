@@ -9,9 +9,10 @@ class AssessmentType(TimestampedModel):
     is_active = models.BooleanField(default = True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields = ["school", "name"], name = "unique_school_assessment_name")
-        ]
+        unique_together = [
+            ["school", "name"]
+        ] 
+
 
     def __str__(self):
         return f"{self.school.name} - {self.name}"
@@ -21,20 +22,11 @@ class ReportScheme(TimestampedModel):
     name = models.CharField(max_length = 100, help_text = "E.g Primary Division report scheme")
     sba_components = models.ManyToManyField(AssessmentType, related_name="sba_report_schemes",help_text = "the assessments that contribute to the SBA components")
     main_exam = models.ForeignKey(AssessmentType, on_delete=models.PROTECT, related_name="exam_report_schemes", help_text = "the assessment that serve as the main exam")
-    academic_year = models.ForeignKey("academics.AcademicYear", on_delete=models.PROTECT)
-    term = models.ForeignKey("academics.Term", on_delete = models.PROTECT)
     sba_scaling = models.DecimalField(max_digits = 5, decimal_places = 2, default=50, help_text = "Weight for SBA (e.g 40 for 40%)")
     exam_scaling = models.DecimalField(max_digits = 5, decimal_places = 2, default=50, help_text = "Weight for Main exam (e.g 60 for 60%)")
-    assigned_classes = models.ManyToManyField("academics.Class", related_name = "report_schemes", blank = True, help_text = "Classes that this report scheme applies to.")
-
-    class Meta:
-        # make sure that no two schemes in the same term has the same name
-        constraints = [
-            models.UniqueConstraint(fields = ['school','term','name'], name = "unique_scheme_name_per_term")
-        ]
 
     def __str__(self):
-        return f"{self.name} ({self.term.name})"
+        return f"{self.name}"
     
     def clean(self):
         if (self.sba_scaling + self.exam_scaling) != 100:
@@ -43,6 +35,14 @@ class ReportScheme(TimestampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "school"],
+                name="unique_reportscheme_per_school"
+            )
+        ]
 
 class StudentMark(TimestampedModel):
     school = models.ForeignKey('schools.School', on_delete=models.CASCADE)
@@ -80,9 +80,12 @@ class StudentReport(TimestampedModel):
     report_scheme = models.ForeignKey(ReportScheme, on_delete = models.PROTECT)
     overall_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
     overall_attendance = models.PositiveSmallIntegerField(default = 0, help_text = "Number of days attended")
+    overall_position = models.PositiveIntegerField(default = 0, null=True, blank=True)
     total_school_days = models.PositiveSmallIntegerField(default = 0, help_text = "Total number of school days in the term")
     teacher_remarks = models.TextField(blank = True)
-    teacher = models.ForeignKey("staff.StaffProfile", on_delete = models.SET_NULL, null = True, blank = True, related_name = "given_reports")
+    headteacher_remarks = models.TextField(blank=True)
+    headteacher = models.CharField(max_length = 100,blank=True, null=True)
+    teacher = models.CharField(max_length = 100, blank=True, null=True)
     status = models.CharField(max_length = 20, choices = ReportStatus.choices, default = ReportStatus.DRAFT)
 
     class Meta:
@@ -95,8 +98,10 @@ class StudentReport(TimestampedModel):
         return f"{self.student.full_name} - {self.term.name} Report"
 
     def save(self, *args, **kwargs):
-        if self.teacher_remarks:
+        if self.teacher_remarks and self.headteacher_remarks:
             self.status = self.ReportStatus.READY
+        if self.teacher_remarks is None or self.headteacher_remarks is None:
+            self.status = self.ReportStatus.PENDING_REMARKS
         super().save(*args, **kwargs)
 
 class StudentReportSubjectScore(TimestampedModel):
@@ -107,7 +112,7 @@ class StudentReportSubjectScore(TimestampedModel):
     exam_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
     sba_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
     total_score = models.DecimalField(max_digits = 5, decimal_places = 2, default = 0.00)
-    grade = models.CharField(max_length = 2, blank = True)
+    grade = models.CharField(max_length = 10, blank = True)
 
     class Meta:
         constraints = [

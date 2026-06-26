@@ -1,7 +1,36 @@
+from django.core.files.uploadedfile import UploadedFile
 from core.responses import ApiResponse
-
+from django.db import transaction
 from .utils import log_action
 from .models import AuditLog
+
+
+def _make_json_serializable(data):
+    """
+    Recursively filter out non-JSON-serializable objects like uploaded files.
+    Converts dict-like and list-like objects, excluding file upload objects.
+    """
+    if isinstance(data, dict):
+        return {
+            k: _make_json_serializable(v)
+            for k, v in data.items()
+            if not isinstance(v, UploadedFile)
+        }
+    elif isinstance(data, (list, tuple)):
+        return [
+            _make_json_serializable(item)
+            for item in data
+            if not isinstance(item, UploadedFile)
+        ]
+    elif isinstance(data, UploadedFile):
+        # Return file metadata instead of the file object
+        return {
+            "filename": getattr(data, "name", None),
+            "size": getattr(data, "size", None),
+            "content_type": getattr(data, "content_type", None),
+        }
+    else:
+        return data
 
 
 class AuditLogMixin:
@@ -16,12 +45,13 @@ class AuditLogMixin:
         return {
             "instance": str(instance) if instance else None,
             "user": f"{self.request.user.first_name} {self.request.user.last_name}" if self.request.user.is_authenticated else None,
-            "data": self.request.data,
+            "data": _make_json_serializable(self.request.data),
         }
 
     def get_audit_description(self, instance):
         return f"{self.audit_action.capitalize()} {self.audit_resource}"
 
+    @transaction.atomic
     def perform_create(self, serializer, **kwargs):
         school = self.request.user.school
         if school:

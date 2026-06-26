@@ -91,13 +91,13 @@ class BulkAttendanceSerializer(serializers.Serializer):
         school = self.context["school"]
         klass = attrs["class_id"]
         records = attrs["records"]
-        student_ids = [str(r["student_id"]) for r in records]
+        student_ids = [str(record["student_id"]) for record in records]
 
         # Verify all students belong to this school and class
         valid_students = Student.objects.filter(
             id__in=student_ids,
             school=school,
-            status="active",
+            status=Student.Status.ACTIVE,
             enrollments__klass=klass,
             enrollments__is_active=True,
             enrollments__academic_year=attrs["term_id"].academic_year

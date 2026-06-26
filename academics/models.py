@@ -142,7 +142,6 @@ class ClassSubject(TimestampedModel):
     def __str__(self):
         return f"{self.subject.name} in {self.klass.name}"
 
-
 class ClassTeacher(TimestampedModel):
     """Assigns a teacher to a class for a given academic year."""
     school = models.ForeignKey(
@@ -156,7 +155,7 @@ class ClassTeacher(TimestampedModel):
         related_name="class_teachers",
     )
     teacher = models.ForeignKey(
-        "accounts.User",
+        "staff.StaffProfile",
         on_delete=models.CASCADE,
         related_name="class_teachers",
     )
@@ -164,6 +163,8 @@ class ClassTeacher(TimestampedModel):
         AcademicYear,
         on_delete=models.CASCADE,
         related_name="class_teachers",
+        blank=True, 
+        null=True
     )
     is_active = models.BooleanField(default=True)
 
@@ -172,7 +173,7 @@ class ClassTeacher(TimestampedModel):
         unique_together = ["school", "klass", "academic_year", "teacher"]
 
     def __str__(self):
-        return f"{self.teacher.full_name} → {self.klass.name} ({self.academic_year.name})"
+        return f"{self.teacher.full_name} → {self.klass.name}"
 
 class GradingSystem(TimestampedModel):
     """
@@ -183,7 +184,6 @@ class GradingSystem(TimestampedModel):
     school = models.ForeignKey("schools.School", on_delete = models.CASCADE,related_name="grading_systems")
     name = models.CharField(max_length = 100)
     description = models.TextField(blank=True)
-    is_default = models.BooleanField(default = True)
     max_score = models.PositiveBigIntegerField(
         default = 100, help_text = "Maximum possible score for the grade system"
     )
@@ -192,20 +192,12 @@ class GradingSystem(TimestampedModel):
     )
 
     class Meta:
-        ordering = ['-is_default','name']
+        ordering = ['name']
         unique_together = ["school","name"]
 
     def __str__(self):
         return f"{self.name} - {self.school.name}"
     
-    def save(self, *args, **kwargs):
-        if self.is_default:
-            GradingSystem.objects.filter(
-                school = self.school,
-                is_default = True
-            ).exclude(id = self.pk).update(is_default = False)
-        super().save(*args, **kwargs)
-
 
 class GradeScale(TimestampedModel):
     grading_system = models.ForeignKey(GradingSystem, on_delete = models.CASCADE,related_name="grade_scales")
@@ -215,11 +207,7 @@ class GradeScale(TimestampedModel):
     label = models.CharField(max_length = 50, help_text = "Descriptive label e.g Excellent, Very good")
     min_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Minimum score for this grade (inclusive)")
     max_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Maximum score for this grade (inclusive)")
-    remark = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="Optional remark e.g 'Distinction', 'Credit', 'Fail'",
-    )
+    
     is_passing = models.BooleanField(default = True, help_text = "Whether is grade is considered as a passing grade")
     position = models.PositiveIntegerField(
         default=0,
@@ -228,13 +216,23 @@ class GradeScale(TimestampedModel):
 
     class Meta:
         ordering = ["grading_system", "position", "-min_score"]
-        unique_together = ["grading_system", "grade"]
+        unique_together = [
+            ["grading_system", "grade"],
+            ["grading_system", "position"]
+        ] 
 
     def __str__(self):
         return (
             f"{self.grade} ({self.min_score}–{self.max_score}) "
             f"— {self.grading_system.name}"
         )
+    
+    def save(self, *args, **kwargs):
+        position = self.position
+        while GradeScale.objects.filter(grading_system = self.grading_system, position = position).exclude(pk=self.pk).exists():
+            position += 1
+        self.position = position
+        return super().save(*args, **kwargs)
 
 class SubjectTeacher(TimestampedModel):
     """
@@ -266,6 +264,8 @@ class SubjectTeacher(TimestampedModel):
         AcademicYear,
         on_delete=models.CASCADE,
         related_name="subject_teachers",
+        blank=True, 
+        null=True
     )
     term = models.ForeignKey(
         Term,
@@ -288,7 +288,7 @@ class SubjectTeacher(TimestampedModel):
         return (
             f"{self.teacher.user.full_name} → "
             f"{self.subject.name} in {self.klass.name} "
-            f"({self.academic_year.name})"
+            
         )
 
 

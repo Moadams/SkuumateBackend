@@ -113,11 +113,9 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
 
         try:
             user_id = force_str(urlsafe_base64_decode(uid))
-            print("Decoded UID:", user_id)  # Debugging line
             user = User.objects.get(pk=user_id)
 
         except Exception as e:
-            print("RESET PASSWORD ERROR:", str(e))  # Debugging line
             raise serializers.ValidationError(
                 {"uid": "Invalid reset link."}
             )
@@ -125,6 +123,48 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
         if not default_token_generator.check_token(user, token):
             raise serializers.ValidationError(
                 {"token": "Invalid or expired token."}
+            )
+
+        validate_password(password, user)
+
+        attrs["user"] = user
+
+        return attrs
+
+    def save(self):
+        user = self.validated_data["user"]
+        password = self.validated_data["password"]
+
+        user.set_password(password)
+
+        # Optional: mark first login complete
+        if hasattr(user, "must_change_password"):
+            user.must_change_password = False
+
+        user.save()
+
+        return user
+    
+class ResetUserPasswordSerializer(serializers.Serializer):
+    user_id = serializers.UUIDField(write_only = True)
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        user_id = attrs.get("user_id")
+        password = attrs.get("password")
+        confirm_password = attrs.get("confirm_password")
+
+        if password != confirm_password:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+
+        try:            
+            user = User.objects.get(pk=user_id)
+        except Exception as e:
+            raise serializers.ValidationError(
+                {"uid": "Invalid reset link."}
             )
 
         validate_password(password, user)

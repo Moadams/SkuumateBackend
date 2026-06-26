@@ -73,6 +73,7 @@ def send_forgot_password_mail(
         "frontend_url": settings.FRONTEND_URL,
         "support_email": "info@hubtekgh.com",
         "support_phone": "+233(0)241874219",
+        "support_url": f"{settings.FRONTEND_URL}/support",
         "current_year": datetime.date.today().year,
     }
 
@@ -116,15 +117,38 @@ def send_welcome_school_email(
 
 def _html_to_text(context: dict) -> str:
     """Minimal plain text fallback for email clients that block HTML."""
+    name = context.get("name") or context.get("admin_name") or context.get("staff_name") or "there"
+    email = context.get("email") or context.get("admin_email") or context.get("staff_email") or ""
+    reset_link = context.get("reset_link", "")
+    login_url = context.get("login_url", "")
+    support_email = context.get("support_email", "info@hubtekgh.com")
+    support_phone = context.get("support_phone", "")
+    year = context.get("current_year", "")
+
+    # Forgot-password email
+    if "name" in context and "reset_link" in context and "admin_name" not in context:
+        return (
+            f"Reset your SkuuMate password\n\n"
+            f"Hi {name},\n\n"
+            f"We received a request to reset your SkuuMate account password. "
+            f"If you didn't make this request, you can safely ignore this email.\n\n"
+            f"To reset your password, visit:\n{reset_link}\n\n"
+            f"This link expires in 24 hours.\n\n"
+            f"Need help? Contact us at {support_email} or {support_phone}\n\n"
+            f"© {year} SkuuMate by HubTek Primex Enterprise"
+        )
+
+    # Welcome / staff-welcome email
+    school_name = context.get("school_name", "your school")
     return (
         f"Welcome to SkuuMate!\n\n"
-        f"Hi {context.get('admin_name')},\n\n"
-        f"Your school account for {context.get('school_name')} has been created.\n\n"
+        f"Hi {name},\n\n"
+        f"Your account for {school_name} has been created.\n\n"
         f"LOGIN CREDENTIALS\n"
         f"─────────────────\n"
-        f"Portal URL : {context.get('login_url')}\n"
-        f"Email      : {context.get('admin_email')}\n"
-        f"Password   : {context.get('reset_link')}\n\n"
+        f"Portal URL : {login_url}\n"
+        f"Email      : {email}\n"
+        f"Password   : {reset_link}\n\n"
         f"Please change your password after your first login.\n\n"
         f"NEXT STEPS\n"
         f"──────────\n"
@@ -133,9 +157,9 @@ def _html_to_text(context: dict) -> str:
         f"3. Create classes and subjects\n"
         f"4. Register your students\n"
         f"5. Choose a subscription plan before your trial ends\n\n"
-        f"Need help? Contact us at {context.get('support_email')} "
-        f"or {context.get('support_phone')}\n\n"
-        f"© {context.get('current_year')} SkuuMate by HubTek Primex Enterprise"
+        f"Need help? Contact us at {support_email} "
+        f"or {support_phone}\n\n"
+        f"© {year} SkuuMate by HubTek Primex Enterprise"
     )
 
 

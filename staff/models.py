@@ -147,18 +147,11 @@ class StaffProfile(TimestampedModel):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
-    emergency_contact_name = models.CharField(
-        max_length=100, blank=True
-    )
-    emergency_contact_phone = models.CharField(
-        max_length=20, blank=True
-    )
     profile_photo = models.ImageField(
         upload_to="staff/photos/",
         null=True,
         blank=True,
     )
-    notes = models.TextField(blank=True)
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -169,11 +162,12 @@ class StaffProfile(TimestampedModel):
     def save(self, *args, **kwargs):
         if not self.employee_id:
             self.employee_id = self._generate_employee_id()
-        if self.first_name != self.user.first_name or self.last_name != self.user.last_name or self.email != self.user.email:
+        if self.first_name != self.user.first_name or self.last_name != self.user.last_name or self.email != self.user.email or self.phone != self.user.phone:
             # Keep User's name in sync with StaffProfile
             self.user.first_name = self.first_name
             self.user.last_name = self.last_name
             self.user.email = self.email    
+            self.user.phone = self.phone
             self.user.save()
         super().save(*args, **kwargs)
 

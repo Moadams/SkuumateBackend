@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -12,7 +12,7 @@ from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.utils import log_action
 from students.utils import parse_students_from_excel
-from subscriptions.utils import check_limit
+# from subscriptions.utils import check_limit
 
 from .models import Student, Guardian, Enrollment
 from .serializers import (
@@ -379,9 +379,9 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = StudentListSerializer(page, many=True)
+            serializer = StudentListSerializer(page, many=True, context={"request": request})
             return self.get_paginated_response(serializer.data)
-        serializer = StudentListSerializer(queryset, many=True)
+        serializer = StudentListSerializer(queryset, many=True, context={"request": request})
         return ApiResponse.success(data=serializer.data)
 
     def create(self, request, *args, **kwargs):
@@ -435,12 +435,12 @@ class StudentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         serializer = StudentUpdateSerializer(
             instance, data=request.data, partial=True,
-            context={"school": request.user.school}
+            context={"school": request.user.school, "request":request}
         )
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return ApiResponse.success(
-            data=StudentListSerializer(serializer.instance).data,
+            data=StudentListSerializer(serializer.instance, context = {"request":request}).data,
             message="Student updated successfully.",
         )
 

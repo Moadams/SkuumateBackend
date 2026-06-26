@@ -1,14 +1,10 @@
 from django.urls import path
-
-from staff.dashboard_views import TeacherDasbhoardView
 from .views import (
     PermissionListView,
-    ResetStaffPasswordView,
     StaffPositionListCreateView,
     StaffPositionDetailView,
     StaffListCreateView,
     StaffDetailView,
-    StaffPhotoUploadView,
     StaffExportView,
     MyStaffProfileView,
 )
@@ -53,18 +49,6 @@ urlpatterns = [
         "staff/<uuid:pk>/",
         StaffDetailView.as_view(),
         name="staff-detail",
-    ),
-    path(
-        "staff/<uuid:pk>/photo/",
-        StaffPhotoUploadView.as_view(),
-        name="staff-photo",
-    ),
-    path(
-        "staff/<uuid:pk>/reset-password/",
-        ResetStaffPasswordView.as_view(),
-        name="staff-reset-password",
-    ),
-
-    path("dashboard/teacher/", TeacherDasbhoardView.as_view(), name= "teacher-dashboard")
+    )
 ]
 

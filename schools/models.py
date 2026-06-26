@@ -12,6 +12,7 @@ class School(TimestampedModel):
     school_code = models.CharField(max_length = 10, blank=True, null=True)
     logo = models.ImageField(upload_to="schools/logos/", null=True, blank=True)
     email = models.EmailField(unique=True, blank=True, null=True)
+    school_email_domain = models.CharField(max_length=255, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)

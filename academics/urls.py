@@ -1,10 +1,13 @@
 from django.urls import path
-from .views import (
-    AcademicYearListCreateView, AcademicYearDetailView, AcademicYearExportView, AcademicYearTermsListView, ActivateTermView, BulkSubjectTeacherAssignView, ClassSubjectTeacherSummaryView, ClassTeacherListView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView, GradingSystemDetailView, GradingSystemListCreateView, GradingSystemSetDefaultView, SubjectTeacherAssignView, SubjectTeacherDetailView, SubjectTeacherExportView, SubjectTeacherListView,
-    TermListCreateView, TermDetailView, TermExportView,
-    SubjectListCreateView, SubjectDetailView, SubjectExportView,
-    ClassListCreateView, ClassDetailView, ClassExportView,
-    ClassSubjectAssignView, ClassTeacherAssignView, TimeTableSlotListCreateView,
+
+from academics.views.academic_term_views import AcademicYearTermsListView, ActivateTermView, TermDetailView, TermExportView, TermListCreateView
+from academics.views.academic_year_views import AcademicYearDetailView, AcademicYearExportView, AcademicYearListCreateView
+from academics.views.class_views import ClassDetailView, ClassExportView, ClassListCreateView, ClassSubjectDetailView, ClassSubjectsListCreateView, ClassTeacherView, UnassignClassTeacherView
+from academics.views.grade_views import GradeScaleUpdateDestroyView, GradingScaleCreateListView, GradingSystemDetailView, GradingSystemListCreateView
+from academics.views.subject_views import SubjectDetailView, SubjectExportView, SubjectListCreateView, SubjectTeacherListCreateView, UnassignSubjectTeacherView
+from .views.views import (
+    BulkSubjectTeacherAssignView, ClassSubjectTeacherSummaryView, GradeResolverView, GradeScaleBulkSetView, GradeScaleUpdateView,
+     TimeTableSlotListCreateView,
 )
 
 urlpatterns = [
@@ -29,8 +32,10 @@ urlpatterns = [
     path("classes/", ClassListCreateView.as_view(), name="class-list"),
     path("classes/export/", ClassExportView.as_view(), name="class-export"),
     path("classes/<uuid:pk>/", ClassDetailView.as_view(), name="class-detail"),
-    path("classes/<uuid:pk>/subjects/", ClassSubjectAssignView.as_view(), name="class-subjects"),
-    path("classes/<uuid:pk>/teacher/", ClassTeacherAssignView.as_view(), name="class-teacher"),
+    path("classes/<uuid:class_id>/subjects/", ClassSubjectsListCreateView.as_view(), name="class-subjects"),
+    path("class-subjects/<uuid:pk>/", ClassSubjectDetailView.as_view(), name="class-subject-detail"),
+    path("classes/<uuid:class_id>/teacher/", ClassTeacherView.as_view(), name="class-teacher"),
+    path("class-teachers/<uuid:pk>/", UnassignClassTeacherView.as_view(), name="class-teacher-detail"),
 
     # Grading Systems
     path(
@@ -43,11 +48,12 @@ urlpatterns = [
         GradingSystemDetailView.as_view(),
         name="grading-system-detail",
     ),
-    path(
-        "grading-systems/<uuid:pk>/set-default/",
-        GradingSystemSetDefaultView.as_view(),
-        name="grading-system-set-default",
-    ),
+    path("grading-systems/<uuid:grading_system_id>/scales/", GradingScaleCreateListView.as_view()),
+    # path(
+    #     "grading-systems/<uuid:pk>/set-default/",
+    #     GradingSystemSetDefaultView.as_view(),
+    #     name="grading-system-set-default",
+    # ),
     path(
         "grading-systems/<uuid:pk>/grades/",
         GradeScaleBulkSetView.as_view(),
@@ -62,7 +68,7 @@ urlpatterns = [
     # Individual grade scale
     path(
         "grade-scales/<uuid:pk>/",
-        GradeScaleUpdateView.as_view(),
+        GradeScaleUpdateDestroyView.as_view(),
         name="grade-scale-detail",
     ),
 
@@ -70,27 +76,18 @@ urlpatterns = [
     # Subject Teacher Assignments
     path(
         "subject-teachers/",
-        SubjectTeacherListView.as_view(),
+        SubjectTeacherListCreateView.as_view(),
         name="subject-teacher-list",
-    ),
-    path(
-        "subject-teachers/assign/",
-        SubjectTeacherAssignView.as_view(),
-        name="subject-teacher-assign",
     ),
     path(
         "subject-teachers/bulk-assign/",
         BulkSubjectTeacherAssignView.as_view(),
         name="subject-teacher-bulk-assign",
     ),
-    path(
-        "subject-teachers/export/",
-        SubjectTeacherExportView.as_view(),
-        name="subject-teacher-export",
-    ),
+    
     path(
         "subject-teachers/<uuid:pk>/",
-        SubjectTeacherDetailView.as_view(),
+        UnassignSubjectTeacherView.as_view(),
         name="subject-teacher-detail",
     ),
     path(
@@ -98,8 +95,6 @@ urlpatterns = [
         ClassSubjectTeacherSummaryView.as_view(),
         name="class-subject-teacher-summary",
     ),
-    path(
-        "teacher/me/classes/", ClassTeacherListView.as_view(), name="teacher-classes"
-    ), 
+    
     path("timetable-slots/<uuid:class_id>/", TimeTableSlotListCreateView.as_view(), name="timetable-slot-list-create"),
 ]

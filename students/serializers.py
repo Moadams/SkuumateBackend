@@ -4,7 +4,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from accounts.models import User
-from students.utils import generate_student_email
+from students.utils import generate_user_email
 from .models import Student, Guardian, Enrollment
 
 
@@ -52,6 +52,7 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
 class StudentListSerializer(serializers.ModelSerializer):
     student_class = serializers.SerializerMethodField()
+    profile_photo = serializers.SerializerMethodField()
     class Meta:
         model = Student
         fields = [
@@ -61,9 +62,14 @@ class StudentListSerializer(serializers.ModelSerializer):
             "email",
             "profile_photo",
             "status",
-            "student_class",
-            "gender"
+            "student_class"
         ]
+
+    def get_profile_photo(self, obj):
+        request = self.context.get("request")
+        if obj.profile_photo and request:
+            return request.build_absolute_uri(obj.profile_photo.url)
+        return None
 
     def get_student_class(self, obj):
         enrollment = obj.enrollments.filter(
@@ -230,7 +236,7 @@ class StudentCreateSerializer(serializers.ModelSerializer):
         first_name = attrs.get("first_name", "")
         last_name = attrs.get("last_name", "")
         if not email:
-            email = generate_student_email(first_name, last_name, domain="school.com")
+            email = generate_user_email(first_name, last_name, domain=self.context["school"].school_email_domain or "school.com")
 
         if not student_id:
             if not self.context["school"].school_code:
