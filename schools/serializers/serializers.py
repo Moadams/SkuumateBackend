@@ -143,3 +143,23 @@ class MySchoolUpdateSerializer(serializers.ModelSerializer):
         if value and re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", value) is None:
             raise serializers.ValidationError("Enter a valid email address.")
         return value
+
+
+class SchoolProfileSerializer(serializers.ModelSerializer):
+    
+
+    class Meta:
+        model = School
+        fields = [
+            "id",
+            "name",
+            "school_code",
+            "logo",
+            "email",
+            "school_email_domain",
+            "phone",
+            "address",
+            "city",
+            "country",
+        ]
+        

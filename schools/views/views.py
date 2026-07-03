@@ -11,7 +11,7 @@ from schools.serializers.superadmin_serializers import SchoolCreateSerializer
 from schools.utils import check_and_complete_onboarding
 
 from ..models import School
-from ..serializers.serializers import MySchoolUpdateSerializer, SchoolSerializer
+from ..serializers.serializers import MySchoolUpdateSerializer, SchoolSerializer, SchoolProfileSerializer
 
 from django.core.cache import cache
 
@@ -89,6 +89,43 @@ class MySchoolRetrieveUpdateView(AuditLogMixin, generics.RetrieveUpdateAPIView):
         cache.delete(CacheKeys.school_dashboard(str(request.user.school.id)))
         cache.delete(CacheKeys.school_onboarding(str(request.user.school.id)))
         return ApiResponse.success(data=serializer.data)
+
+
+class SchoolProfileView(APIView):
+    """
+    Admin school profile — view and edit school details.
+    """
+    permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request):
+        school = request.user.school
+        if not school:
+            return ApiResponse.error(
+                message="No school associated with this account.",
+                status_code=404,
+            )
+        serializer = SchoolProfileSerializer(school, context={"request": request})
+        return ApiResponse.success(data=serializer.data)
+
+    def patch(self, request):
+        school = request.user.school
+        if not school:
+            return ApiResponse.error(
+                message="No school associated with this account.",
+                status_code=404,
+            )
+        serializer = MySchoolUpdateSerializer(
+            school, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        cache.delete(CacheKeys.school_dashboard(str(school.id)))
+        cache.delete(CacheKeys.school_onboarding(str(school.id)))
+        return ApiResponse.success(data=serializer.data)
+
+
+class SchoolOnboardingStatusView(APIView):
     """
     Returns the current school's onboarding status
     and which steps have been completed.
@@ -108,7 +145,7 @@ class MySchoolRetrieveUpdateView(AuditLogMixin, generics.RetrieveUpdateAPIView):
         if cached is not None:
             return ApiResponse.success(data=cached)
 
-        check_and_complete_onboarding(self.request.user.school)
+        check_and_complete_onboarding(school)
 
         steps = {
             "academic_year": school.academic_years.exists(),

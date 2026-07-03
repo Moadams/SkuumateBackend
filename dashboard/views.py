@@ -10,6 +10,7 @@ from core.cache import CacheKeys
 from core.logging import get_logger
 from core.permissions import IsSuperAdmin, OrPermission, IsAdmin, IsFinanceManager, IsTeacher
 from core.responses import ApiResponse
+from subscriptions.models import SubscriptionPayment
 
 logger = get_logger("dashboard.views")
 
@@ -50,7 +51,7 @@ class SuperadminDashboardView(APIView):
         last_month_start = (now.replace(day=1) - timedelta(days=1)).replace(day=1)
         this_month_start = now.replace(day=1)
 
-        total_schools = School.objects.filter(is_active=True).count()
+        total_schools = School.objects.filter(status=School.SchoolStatus.ACTIVE).count()
         schools_this_month = School.objects.filter(
             created_at__gte=this_month_start
         ).count()
@@ -69,18 +70,18 @@ class SuperadminDashboardView(APIView):
         subscriptions_this_month = subscriptions_data['this_month_subscriptions']
         subscriptions_last_month = subscriptions_data['last_month_subscriptions']
 
-        revenue_this_month = Subscription.objects.filter(
+        revenue_this_month = SubscriptionPayment.objects.filter(
             created_at__gte=this_month_start,
             status__in=["active", "trial"],
-            amount_paid__isnull=False,
-        ).aggregate(total=Sum("amount_paid"))["total"] or 0
+            amount__isnull=False,
+        ).aggregate(total=Sum("amount"))["total"] or 0
 
-        revenue_last_month = Subscription.objects.filter(
+        revenue_last_month = SubscriptionPayment.objects.filter(
             created_at__gte=last_month_start,
             created_at__lt=this_month_start,
             status__in=["active", "trial"],
-            amount_paid__isnull=False,
-        ).aggregate(total=Sum("amount_paid"))["total"] or 0
+            amount__isnull=False,
+        ).aggregate(total=Sum("amount"))["total"] or 0
 
         users_stats = User.objects.aggregate(
             active_users=Count('id', filter=Q(is_active=True, school__isnull=False)),
