@@ -219,6 +219,484 @@ class StudentBulkCreateView(APIView):
 
         return student
 
+class ClassBulkStudentsView(APIView):
+    """
+    Bulk create students for a specific class from an Excel file.
+    Each student is enrolled in the given class with one guardian.
+
+    POST /api/v1/students/class-bulk/
+        class_id (required) — UUID of the class to enroll in
+        file (required) — .xlsx file
+        photos (optional) — .zip file with student photos named by photo_filename column
+
+    GET  /api/v1/students/class-bulk/ — downloads the template
+    """
+    permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        return self._generate_template()
+
+    def post(self, request):
+        school = request.user.school
+        class_id = request.data.get("class_id")
+        if not class_id:
+            return ApiResponse.error(
+                message="class_id is required.",
+                status_code=400,
+            )
+
+        # ── Validate class exists and is active ──────────────────────
+        from academics.models import Class, AcademicYear
+        try:
+            print(class_id)
+            klass = Class.objects.get(id=class_id, school=school, is_active=True)
+        except Class.DoesNotExist:
+            return ApiResponse.error(
+                message="Class not found or inactive.",
+                status_code=404,
+            )
+
+        # ── Resolve current academic year ────────────────────────────
+        current_term = school.terms.filter(is_current=True).first()
+        if not current_term:
+            return ApiResponse.error(
+                message="No active academic year. Please set up an academic year and term first.",
+                status_code=400,
+            )
+        academic_year = current_term.academic_year
+
+        # ── Validate file ───────────────────────────────────────────
+        file = request.FILES.get("file")
+        if not file:
+            return ApiResponse.error(
+                message="No file uploaded. Please upload an .xlsx file.",
+                status_code=400,
+            )
+        if not file.name.endswith(".xlsx"):
+            return ApiResponse.error(
+                message="Invalid file type. Only .xlsx files are supported.",
+                status_code=400,
+            )
+
+        # ── Parse Excel ─────────────────────────────────────────────
+        try:
+            students_data, parse_errors = self._parse_class_excel(file)
+        except ValueError as e:
+            return ApiResponse.error(message=str(e), status_code=400)
+
+        if not students_data and parse_errors:
+            return ApiResponse.error(
+                message="All rows failed validation.",
+                data={
+                    "summary": {
+                        "total_submitted": len(parse_errors),
+                        "created": 0,
+                        "failed": len(parse_errors),
+                        "parse_errors": parse_errors,
+                    }
+                },
+                status_code=400,
+            )
+
+        
+        # ── Extract photos ZIP if provided ──────────────────────────
+        import zipfile
+        import tempfile
+        import os
+
+        photos_zip = request.FILES.get("photos")
+        photo_map = {}
+        temp_dir = None
+        if photos_zip:
+            if not photos_zip.name.endswith(".zip"):
+                return ApiResponse.error(
+                    message="Photos file must be a .zip archive.",
+                    status_code=400,
+                )
+            temp_dir = tempfile.mkdtemp()
+            try:
+                with zipfile.ZipFile(photos_zip) as zf:
+                    zf.extractall(temp_dir)
+                    for root, dirs, files in os.walk(temp_dir):
+                        for fname in files:
+                            photo_map[fname.lower()] = os.path.join(root, fname)
+            except zipfile.BadZipFile:
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return ApiResponse.error(
+                    message="Invalid ZIP file for photos.",
+                    status_code=400,
+                )
+
+        # ── Create students ─────────────────────────────────────────
+        created = []
+        failed = [*parse_errors]
+
+        for student_data in students_data:
+            row_num = student_data.pop("_row", None)
+            photo_filename = student_data.pop("photo_filename", None)
+
+            try:
+                with transaction.atomic():
+                    # Pop guardian before creating student
+                    guardian_data = student_data.pop("guardian", None)
+
+                    student = Student.objects.create(
+                        school=school, **student_data
+                    )
+
+                    # Create guardian
+                    if guardian_data:
+                        Guardian.objects.create(
+                            student=student,
+                            school=school,
+                            **guardian_data,
+                        )
+
+                    # Enroll in class
+                    Enrollment.objects.create(
+                        school=school,
+                        student=student,
+                        klass=klass,
+                        academic_year=academic_year,
+                    )
+
+                    # Handle profile photo from ZIP
+                    if photo_filename and photo_map:
+                        normalized = photo_filename.strip().lower()
+                        photo_path = photo_map.get(normalized)
+                        if photo_path:
+                            from django.core.files import File
+                            with open(photo_path, "rb") as f:
+                                student.profile_photo.save(
+                                    normalized, File(f), save=True
+                                )
+
+                    created.append({
+                        "student_id": str(student.id),
+                        "student_id_number": student.student_id,
+                        "name": student.full_name,
+                    })
+            except Exception as e:
+                failed.append({
+                    "row": row_num,
+                    "name": (
+                        f"{student_data.get('first_name', '')} "
+                        f"{student_data.get('last_name', '')}"
+                    ).strip(),
+                    "errors": [str(e)],
+                })
+
+        # ── Cleanup temp photos ─────────────────────────────────────
+        if temp_dir:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        # ── Audit log ───────────────────────────────────────────────
+        if created:
+            log_action(
+                action=AuditLog.Action.CREATE,
+                resource="Student",
+                description=(
+                    f"Class bulk import: {len(created)} created in "
+                    f"{klass.name}, {len(failed)} failed"
+                ),
+                request=request,
+                metadata={
+                    "created_count": len(created),
+                    "failed_count": len(failed),
+                    "class_id": str(class_id),
+                    "class_name": klass.name,
+                    "academic_year": academic_year.name,
+                    "file_name": file.name,
+                    "photos_included": bool(photos_zip),
+                },
+            )
+
+        total_submitted = len(students_data) + len(parse_errors)
+
+        return ApiResponse.success(
+            data={
+                "summary": {
+                    "class_name": klass.name,
+                    "academic_year": academic_year.name,
+                    "total_submitted": total_submitted,
+                    "created": len(created),
+                    "failed": len(failed),
+                    "success_rate": (
+                        f"{round((len(created) / total_submitted) * 100)}%"
+                        if total_submitted > 0 else "0%"
+                    ),
+                },
+                "created": created,
+                "failed": failed,
+            },
+            message=(
+                f"{len(created)} of {total_submitted} students imported "
+                f"into {klass.name} successfully."
+                + (
+                    f" {len(failed)} failed — check 'failed' for details."
+                    if failed else ""
+                )
+            ),
+        )
+
+    # ── Parsing ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_class_excel(file):
+        """
+        Parses the simplified class-bulk Excel file.
+        Returns (students_data, row_errors).
+        """
+        import openpyxl
+
+        try:
+            workbook = openpyxl.load_workbook(file, read_only=True, data_only=True)
+        except Exception:
+            raise ValueError("Could not read the file. Please upload a valid .xlsx Excel file.")
+
+        sheet = workbook.active
+
+        headers = []
+        for cell in next(sheet.iter_rows(min_row=1, max_row=1)):
+            value = str(cell.value).strip().lower() if cell.value else ""
+            headers.append(value)
+
+        if not headers:
+            raise ValueError("The Excel file appears to be empty.")
+
+        required = ["first_name", "last_name", "date_of_birth", "gender"]
+        missing = [col for col in required if col not in headers]
+        if missing:
+            raise ValueError(
+                f"Missing required column(s): {', '.join(missing)}. "
+                f"Please use the provided template."
+            )
+
+        valid_genders = ["male", "female", "other"]
+        valid_relationships = ["father", "mother", "guardian", "sibling", "other"]
+
+        students = []
+        row_errors = []
+
+        for row_index, row in enumerate(
+            sheet.iter_rows(min_row=2, values_only=True), start=2
+        ):
+            if all(cell is None or str(cell).strip() == "" for cell in row):
+                continue
+
+            row_dict = {
+                headers[i]: (
+                    str(row[i]).strip() if row[i] is not None else ""
+                )
+                for i in range(min(len(headers), len(row)))
+            }
+
+            errors = []
+            student = {}
+
+            for key, value in row_dict.items():
+                student[key] = value
+
+            # Validate required fields
+            for col in required:
+                if not student.get(col):
+                    errors.append(f"'{col}' is required.")
+
+            # Validate gender
+            gender = student.get("gender", "").lower()
+            if gender and gender not in valid_genders:
+                errors.append(
+                    f"Invalid gender '{gender}'. "
+                    f"Must be one of: {', '.join(valid_genders)}."
+                )
+            else:
+                student["gender"] = gender
+
+            # Parse dates
+            def parse_date(raw):
+                if not raw:
+                    return None
+                from datetime import datetime as dt
+                formats = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]
+                for fmt in formats:
+                    try:
+                        return dt.strptime(str(raw).strip(), fmt).date()
+                    except ValueError:
+                        continue
+                return None
+
+            for date_field in ["date_of_birth", "admission_date"]:
+                raw = student.get(date_field, "")
+                parsed = parse_date(raw)
+                if raw and parsed is None:
+                    errors.append(f"Invalid date format for '{date_field}': '{raw}'. Use YYYY-MM-DD.")
+                else:
+                    student[date_field] = parsed
+
+            # Clean optional fields
+            student.setdefault("other_names", "")
+            student.setdefault("address", "")
+            student.setdefault("previous_school", "")
+            student.setdefault("email", "")
+            student.setdefault("phone_number", "")
+
+            # Guardian (single)
+            guardian = {}
+            g_first_name = student.pop("guardian_first_name", "").strip()
+            g_last_name = student.pop("guardian_last_name", "").strip()
+            g_relationship = student.pop("guardian_relationship", "").strip().lower()
+            g_phone = student.pop("guardian_phone", "").strip()
+            g_email = student.pop("guardian_email", "").strip()
+            g_address = student.pop("guardian_address", "").strip()
+            g_is_primary = student.pop("guardian_is_primary", "").strip().lower() in ("true", "1", "yes")
+
+            has_guardian = any([g_first_name, g_last_name, g_relationship, g_phone])
+            if has_guardian:
+                if not g_first_name:
+                    errors.append("Guardian 'first_name' is required.")
+                if not g_last_name:
+                    errors.append("Guardian 'last_name' is required.")
+                if not g_relationship:
+                    errors.append("Guardian 'relationship' is required.")
+                elif g_relationship not in valid_relationships:
+                    errors.append(
+                        f"Invalid guardian relationship '{g_relationship}'. "
+                        f"Must be one of: {', '.join(valid_relationships)}."
+                    )
+                if not g_phone:
+                    errors.append("Guardian 'phone' is required.")
+
+                if not errors:
+                    guardian = {
+                        "first_name": g_first_name,
+                        "last_name": g_last_name,
+                        "relationship": g_relationship,
+                        "phone": g_phone,
+                        "email": g_email,
+                        "address": g_address,
+                        "is_primary": g_is_primary,
+                    }
+
+            student["guardian"] = guardian if guardian else None
+
+            # Photo filename
+            photo_filename = student.pop("photo_filename", "").strip()
+            student["photo_filename"] = photo_filename if photo_filename else None
+
+            if errors:
+                row_errors.append({
+                    "row": row_index,
+                    "name": (
+                        f"{student.get('first_name', '')} "
+                        f"{student.get('last_name', '')}"
+                    ).strip() or f"Row {row_index}",
+                    "errors": errors,
+                })
+            else:
+                student["_row"] = row_index
+                students.append(student)
+
+        workbook.close()
+        return students, row_errors
+
+    # ── Template generation ────────────────────────────────────────
+
+    @staticmethod
+    def _generate_template():
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from django.http import HttpResponse
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Students"
+
+        headers = [
+            "first_name",
+            "last_name",
+            "other_names",
+            "date_of_birth",
+            "gender",
+            "admission_date",
+            "address",
+            "previous_school",
+            "email",
+            "phone_number",
+            "photo_filename",
+            "guardian_first_name",
+            "guardian_last_name",
+            "guardian_relationship",
+            "guardian_phone",
+            "guardian_email",
+            "guardian_address",
+            "guardian_is_primary",
+        ]
+
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+
+        for col_num, header in enumerate(headers, start=1):
+            cell = sheet.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+            sheet.column_dimensions[cell.column_letter].width = max(len(header) + 4, 18)
+
+        sample = [
+            "Ekow", "Mensah", "Kofi",
+            "2010-05-14", "male", "2025-09-01",
+            "123 Adum Street, Kumasi", "Good Shepherd Academy",
+            "ekow.mensah@school.com", "0244000001",
+            "ekow_photo.jpg",
+            "Kwame", "Mensah", "father",
+            "0244000002", "kwame@email.com", "", "true",
+        ]
+        for col_num, value in enumerate(sample, start=1):
+            cell = sheet.cell(row=2, column=col_num, value=value)
+            cell.alignment = Alignment(horizontal="left")
+
+        # Notes sheet
+        notes_sheet = workbook.create_sheet(title="Notes")
+        notes = [
+            ["Field", "Required", "Format / Allowed Values"],
+            ["first_name", "Yes", "Text"],
+            ["last_name", "Yes", "Text"],
+            ["other_names", "No", "Text"],
+            ["date_of_birth", "Yes", "YYYY-MM-DD or DD/MM/YYYY"],
+            ["gender", "Yes", "male / female / other"],
+            ["admission_date", "No", "YYYY-MM-DD or DD/MM/YYYY"],
+            ["address", "No", "Text"],
+            ["previous_school", "No", "Text"],
+            ["email", "No", "Email address"],
+            ["phone_number", "No", "Phone number"],
+            ["photo_filename", "No", "Filename in the uploaded photos ZIP (e.g., student1.jpg)"],
+            ["guardian_first_name", "No", "Text"],
+            ["guardian_last_name", "No", "Text"],
+            ["guardian_relationship", "No", "father / mother / guardian / sibling / other"],
+            ["guardian_phone", "No", "Phone number"],
+            ["guardian_email", "No", "Email address"],
+            ["guardian_address", "No", "Text"],
+            ["guardian_is_primary", "No", "true / false"],
+        ]
+        notes_header_font = Font(bold=True)
+        for row_index, row_data in enumerate(notes, start=1):
+            for col_index, value in enumerate(row_data, start=1):
+                cell = notes_sheet.cell(row=row_index, column=col_index, value=value)
+                if row_index == 1:
+                    cell.font = notes_header_font
+                notes_sheet.column_dimensions[cell.column_letter].width = 40
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="skuumate_class_bulk_template.xlsx"'
+        workbook.save(response)
+        return response
+
+
 class StudentExcelTemplateView(APIView):
     """
     Returns a downloadable Excel template for bulk student import.

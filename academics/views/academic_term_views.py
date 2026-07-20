@@ -58,7 +58,7 @@ class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView)
             action=AuditLog.Action.CREATE,
             resource="Term",
             resource_id=str(instance.pk),
-            description=f"Term '{instance.get_name_display()}' created by {self.request.user.full_name()}",
+            description=f"Term '{instance.get_name_display()}' created by {self.request.user.full_name}",
             request=self.request,
         )
         check_and_complete_onboarding(self.request.user.school) 

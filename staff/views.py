@@ -1,15 +1,18 @@
+import logging
+from django.db import IntegrityError
+from accounts.models import User
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework import status
 
 from core.permissions import IsAdmin, IsTeacher
 from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.utils import log_action
+from staff.enums.staff_status import StaffStatus
 
 from .models import (
     StaffPosition,
@@ -26,6 +29,7 @@ from .serializers import (
 )
 from .filters import StaffProfileFilter
 
+logger = logging.getLogger(__name__)
 
 # ─── Permission Keys ──────────────────────────────────────────────
 
@@ -232,7 +236,6 @@ class StaffListCreateView(
             StaffProfile.objects
             .filter(school=self.request.user.school)
             .select_related("user")
-            .prefetch_related("positions")
         )
 
     def get_serializer_context(self):
@@ -259,7 +262,7 @@ class StaffListCreateView(
         self.perform_create(serializer)
 
         return ApiResponse.created(
-            message = f"Staff profile for {serializer.instance.user.full_name} created successfully. "
+            message = f"Staff profile for {serializer.instance.full_name} created successfully. "
         )
 
 
@@ -269,13 +272,13 @@ class StaffDetailView(
     permission_classes = [IsAdmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     audit_resource = "StaffProfile"
+    serializer_class = StaffProfileSerializer
 
     def get_queryset(self):
         return (
             StaffProfile.objects
             .filter(school=self.request.user.school)
             .select_related("user")
-            .prefetch_related("positions")
         )
 
     def get_serializer_context(self):
@@ -283,13 +286,6 @@ class StaffDetailView(
         ctx["school"] = self.request.user.school
         return ctx
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        return ApiResponse.success(
-            data=StaffProfileSerializer(
-                instance, context={"request": request}
-            ).data
-        )
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -309,32 +305,72 @@ class StaffDetailView(
             message="Staff profile updated successfully.",
         )
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
 
-        # Soft deactivate rather than hard delete
-        instance.status = StaffProfile.Status.TERMINATED
-        instance.save()
-        instance.user.is_active = False
-        instance.user.save(update_fields=["is_active"])
+class UpdateStaffStatusView(APIView):
+    permission_classes = [IsAdmin]
+    audit_resource = "StaffProfile"
 
+    def post(self, request, pk):
+        try:
+            staff_profile = StaffProfile.objects.get(pk=pk)
+        except StaffProfile.DoesNotExist:
+            return ApiResponse.error(
+                message="Staff profile not found.",
+                status_code=404,
+            )
+        
+        status = request.data.get("status")
+        if status not in StaffStatus.values:
+            return ApiResponse.error(
+                message=f"Invalid status '{status}'.",
+                status_code=400,
+            )
+
+        if staff_profile.status == status:
+            return ApiResponse.error(
+                message=f"Staff profile is already '{status}'.",
+                status_code=400,
+            )
+        
+        if status == StaffStatus.ACTIVE:
+            return self._activate_staff_profile(request, staff_profile)
+        
+        else:
+            return self._deactivate_staff_profile(request, staff_profile)
+        
+    def _activate_staff_profile(self, request, staff_profile):
+        staff_profile.status = StaffStatus.ACTIVE
+        staff_profile.save()
+        if staff_profile.user:
+            staff_profile.user.is_active = True
+            staff_profile.user.save()
         log_action(
             action=AuditLog.Action.UPDATE,
             resource="StaffProfile",
-            resource_id=str(instance.pk),
-            description=(
-                f"Staff member {instance.user.full_name} terminated"
-            ),
+            resource_id=str(staff_profile.pk),
+            description=f"Staff profile '{staff_profile.full_name}' activated",
             request=request,
         )
-
         return ApiResponse.success(
-            message=(
-                f"{instance.user.full_name} has been "
-                f"terminated and deactivated."
-            )
+            message=f"Staff profile '{staff_profile.full_name}' activated successfully."
         )
-
+    
+    def _deactivate_staff_profile(self, request, staff_profile):
+        staff_profile.status = StaffStatus.INACTIVE
+        staff_profile.save()
+        if staff_profile.user:
+            staff_profile.user.is_active = False
+            staff_profile.user.save()
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="StaffProfile",
+            resource_id=str(staff_profile.pk),
+            description=f"Staff profile '{staff_profile.full_name}' deactivated",
+            request=request,
+        )
+        return ApiResponse.success(
+            message=f"Staff profile '{staff_profile.full_name}' deactivated successfully."
+        )
 
 class StaffExportView(ExportMixin, generics.ListAPIView):
     permission_classes = [IsAdmin]
@@ -384,4 +420,71 @@ class MyStaffProfileView(APIView):
             data=StaffProfileSerializer(
                     profile, context={"request": request}
                 ).data
+        )
+    
+class ActivateStaffUserAccountView(APIView):
+    """
+    Activates the user account associated with a staff profile.
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        try:
+            staff_profile = StaffProfile.objects.get(pk=pk)
+        except StaffProfile.DoesNotExist:
+            return ApiResponse.error(
+                message="Staff profile not found.",
+                status_code=404,
+            )
+
+        if staff_profile.user:
+            return ApiResponse.error(
+                message="Staff profile already has an associated user account.",
+                status_code=400,
+            )
+
+        try:
+            user = User.objects.create_user(
+                email=staff_profile.email,
+                first_name=staff_profile.first_name,
+                last_name=staff_profile.last_name,
+                role=staff_profile.role,
+                school = request.user.school,
+                must_change_password=True
+            )
+            staff_profile.user = user
+            staff_profile.save()
+       
+        except IntegrityError as exc:
+            logger.error(
+                "Failed to create user account for staff profile %s: %s",
+                staff_profile.pk,
+                str(exc),
+            )
+            if "accounts_user.email" in str(exc) or "email" in str(exc).lower():
+                return ApiResponse.error(
+                    message="A user account with this email already exists. Please update the staff profile's email or use a different email.",
+                    status_code=400,
+                )
+            return ApiResponse.error(
+                message="Failed to create user account due to a data conflict.",
+                status_code=400,
+            )
+        
+        except Exception as e:
+            logger.error(f"Failed to create user account for staff profile {staff_profile.pk}: {str(e)}")
+            return ApiResponse.error(
+                message=f"Failed to create user account. Something went wrong: {str(e)}",
+                status_code=500,
+            )
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="StaffProfile",
+            resource_id=str(staff_profile.pk),
+            description=f"Activated user account for '{staff_profile.full_name}'",
+            request=request,
+        )
+
+        return ApiResponse.success(
+            message=f"User account for '{staff_profile.full_name}' activated successfully."
         )

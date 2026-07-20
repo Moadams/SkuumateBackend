@@ -60,6 +60,7 @@ class StudentListSerializer(serializers.ModelSerializer):
             "student_id",
             "full_name",
             "email",
+            "gender",
             "profile_photo",
             "status",
             "student_class"
@@ -97,6 +98,8 @@ class StudentSerializer(serializers.ModelSerializer):
             "full_name",
             "date_of_birth",
             "age",
+            "email",
+            "phone_number",
             "gender",
             "profile_photo",
             "address",
@@ -114,6 +117,8 @@ class StudentSerializer(serializers.ModelSerializer):
         import datetime
         today = datetime.date.today()
         dob = obj.date_of_birth
+        if dob is None:
+            return None
         return today.year - dob.year - (
             (today.month, today.day) < (dob.month, dob.day)
         )
@@ -256,10 +261,11 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             school = self.context["school"]
 
             # Check for active academic year
-            active_academic_year = school.academic_years.filter(
+            active_academic_term = school.terms.filter(
                 is_current=True
             ).first()
 
+            active_academic_year = active_academic_term.academic_year if active_academic_term else None
             if not active_academic_year:
                 raise serializers.ValidationError({
                     "class_id": (

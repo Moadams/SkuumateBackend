@@ -12,6 +12,7 @@ class Student(TimestampedModel):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         WITHDRAWN = "withdrawn", "Withdrawn"
+        INACTIVE = "inactive", "Inactive"
 
     school = models.ForeignKey(
         "schools.School",
@@ -29,7 +30,7 @@ class Student(TimestampedModel):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     other_names = models.CharField(max_length=100, blank=True)
-    date_of_birth = models.DateField()
+    date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=Gender.choices)
     email = models.EmailField(blank=True)
     phone_number = models.CharField(max_length=20, blank=True)
@@ -40,7 +41,7 @@ class Student(TimestampedModel):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.ACTIVE
     )
-    admission_date = models.DateField()
+    admission_date = models.DateField(blank=True, null=True)
     previous_school = models.CharField(max_length=255, blank=True)
 
     class Meta:

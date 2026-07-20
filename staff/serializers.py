@@ -99,6 +99,8 @@ class StaffListSerializer(serializers.ModelSerializer):
             "employee_id",
             "full_name",
             "email",
+            "phone",
+            "role",
             "profile_photo",
             "status",
             "employment_type"
@@ -107,7 +109,6 @@ class StaffListSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user_id"]
 
 class StaffProfileSerializer(serializers.ModelSerializer):
-    role = serializers.CharField(source="user.role", read_only=True)
     profile_photo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -117,6 +118,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             "employee_id",
             "first_name",
             "last_name",
+            "full_name",
             "email",
             "phone",
             "employment_type",
@@ -125,7 +127,8 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             "phone",
             "address",
             "profile_photo_url",
-            "role"
+            "role",
+            "user"
         ]
         read_only_fields = [
             "id", "employee_id", "created_at", "updated_at"
@@ -139,13 +142,11 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
 
 class StaffCreationSerializer(serializers.ModelSerializer):
-    role = serializers.CharField()
     class Meta:
         model = StaffProfile
         fields = [
             "first_name",
             "last_name",
-            "positions",
             "employee_id",
             "date_joined",
             "employment_type",
@@ -164,22 +165,6 @@ class StaffCreationSerializer(serializers.ModelSerializer):
                 domain=self.context["school"].school_email_domain or "school.com"
             )
         return attrs
-
-    def validate_role(self, value):
-        if value not in User.Role.values:
-            raise serializers.ValidationError(
-                f"Invalid role '{value}'. Must be one of: "
-                f"{', '.join(User.Role.values)}."
-            )
-        return value
-
-    def validate_employment_type(self, value):
-        if value not in EmploymentType.values:
-            raise serializers.ValidationError(
-                f"Invalid employment type '{value}'. Must be one of: "
-                f"{', '.join(EmploymentType.values)}."
-            )
-        return value
     
     def validate_first_name(self, value):
         return validate_name(value, "First name")
@@ -193,126 +178,6 @@ class StaffCreationSerializer(serializers.ModelSerializer):
     def validate_date_joined(self, value):
         return validate_date(value, "Date joined")
     
-    
-    @transaction.atomic
-    def create(self, validated_data):
-        positions = validated_data.pop("positions", [])
-        temporary_password = secrets.token_urlsafe(16)
-        user = User.objects.create_user(
-            email=validated_data.get("email"),
-            password=temporary_password,
-            first_name=validated_data.get("first_name"),
-            last_name=validated_data.get("last_name"),
-            role = validated_data.get("role"),
-            must_change_password = True,
-            school = self.context["school"]
-        )
-        validated_data.pop("role", None)  # remove role as it's not a StaffProfile field
-        staff = StaffProfile.objects.create(user = user, **validated_data)
-        staff.positions.set(positions)
-        return staff
-
-class CreateStaffSerializer(serializers.Serializer):
-    """Creates a User + StaffProfile + assigns positions in one call."""
-    # User fields
-    first_name = serializers.CharField(max_length=100)
-    last_name = serializers.CharField(max_length=100)
-    email = serializers.EmailField() 
-    password = serializers.CharField(write_only=True, min_length=8)
-
-    # Profile fields
-    position_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        allow_empty=False,
-        help_text="List of StaffPosition UUIDs to assign.",
-    )
-    date_joined = serializers.DateField()
-    employment_type = serializers.ChoiceField(
-        choices=EmploymentType.choices,
-        default=EmploymentType.FULL_TIME,
-    )
-    phone = serializers.CharField(
-        max_length=20, required=False, allow_blank=True
-    )
-    address = serializers.CharField(
-        required=False, allow_blank=True
-    )
-    
-    
-    employee_id = serializers.CharField(required=False, allow_blank=True)
-
-    profile_photo = serializers.FileField(required=False)
-
-    def validate_employee_id(self, value):
-        if not value:
-            return value
-        school = self.context['school']
-        if StaffProfile.objects.filter(school =school, employee_id = value).exists():
-            raise serializers.ValidationError(
-                "A staff with this employee id already exists"
-            )
-        return value
-    
-    def validate_email(self, value):
-        from accounts.models import User
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError(
-                "A user with this email already exists."
-            )
-        return value
-
-    def validate_position_ids(self, value):
-        school = self.context["school"]
-        positions = StaffPosition.objects.filter(
-            id__in=value, school=school
-        )
-        if positions.count() != len(value):
-            raise serializers.ValidationError(
-                "One or more positions are invalid or do not "
-                "belong to this school."
-            )
-        return list(positions)
-
-    def create(self, validated_data):
-        from accounts.models import User
-        from django.db import transaction
-
-        positions = validated_data.pop("position_ids")
-        school = self.context["school"]
-        password = validated_data.pop("password")
-
-        
-        position_names = [p.name.lower() for p in positions]
-        role = (
-            "admin"
-            if "administrator" in position_names
-            else "teacher"
-        )
-        profile_photo = validated_data.pop("profile_photo", None)
-
-        with transaction.atomic():
-            user = User.objects.create_user(
-                email=validated_data.pop("email"),
-                password=password,
-                first_name=validated_data.pop("first_name"),
-                last_name=validated_data.pop("last_name"),
-                role=role,
-                school=school,
-            )
-
-            profile = StaffProfile.objects.create(
-                school=school,
-                user=user,
-                profile_photo = profile_photo,
-                **validated_data,
-            )
-            
-            profile.positions.set(positions)
-
-        send_staff_welcome_mail(f'{user.first_name} {user.last_name}', user.email, password, school.name)
-
-        return profile
-
 
 class UpdateStaffSerializer(serializers.ModelSerializer):
     

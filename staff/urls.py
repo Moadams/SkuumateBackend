@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    ActivateStaffUserAccountView,
     PermissionListView,
     StaffPositionListCreateView,
     StaffPositionDetailView,
@@ -7,6 +8,7 @@ from .views import (
     StaffDetailView,
     StaffExportView,
     MyStaffProfileView,
+    UpdateStaffStatusView,
 )
 
 urlpatterns = [
@@ -49,6 +51,16 @@ urlpatterns = [
         "staff/<uuid:pk>/",
         StaffDetailView.as_view(),
         name="staff-detail",
+    ),
+    path(
+        "staff/<uuid:pk>/user/activate/",
+        ActivateStaffUserAccountView.as_view(),
+        name="activate-staff-user-account",
+    ),
+    path(
+        "staff/<uuid:pk>/status/",
+        UpdateStaffStatusView.as_view(),
+        name="update-staff-status",
     )
 ]
 

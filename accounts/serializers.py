@@ -60,6 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "full_name",
+            "phone",
             "role",
             "school",
             "school_name",
@@ -69,6 +70,15 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "school"]
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+            "phone",
+            "email"
+        ]
 
 class CreateUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

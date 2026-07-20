@@ -16,7 +16,7 @@ from core.permissions import IsAdmin, IsSuperAdmin
 from core.utils import log_action
 
 from .models import User
-from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, ResetUserPasswordSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer
+from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, ResetUserPasswordSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer, UserUpdateSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,15 @@ class MeView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return ApiResponse.success(data=serializer.data)
+    
+    def patch(self, request):
+        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return ApiResponse.success(
+            data=serializer.data,
+            message="User profile updated successfully.",
+        )
 
 class UserExportView(ExportMixin, generics.ListAPIView):
     permission_classes = [IsAdmin]
@@ -219,3 +228,21 @@ class ResetUserPassword(APIView):
         return ApiResponse.success(message="User's password reset successfully.")
 
         
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        data = request.data.copy()
+        data['user_id'] = user.id
+        serializer = ResetUserPasswordSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="User",
+            resource_id=str(user.pk),
+            description=f"User {user.full_name} changed their password",
+            request=self.request,
+        )
+        return ApiResponse.success(message="Password changed successfully.")

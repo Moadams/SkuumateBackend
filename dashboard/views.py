@@ -144,7 +144,6 @@ class SuperadminDashboardView(APIView):
                 "country": school.country,
                 "email": school.email,
                 "subscription_status": latest_sub.status if latest_sub else "none",
-                "plan_name": latest_sub.plan.name if latest_sub else None,
                 "registered": school.created_at,
             })
 
@@ -633,7 +632,7 @@ class AdminDashboardView(APIView):
 
         total_classes = Class.objects.filter(school=school, is_active=True).count()
         total_subjects = Subject.objects.filter(school=school, is_active=True).count()
-        total_guardians = Guardian.objects.filter(school=school).count()
+        total_guardians = Guardian.objects.filter(school=school, student__status="active").count()
 
         return {
             "total_students": {

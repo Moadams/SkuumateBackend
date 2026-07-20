@@ -1,5 +1,5 @@
-from datetime import timedelta, timezone
-
+from datetime import timedelta
+from django.utils import timezone
 from subscriptions.models import Subscription
 
 

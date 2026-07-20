@@ -22,4 +22,4 @@ class StaffProfileAdmin(admin.ModelAdmin):
         "user__first_name", "user__last_name",
         "user__email", "employee_id",
     ]
-    filter_horizontal = ["positions"]
+    

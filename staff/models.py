@@ -1,7 +1,9 @@
 from django.db import models
+from accounts.models import User
 from core.models import TimestampedModel
 from staff.enums.employment_type import EmploymentType
 from staff.enums.staff_status import StaffStatus
+
 
 
 # ── Permission Registry ───────────────────────────────────────────
@@ -122,12 +124,10 @@ class StaffProfile(TimestampedModel):
         "accounts.User",
         on_delete=models.CASCADE,
         related_name="staff_profile",
-    )
-    positions = models.ManyToManyField(
-        StaffPosition,
-        related_name="staff_members",
+        null=True,
         blank=True,
     )
+    role = models.CharField(max_length=20, choices=User.Role.choices, default=User.Role.TEACHER)
     employee_id = models.CharField(
         max_length=20,
         unique=True,
@@ -162,13 +162,6 @@ class StaffProfile(TimestampedModel):
     def save(self, *args, **kwargs):
         if not self.employee_id:
             self.employee_id = self._generate_employee_id()
-        if self.first_name != self.user.first_name or self.last_name != self.user.last_name or self.email != self.user.email or self.phone != self.user.phone:
-            # Keep User's name in sync with StaffProfile
-            self.user.first_name = self.first_name
-            self.user.last_name = self.last_name
-            self.user.email = self.email    
-            self.user.phone = self.phone
-            self.user.save()
         super().save(*args, **kwargs)
 
     def _generate_employee_id(self):
@@ -188,18 +181,3 @@ class StaffProfile(TimestampedModel):
     def full_name(self):
         names = [self.first_name, self.last_name]
         return " ".join(n for n in names if n).strip()
-
-
-    @property
-    def all_permissions(self):
-        """
-        Aggregates permissions from all assigned positions.
-        Returns a flat deduplicated list.
-        """
-        perms = set()
-        for position in self.positions.all():
-            perms.update(position.permissions or [])
-        return list(perms)
-
-    def has_permission(self, key: str) -> bool:
-        return key in self.all_permissions

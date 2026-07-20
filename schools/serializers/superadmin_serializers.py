@@ -7,7 +7,7 @@ from rest_framework import serializers
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
-from subscriptions.services import SubscriptionService
+from subscriptions.services.SubscriptionService import SubscriptionService
 
 
 class SchoolUpdateSerializer(serializers.ModelSerializer):
@@ -98,7 +98,9 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
 
     def get_plan(self, obj):
         current_sub = obj.subscriptions.filter(is_current=True).first()
-        return current_sub.plan.name if current_sub else None
+        if current_sub and current_sub.plan:
+            return current_sub.plan.name if current_sub else None
+        return None
 
 
 class SchoolInfoSerializer(serializers.ModelSerializer):
