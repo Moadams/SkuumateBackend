@@ -1,11 +1,18 @@
 from django.db import transaction
-from rest_framework import serializers
-from .models import (
-    IncomeType, ExpenseType, FeeComponent,
-    SchoolFeeInvoice, InvoiceLineItem, FeePayment,
-    PaymentAllocation, OtherIncome, Expense
-)
 from django.db.models import Sum
+from rest_framework import serializers
+
+from .models import (
+    Expense,
+    ExpenseType,
+    FeeComponent,
+    FeePayment,
+    IncomeType,
+    InvoiceLineItem,
+    OtherIncome,
+    PaymentAllocation,
+    SchoolFeeInvoice,
+)
 
 
 class IncomeTypeSerializer(serializers.ModelSerializer):
@@ -102,7 +109,6 @@ class InvoiceLineItemCreateSerializer(serializers.Serializer):
     fee_component = serializers.PrimaryKeyRelatedField(queryset=FeeComponent.objects.all())
     amount = serializers.DecimalField(max_digits=10, decimal_places=2)
 
-
 class SchoolFeeInvoiceCreateSerializer(serializers.ModelSerializer):
     line_items = InvoiceLineItemCreateSerializer(many=True)
 
@@ -119,16 +125,24 @@ class SchoolFeeInvoiceCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "There is already an existings Fee invoice for this student in this academic year and term"
             )
+
+
         return attrs
 
     def validate_line_items(self, value):
         school = self.context["school"]
-        for item in value:
+        seen_components = {}
+        for idx, item in enumerate(value):
             component = item["fee_component"]
             if component.school != school:
                 raise serializers.ValidationError(
                     f"Fee component '{component.name}' does not belong to this school."
                 )
+            if component.id in seen_components:
+                raise serializers.ValidationError(
+                    f"Duplicate fee component '{component.name}' at line {seen_components[component.id] + 1} and line {idx + 1}. Each fee component can only appear once."
+                )
+            seen_components[component.id] = idx
         return value
 
     @transaction.atomic
@@ -247,7 +261,7 @@ class OtherIncomeSerializer(serializers.ModelSerializer):
             "description", "reference_number", "received_by", "received_by_name",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "income_type_name", "created_at", "updated_at"]
 
     def get_received_by_name(self, obj):
         if obj.received_by:

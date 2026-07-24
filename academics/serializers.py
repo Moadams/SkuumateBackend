@@ -379,6 +379,27 @@ class AssignSubjectsSerializer(serializers.Serializer):
         return value
 
 
+class BulkAssignClassSubjectsSerializer(serializers.Serializer):
+    """Bulk assign subjects to a class. Accepts a list of subject UUIDs."""
+    subjects = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+
+    def validate_subjects(self, value):
+        school = self.context["school"]
+        subjects = Subject.objects.filter(
+            id__in=value,
+            school=school,
+            is_active=True,
+        )
+        if subjects.count() != len(value):
+            raise serializers.ValidationError(
+                "One or more subjects are invalid, inactive, or do not belong to this school."
+            )
+        return list(subjects)
+
+
 class AssignTeacherSerializer(serializers.Serializer):
     """Assign a teacher to a class for an academic year."""
     teacher_id = serializers.UUIDField()

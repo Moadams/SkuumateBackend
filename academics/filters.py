@@ -1,5 +1,5 @@
 import django_filters
-from .models import AcademicYear, SubjectTeacher, Term, Subject, Class
+from .models import AcademicYear, ClassTeacher, SubjectTeacher, Term, Subject, Class
 
 
 class AcademicYearFilter(django_filters.FilterSet):
@@ -54,3 +54,14 @@ class SubjectTeacherFilter(django_filters.FilterSet):
             "class_id", "subject_id", "teacher_id",
             "academic_year_id", "term_id", "is_active",
         ]
+
+
+class ClassTeacherFilter(django_filters.FilterSet):
+    class_name = django_filters.CharFilter(
+        field_name="klass__name", lookup_expr="icontains"
+    )
+    is_active = django_filters.BooleanFilter()
+
+    class Meta:
+        model = ClassTeacher
+        fields = ["class_name", "is_active"]

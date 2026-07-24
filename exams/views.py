@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from academics.models import Class, GradingSystem, Term
 from core.mixins import AuditLogMixin, ExportMixin
-from core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacher
+from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
 from exams.filters import AssessmentTypeFilter
 from exams.models import (
@@ -83,7 +83,7 @@ class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
 
 class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrReadOnly]
     serializer_class = ReportSchemeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -289,7 +289,7 @@ class ClassReportGenerationValidityView(APIView):
         return ApiResponse.success(data=context)
 
 class GenerateClassReportView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrTeacher]
     def post(self, request):
         serializer = StudentReportGeneratorSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)

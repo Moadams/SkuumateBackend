@@ -17,8 +17,12 @@ class School(TimestampedModel):
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, default="Ghana")
-    onboarding_completed = models.BooleanField(default=False) 
-    status = models.CharField(choices = SchoolStatus, default=SchoolStatus.ACTIVE) 
+    onboarding_completed = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=SchoolStatus.choices,
+        default=SchoolStatus.ACTIVE,
+    )
     joined = models.DateTimeField(auto_now_add=True)
     
 

@@ -1,28 +1,33 @@
-from rest_framework import generics
-from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
 
 from academics.models import AcademicYear
-from core.permissions import IsAdmin, IsAdminOrTeacher
-from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
+from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher
+from core.responses import ApiResponse
 from core.utils import log_action
 from students.utils import parse_students_from_excel
-# from subscriptions.utils import check_limit
 
-from .models import Student, Guardian, Enrollment
-from .serializers import (
-    StudentListSerializer, StudentMinimalSerializer, StudentSerializer, StudentCreateSerializer,
-    GuardianSerializer, EnrollStudentSerializer,
-    EnrollmentSerializer, StudentUpdateSerializer,
-)
 from .filters import StudentFilter
-from django.db import transaction
 
+# from subscriptions.utils import check_limit
+from .models import Enrollment, Guardian, Student
+from .serializers import (
+    EnrollmentSerializer,
+    EnrollStudentSerializer,
+    GuardianSerializer,
+    StudentCreateSerializer,
+    StudentListSerializer,
+    StudentMinimalSerializer,
+    StudentSerializer,
+    StudentUpdateSerializer,
+)
 
 # ─── Students ────────────────────────────────────────────────────
 
@@ -185,7 +190,7 @@ class StudentBulkCreateView(APIView):
 
     @staticmethod
     def _create_student(student_data, school):
-        from academics.models import Class, AcademicYear
+        from academics.models import AcademicYear, Class
 
         guardians_data = student_data.pop("guardians", [])
         class_id = student_data.pop("class_id", None)
@@ -247,7 +252,7 @@ class ClassBulkStudentsView(APIView):
             )
 
         # ── Validate class exists and is active ──────────────────────
-        from academics.models import Class, AcademicYear
+        from academics.models import AcademicYear, Class
         try:
             print(class_id)
             klass = Class.objects.get(id=class_id, school=school, is_active=True)
@@ -299,11 +304,11 @@ class ClassBulkStudentsView(APIView):
                 status_code=400,
             )
 
-        
+
         # ── Extract photos ZIP if provided ──────────────────────────
-        import zipfile
-        import tempfile
         import os
+        import tempfile
+        import zipfile
 
         photos_zip = request.FILES.get("photos")
         photo_map = {}
@@ -607,8 +612,8 @@ class ClassBulkStudentsView(APIView):
     @staticmethod
     def _generate_template():
         import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
         from django.http import HttpResponse
+        from openpyxl.styles import Alignment, Font, PatternFill
 
         workbook = openpyxl.Workbook()
         sheet = workbook.active
@@ -737,7 +742,7 @@ class StudentExcelTemplateView(APIView):
         ]
 
         # ── Style the header row ──────────────────────────────────
-        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.styles import Alignment, Font, PatternFill
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(
             start_color="2563EB",
@@ -863,7 +868,7 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         return ApiResponse.success(data=serializer.data)
 
     def create(self, request, *args, **kwargs):
-        # check_limit(request.user.school, "students") 
+        # check_limit(request.user.school, "students")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student = serializer.save()
@@ -1116,7 +1121,7 @@ class StudentEnrollmentHistoryView(generics.ListAPIView):
 
 class ClassStudentsListView(generics.ListAPIView):
     '''List of students currently enrolled in a specific class.'''
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [IsAdminOrReadOnly]
     serializer_class = StudentMinimalSerializer
 
     def get_queryset(self):
@@ -1125,7 +1130,7 @@ class ClassStudentsListView(generics.ListAPIView):
             enrollments__klass_id=self.kwargs["class_id"],
             enrollments__is_active=True,
         ).distinct().prefetch_related("guardians","enrollments__klass", "enrollments__academic_year")
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)

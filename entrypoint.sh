@@ -42,16 +42,13 @@ python manage.py migrate --noinput
 echo "▶ Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Seed database (skips if already seeded)
-echo "▶ Seeding database..."
-python manage.py seed
-
 # Start server
 echo "▶ Starting Gunicorn..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 exec gunicorn skuumate.wsgi:application \
     --bind 0.0.0.0:8000 \
-    --workers 3 \
-    --timeout 120 \
+    --workers ${GUNICORN_WORKERS:-3} \
+    --threads ${GUNICORN_THREADS:-2} \
+    --timeout ${GUNICORN_TIMEOUT:-120} \
     --access-logfile - \
     --error-logfile -

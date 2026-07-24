@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='school',
             name='status',
-            field=models.CharField(choices=[('active', 'Active'), ('suspended', 'Suspended'), ('pending', 'Pending')], default='active'),
+            field=models.CharField(
+                max_length=20,
+                choices=[('active', 'Active'), ('suspended', 'Suspended'), ('pending', 'Pending')],
+                default='active',
+            ),
         ),
     ]

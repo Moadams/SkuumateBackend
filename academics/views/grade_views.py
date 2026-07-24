@@ -1,12 +1,18 @@
 from django.db import transaction
-from academics.models import GradeScale, GradingSystem
-from academics.serializers import GradeScaleSerializer, GradingSystemListSerializer, GradingSystemSerializer, GradingSystemUpdateSerializer
-from core.mixins import AuditLogMixin
 from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
 
-from core.permissions import IsAdmin
+from academics.models import GradeScale, GradingSystem
+from academics.serializers import (
+    GradeScaleSerializer,
+    GradingSystemListSerializer,
+    GradingSystemSerializer,
+    GradingSystemUpdateSerializer,
+)
+from core.mixins import AuditLogMixin
+from core.permissions import IsAdmin, IsAdminOrReadOnly
 from core.responses import ApiResponse
-from rest_framework.filters import SearchFilter, OrderingFilter
+
 
 class GradingSystemListCreateView(
     AuditLogMixin, generics.ListCreateAPIView
@@ -15,7 +21,7 @@ class GradingSystemListCreateView(
     List all grading systems for the school
     or create a new one.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrReadOnly]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
@@ -75,12 +81,12 @@ class GradingSystemDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVi
             return f"Grading system '{instance.name}' was updated by {self.request.user.full_name}."
         elif self.request.method == "DELETE":
             return f"Grading system '{instance.name}' was deleted by {self.request.user.full_name}."
-        
+
         return super().get_audit_description(instance)
 
     def get_queryset(self):
         return GradingSystem.objects.filter(school=self.request.user.school).prefetch_related("grade_scales")
-    
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
@@ -92,7 +98,7 @@ class GradingSystemDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVi
             data=GradingSystemSerializer(system).data,
             message=f"Grading system '{system.name}' updated successfully.",
         )
-    
+
 class GradingScaleCreateListView(AuditLogMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = GradeScaleSerializer
@@ -101,7 +107,7 @@ class GradingScaleCreateListView(AuditLogMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         grading_system_id = self.kwargs.get("grading_system_id")
         return GradeScale.objects.filter(grading_system_id=grading_system_id, school=self.request.user.school)
-    
+
     def get_audit_description(self, instance):
         return f"Grade scale '{instance.grade}' for grading system '{instance.grading_system.name}' was created by {self.request.user.full_name}."
 
@@ -119,7 +125,7 @@ class GradingScaleCreateListView(AuditLogMixin, generics.ListCreateAPIView):
             data=GradeScaleSerializer(grade_scale).data,
             message=f"Grade scale '{grade_scale.grade}' created successfully for grading system '{grading_system.name}'."
         )
-    
+
 
 class GradeScaleUpdateDestroyView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
@@ -133,4 +139,3 @@ class GradeScaleUpdateDestroyView(AuditLogMixin, generics.RetrieveUpdateDestroyA
         if self.request.method in ["PUT", "PATCH"]:
             return f"Grade scale '{instance.grade} has been updated by {self.request.user.full_name}"
         return f"Grade scale '{instance.grade}' has been deleted by {self.request.user.full_name}"
-    

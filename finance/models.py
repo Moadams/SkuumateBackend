@@ -1,4 +1,5 @@
 from django.db import models
+
 from core.models import TimestampedModel
 
 
@@ -59,7 +60,7 @@ class SchoolFeeInvoice(TimestampedModel):
     klass = models.ForeignKey("academics.Class", on_delete=models.SET_NULL, null=True, blank=True, related_name="fee_invoices")
     invoice_number = models.CharField(max_length=30, unique=True, editable=False)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ISSUED)
     due_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
     is_fully_paid = models.BooleanField(default=False)
@@ -78,7 +79,7 @@ class SchoolFeeInvoice(TimestampedModel):
 
     def _generate_invoice_number(self):
         import datetime
-        
+
         year = datetime.date.today().year
         prefix = self.school.school_code.upper() if self.school.school_code else "SCH"
         last = SchoolFeeInvoice.objects.filter(

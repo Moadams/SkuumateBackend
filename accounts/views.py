@@ -1,36 +1,46 @@
 import logging
-from rest_framework import generics
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
+from calendar import c
+
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_forgot_password_mail
 from core.mixins import ExportMixin
 from core.models import AuditLog
-from core.responses import ApiResponse
 from core.permissions import IsAdmin, IsSuperAdmin
+from core.responses import ApiResponse
 from core.utils import log_action
 
 from .models import User
-from .serializers import LoginSerializer, ResetPasswordConfirmSerializer, ResetUserPasswordSerializer, UserLoginSerializer, UserSerializer, CreateUserSerializer, UserUpdateSerializer
+from .serializers import (
+    CreateUserSerializer,
+    LoginSerializer,
+    ResetPasswordConfirmSerializer,
+    ResetUserPasswordSerializer,
+    UserLoginSerializer,
+    UserSerializer,
+    UserUpdateSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
-    
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})
-        
+
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
-        
+
 
         return ApiResponse.success(
             data={
@@ -73,7 +83,7 @@ class MeView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return ApiResponse.success(data=serializer.data)
-    
+
     def patch(self, request):
         serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -176,19 +186,19 @@ class ForgotPasswordView(APIView):
         email = request.data.get("email")
         if not email:
             return ApiResponse.error(message="Email is required.")
-        
+
         try:
             user = User.objects.get(email=email)
-    
+
             reset_link = generate_password_setup_link(user)
             send_forgot_password_mail(
                 name=user.full_name,
                 email=email,
                 reset_link=reset_link
             )
-            
+
         except User.DoesNotExist as e:
-            logger.error(f"Forgot password request for {email}: {e}")  
+            logger.error(f"Forgot password request for {email}: {e}")
 
         return ApiResponse.success(message="If an account with that email exists, a password reset link has been sent.")
 
@@ -200,7 +210,7 @@ class ResetPasswordConfirmView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return ApiResponse.success(message="Password reset successful.")
-    
+
 
 class ResetUserPassword(APIView):
     permission_classes = [IsAdmin]
@@ -214,7 +224,7 @@ class ResetUserPassword(APIView):
             return ApiResponse.error(
                 message="User not found", status_code=404
             )
-        
+
         serializer = ResetUserPasswordSerializer(data = data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -227,7 +237,7 @@ class ResetUserPassword(APIView):
         )
         return ApiResponse.success(message="User's password reset successfully.")
 
-        
+
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -243,6 +253,24 @@ class ChangePasswordView(APIView):
             resource="User",
             resource_id=str(user.pk),
             description=f"User {user.full_name} changed their password",
+            request=self.request,
+        )
+        return ApiResponse.success(message="Password changed successfully.")
+
+
+class ChangeUserPasswordView(APIView):
+    permission_classes = [IsAdmin]
+
+    def put(self, request):
+
+        serializer = ResetUserPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="User",
+            resource_id=str(request.data['user_id']),
+            description=f"User {request.user.full_name} changed the password of user {request.data['user_id']}",
             request=self.request,
         )
         return ApiResponse.success(message="Password changed successfully.")

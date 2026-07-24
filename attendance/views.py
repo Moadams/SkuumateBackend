@@ -1,26 +1,26 @@
 import datetime
-from rest_framework import generics
-from rest_framework.views import APIView
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.permissions import IsAdminOrTeacher
-from core.responses import ApiResponse
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.views import APIView
+
 from core.mixins import ExportMixin
 from core.models import AuditLog
+from core.permissions import IsAdminOrTeacher
+from core.responses import ApiResponse
 from core.utils import log_action
 from subscriptions.permissions import HasAttendanceModule
 
+from .filters import AttendanceFilter, AttendanceSummaryFilter
 from .models import Attendance, AttendanceSummary
 from .serializers import (
     AttendanceRecordSerializer,
-    BulkAttendanceSerializer,
     AttendanceSummarySerializer,
+    BulkAttendanceSerializer,
     UpdateAttendanceSerializer,
 )
-from .filters import AttendanceFilter, AttendanceSummaryFilter
 from .utils import mark_bulk_attendance
-
 
 # ─── Bulk Mark Attendance ─────────────────────────────────────────
 
@@ -115,10 +115,6 @@ class AttendanceListView(ExportMixin, generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
 
@@ -229,7 +225,7 @@ class ClassAttendanceSheetView(APIView):
 
     def get(self, request, class_id):
         from academics.models import Class
-        from students.models import Student, Enrollment
+        from students.models import Enrollment, Student
 
         school = request.user.school
         date_str = request.query_params.get("date")
@@ -381,8 +377,9 @@ class StudentAttendanceReportView(APIView):
     permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
 
     def get(self, request, student_id):
-        from students.models import Student
         from django.db.models import Count
+
+        from students.models import Student
 
         school = request.user.school
         term_id = request.query_params.get("term_id")
@@ -451,7 +448,7 @@ class ClassAttendanceReportView(APIView):
 
     def get(self, request, class_id):
         from academics.models import Class, Term
-        from students.models import Student, Enrollment
+        from students.models import Enrollment, Student
 
         school = request.user.school
         term_id = request.query_params.get("term_id")

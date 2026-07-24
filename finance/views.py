@@ -816,34 +816,87 @@ class IncomeStatementView(APIView):
         academic_year_id = request.query_params.get("academic_year_id")
         term_id = request.query_params.get("term_id")
 
-        fee_payments_qs = FeePayment.objects.filter(school=school)
+        # ── Base querysets ────────────────────────────────────────
+        allocations_qs = PaymentAllocation.objects.filter(
+            payment__school=school,
+        )
         other_income_qs = OtherIncome.objects.filter(school=school)
         expenses_qs = Expense.objects.filter(school=school)
 
+        # ── Apply filters ─────────────────────────────────────────
         if start_date:
-            fee_payments_qs = fee_payments_qs.filter(payment_date__gte=start_date)
+            allocations_qs = allocations_qs.filter(payment__payment_date__gte=start_date)
             other_income_qs = other_income_qs.filter(date__gte=start_date)
             expenses_qs = expenses_qs.filter(date__gte=start_date)
         if end_date:
-            fee_payments_qs = fee_payments_qs.filter(payment_date__lte=end_date)
+            allocations_qs = allocations_qs.filter(payment__payment_date__lte=end_date)
             other_income_qs = other_income_qs.filter(date__lte=end_date)
             expenses_qs = expenses_qs.filter(date__lte=end_date)
         if academic_year_id:
-            fee_payments_qs = fee_payments_qs.filter(invoice__academic_year_id=academic_year_id)
+            allocations_qs = allocations_qs.filter(
+                payment__invoice__academic_year_id=academic_year_id
+            )
         if term_id:
-            fee_payments_qs = fee_payments_qs.filter(invoice__term_id=term_id)
+            allocations_qs = allocations_qs.filter(
+                payment__invoice__term_id=term_id
+            )
 
-        total_fee_income = fee_payments_qs.aggregate(total=Sum("amount_paid"))["total"] or 0
-        total_other_income = other_income_qs.aggregate(total=Sum("amount"))["total"] or 0
+        # ── Fee income grouped by fee component (DB aggregation) ──
+        fee_by_component = list(
+            allocations_qs
+            .values(name=models.F("line_item__fee_component__name"))
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
+        )
+
+        # ── Other income grouped by income type (DB aggregation) ──
+        other_by_type = list(
+            other_income_qs
+            .values(name=models.F("income_type__name"))
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
+        )
+
+        # ── Expenses grouped by expense type (DB aggregation) ─────
+        expense_by_type = list(
+            expenses_qs
+            .values(name=models.F("expense_type__name"))
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
+        )
+
+        # ── Compute totals from grouped results (no extra queries) ─
+        total_fee_income = sum(item["total"] for item in fee_by_component) or 0
+        total_other_income = sum(item["total"] for item in other_by_type) or 0
         total_income = float(total_fee_income) + float(total_other_income)
-        total_expenses = expenses_qs.aggregate(total=Sum("amount"))["total"] or 0
+        total_expenses = sum(item["total"] for item in expense_by_type) or 0
         net_income = total_income - float(total_expenses)
 
         return ApiResponse.success(data={
-            "total_fee_income": str(total_fee_income),
-            "total_other_income": str(total_other_income),
-            "total_income": str(total_income),
-            "total_expenses": str(total_expenses),
+            "income": {
+                "fee_income": {
+                    "items": [
+                        {"name": item["name"], "total": str(item["total"])}
+                        for item in fee_by_component
+                    ],
+                    "total": str(total_fee_income),
+                },
+                "other_income": {
+                    "items": [
+                        {"name": item["name"], "total": str(item["total"])}
+                        for item in other_by_type
+                    ],
+                    "total": str(total_other_income),
+                },
+                "total_income": str(total_income),
+            },
+            "expenses": {
+                "items": [
+                    {"name": item["name"], "total": str(item["total"])}
+                    for item in expense_by_type
+                ],
+                "total_expenses": str(total_expenses),
+            },
             "net_income": str(net_income),
             "filters": {
                 "start_date": start_date,

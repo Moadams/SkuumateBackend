@@ -1,32 +1,28 @@
+from django.core.cache import cache
 from django.db import transaction
-from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.views import APIView
 
-from core.models import AuditLog
-from core.responses import ApiResponse
-from core.permissions import IsAdmin, IsSuperAdmin
 from core.cache import CacheKeys
+from core.mixins import AuditLogMixin, ExportMixin
+from core.models import AuditLog
+from core.permissions import IsAdmin, IsAdminOrReadOnly, IsSuperAdmin
+from core.responses import ApiResponse
 from schools.serializers.superadmin_serializers import SchoolCreateSerializer
 from schools.utils import check_and_complete_onboarding
 
-from ..models import School
-from ..serializers.serializers import MySchoolUpdateSerializer, SchoolSerializer, SchoolProfileSerializer
-
-from django.core.cache import cache
-
-from rest_framework import generics
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
-
-from core.mixins import AuditLogMixin, ExportMixin
-
-from ..serializers.serializers import (
-    SchoolListSerializer,
-)
 from ..filters import SchoolFilter
-
-
+from ..models import School
+from ..serializers.serializers import (
+    MySchoolUpdateSerializer,
+    SchoolListSerializer,
+    SchoolProfileSerializer,
+    SchoolSerializer,
+)
 
 
 class SchoolListExportView(ExportMixin, generics.ListAPIView):
@@ -76,10 +72,10 @@ class MySchoolRetrieveUpdateView(AuditLogMixin, generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user.school
-    
+
     def get_audit_description(self, instance):
         return f"{self.request.user.full_name} updated school details for {instance.name}"
-    
+
     def update(self, request, *args, **kwargs):
         serializer = MySchoolUpdateSerializer(
             self.get_object(), data=request.data, partial=True
@@ -95,7 +91,7 @@ class SchoolProfileView(APIView):
     """
     Admin school profile — view and edit school details.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrReadOnly]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
@@ -139,7 +135,7 @@ class SchoolOnboardingStatusView(APIView):
                 message="No school associated with this account.",
                 status_code=404,
             )
-        
+
         cache_key = CacheKeys.school_onboarding(str(school.id))
         cached = cache.get(cache_key)
         if cached is not None:
@@ -196,17 +192,19 @@ class AdminDashboardView(APIView):
         cache.set(cache_key, data, timeout=60 * 5)
         return ApiResponse.success(data=data)
 
-       
+
 
     # ─── Stats ───────────────────────────────────────────────────
 
     def _get_stats(self, school):
-        from students.models import Student
-        from attendance.models import Attendance 
-        from accounts.models import User
-        from subscriptions.models import Subscription
-        from django.utils import timezone
         import datetime
+
+        from django.utils import timezone
+
+        from accounts.models import User
+        from attendance.models import Attendance
+        from students.models import Student
+        from subscriptions.models import Subscription
 
         today = datetime.date.today()
 
@@ -287,8 +285,9 @@ class AdminDashboardView(APIView):
     # ─── Academic Overview ────────────────────────────────────────
 
     def _get_academic_overview(self, school):
-        from academics.models import AcademicYear, Term
         import datetime
+
+        from academics.models import AcademicYear, Term
 
         today = datetime.date.today()
 
@@ -419,8 +418,9 @@ class AdminDashboardView(APIView):
 
     def _prev_term_attendance(self, school):
         """Average attendance % for the previous term."""
-        from academics.models import Term
         from django.db.models import Avg
+
+        from academics.models import Term
 
         prev_term = (
             Term.objects
@@ -442,8 +442,9 @@ class AdminDashboardView(APIView):
             return 0
 
     def _get_term_revenue(self, school):
-        from academics.models import Term
         from django.db.models import Sum
+
+        from academics.models import Term
 
         current_term = Term.objects.filter(
             school=school, is_current=True
@@ -463,8 +464,9 @@ class AdminDashboardView(APIView):
             return 0
 
     def _get_prev_term_revenue(self, school):
-        from academics.models import Term
         from django.db.models import Sum
+
+        from academics.models import Term
 
         prev_term = (
             Term.objects

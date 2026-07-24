@@ -1,10 +1,8 @@
-import secrets
 from django.db import transaction
 from accounts.models import User
 from core.email import send_staff_welcome_mail
 from rest_framework import serializers
 from core.validations import validate_date, validate_name, validate_phone_number
-from staff.enums.employment_type import EmploymentType
 from staff.enums.staff_status import StaffStatus
 from students.utils import generate_user_email
 from .models import (
