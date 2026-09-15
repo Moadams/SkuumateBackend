@@ -1,6 +1,7 @@
 from django.urls import path
 from .views.views import (
     SchoolListExportView,
+    SchoolDetailsView,
     SchoolProfileView,
     SchoolOnboardingStatusView,
 )
@@ -14,5 +15,6 @@ urlpatterns = [
 
     # Admin — school profile
     path("schools/me/", SchoolProfileView.as_view(), name="school-profile"),
+    path("schools/me/details/", SchoolDetailsView.as_view(), name="school-details"),
     path("schools/me/onboarding/", SchoolOnboardingStatusView.as_view(), name="school-onboarding"),
 ]

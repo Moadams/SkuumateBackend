@@ -1,5 +1,15 @@
 from django.contrib import admin
-from .models import StaffPosition, StaffProfile
+from .models import PermissionKey, StaffPosition, StaffProfile
+
+
+@admin.register(PermissionKey)
+class PermissionKeyAdmin(admin.ModelAdmin):
+    list_display = [
+        "key", "module", "label", "is_system", "created_at"
+    ]
+    list_filter = ["module", "is_system"]
+    search_fields = ["key", "label"]
+    ordering = ["module", "key"]
 
 
 @admin.register(StaffPosition)

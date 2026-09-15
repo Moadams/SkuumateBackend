@@ -15,6 +15,7 @@ from core.utils import log_action
 from staff.enums.staff_status import StaffStatus
 
 from .models import (
+    PermissionKey,
     StaffPosition,
     StaffProfile,
     PERMISSION_CHOICES
@@ -36,21 +37,29 @@ logger = logging.getLogger(__name__)
 class PermissionListView(APIView):
     """
     Returns all available permission keys grouped by module.
+    Reads from the registry table (falling back to the bootstrap
+    constants before the registry is seeded).
     Used by the frontend when building the position create/edit form.
     """
     permission_classes = [IsAdmin]
 
     def get(self, request):
+        registry = PermissionKey.objects.all()
+        if registry.exists():
+            entries = registry.values("key", "label", "module")
+        else:
+            entries = [
+                {"key": key, "label": label, "module": key.split(".")[0].capitalize()}
+                for key, label in PERMISSION_CHOICES
+            ]
+
         grouped = {}
-        for key, label in PERMISSION_CHOICES:
-            module = key.split(".")[0].capitalize()
-            if module not in grouped:
-                grouped[module] = []
-            grouped[module].append({"key": key, "label": label})
+        for entry in entries:
+            grouped.setdefault(entry["module"], []).append(entry)
 
         return ApiResponse.success(
             data={
-                "total": len(PERMISSION_CHOICES),
+                "total": len(entries),
                 "groups": [
                     {"module": module, "permissions": perms}
                     for module, perms in grouped.items()
@@ -178,7 +187,7 @@ class StaffPositionDetailView(
 
         # Block if staff are assigned to this position
         active_staff = instance.staff_members.filter(
-            status=StaffProfile.Status.ACTIVE
+            status=StaffStatus.ACTIVE
         ).count()
         if active_staff > 0:
             return ApiResponse.error(

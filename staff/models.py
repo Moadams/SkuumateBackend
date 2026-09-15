@@ -3,66 +3,33 @@ from accounts.models import User
 from core.models import TimestampedModel
 from staff.enums.employment_type import EmploymentType
 from staff.enums.staff_status import StaffStatus
+from staff.permission_registry import (
+    PERMISSION_CHOICES,
+    PERMISSION_KEYS,
+)
 
 
+class PermissionKey(TimestampedModel):
+    """
+    A single fine-grained permission key (e.g. "students.create").
+    The registry table is seeded from staff/permission_registry.py.
+    """
+    key = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=150)
+    module = models.CharField(max_length=50)
+    description = models.TextField(blank=True)
+    is_system = models.BooleanField(
+        default=True,
+        help_text="System registry keys cannot be deleted.",
+    )
 
-# ── Permission Registry ───────────────────────────────────────────
-# The single source of truth for all permission keys in the system.
-# When adding new modules, add keys here first.
+    class Meta:
+        ordering = ["module", "key"]
+        verbose_name = "Permission Key"
 
-PERMISSION_CHOICES = [
-    # ── Students ──────────────────────────────────────────────────
-    ("students.view",           "View Students"),
-    ("students.create",         "Create Students"),
-    ("students.edit",           "Edit Students"),
-    ("students.delete",         "Delete/Withdraw Students"),
-    ("students.export",         "Export Students"),
+    def __str__(self):
+        return f"{self.label} ({self.key})"
 
-    # ── Attendance ────────────────────────────────────────────────
-    ("attendance.view",         "View Attendance"),
-    ("attendance.mark",         "Mark Attendance"),
-    ("attendance.edit",         "Edit Attendance Records"),
-    ("attendance.export",       "Export Attendance"),
-
-    # ── Exams & Results ───────────────────────────────────────────
-    ("exams.view",              "View Exams & Results"),
-    ("exams.manage",            "Manage Exams"),
-    ("exams.enter_scores",      "Enter Scores"),
-    ("exams.export",            "Export Results"),
-
-    # ── Finance ───────────────────────────────────────────────────
-    ("finance.view",            "View Finance"),
-    ("finance.manage_fees",     "Manage Fee Structures"),
-    ("finance.record_payments", "Record Payments"),
-    ("finance.export",          "Export Finance Reports"),
-
-    # ── Staff ─────────────────────────────────────────────────────
-    ("staff.view",              "View Staff"),
-    ("staff.manage",            "Manage Staff"),
-
-    # ── Academics ─────────────────────────────────────────────────
-    ("academics.view",          "View Academic Structure"),
-    ("academics.manage",        "Manage Academic Structure"),
-
-    # ── Reports ───────────────────────────────────────────────────
-    ("reports.view",            "View Reports"),
-    ("reports.export",          "Export Reports"),
-
-    # ── Announcements ─────────────────────────────────────────────
-    ("announcements.view",      "View Announcements"),
-    ("announcements.manage",    "Manage Announcements"),
-
-    # ── Settings ──────────────────────────────────────────────────
-    ("settings.view",           "View School Settings"),
-    ("settings.manage",         "Manage School Settings"),
-
-    # ── Dashboard ─────────────────────────────────────────────────
-    ("dashboard.admin",         "Access Admin Dashboard"),
-    ("dashboard.teacher",       "Access Teacher Dashboard"),
-    ("dashboard.finance",       "Access Finance Dashboard"),
-]
-
-PERMISSION_KEYS = [key for key, _ in PERMISSION_CHOICES]
 
 # ── Built-in position types — cannot be deleted ───────────────────
 SYSTEM_POSITIONS = ["administrator", "teacher", "accountant"]
@@ -70,9 +37,11 @@ SYSTEM_POSITIONS = ["administrator", "teacher", "accountant"]
 
 class StaffPosition(TimestampedModel):
     """
-    Defines a staff role and its permissions.
-    Schools can create custom positions on top of the
-    three built-in system positions.
+    Defines a named bundle of fine-grained permissions.
+    Schools can create custom positions on top of the three
+    built-in system positions. A staff member's effective access
+    is the union of their positions (plus individual grants,
+    minus individual revokes).
     """
     school = models.ForeignKey(
         "schools.School",
@@ -81,9 +50,11 @@ class StaffPosition(TimestampedModel):
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    permissions = models.JSONField(
-        default=list,
-        help_text="List of permission keys assigned to this position.",
+    permissions = models.ManyToManyField(
+        PermissionKey,
+        blank=True,
+        related_name="positions",
+        help_text="Permission keys granted by this position.",
     )
     is_system = models.BooleanField(
         default=False,
@@ -98,20 +69,19 @@ class StaffPosition(TimestampedModel):
         return f"{self.name} — {self.school.name}"
 
     def has_permission(self, key: str) -> bool:
-        return key in (self.permissions or [])
+        return self.permissions.filter(key=key).exists()
 
-    def clean_permissions(self):
-        """Removes any invalid permission keys."""
-        self.permissions = [
-            p for p in self.permissions if p in PERMISSION_KEYS
-        ]
+    def permission_keys(self):
+        return set(self.permissions.values_list("key", flat=True))
 
 
 class StaffProfile(TimestampedModel):
     """
     Extended profile for a staff member.
-    Links a User to one or more StaffPositions and stores
-    employment details.
+
+    Access is fine-grained: effective permissions = (union of the
+    staff member's positions, plus individual permission_grants)
+    minus individual permission_revokes.
     """
     school = models.ForeignKey(
         "schools.School",
@@ -128,6 +98,24 @@ class StaffProfile(TimestampedModel):
         blank=True,
     )
     role = models.CharField(max_length=20, choices=User.Role.choices, default=User.Role.TEACHER)
+    positions = models.ManyToManyField(
+        StaffPosition,
+        blank=True,
+        related_name="staff_members",
+        help_text="Position bundles assigned to this staff member.",
+    )
+    permission_grants = models.ManyToManyField(
+        PermissionKey,
+        blank=True,
+        related_name="granted_to_staff",
+        help_text="Individual permission keys granted beyond positions.",
+    )
+    permission_revokes = models.ManyToManyField(
+        PermissionKey,
+        blank=True,
+        related_name="revoked_from_staff",
+        help_text="Individual permission keys revoked from this staff member.",
+    )
     employee_id = models.CharField(
         max_length=20,
         unique=True,
@@ -181,3 +169,32 @@ class StaffProfile(TimestampedModel):
     def full_name(self):
         names = [self.first_name, self.last_name]
         return " ".join(n for n in names if n).strip()
+
+    def effective_permissions(self):
+        from django.core.cache import cache
+        from core.cache import CacheKeys
+
+        user_id = self.user_id or self.id
+        cache_key = CacheKeys.user_permissions(user_id)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return set(cached)
+
+        keys = set()
+        for position in self.positions.all().prefetch_related("permissions"):
+            keys.update(position.permission_keys())
+        keys.update(
+            self.permission_grants.values_list("key", flat=True)
+        )
+        keys.difference_update(
+            self.permission_revokes.values_list("key", flat=True)
+        )
+
+        cache.set(cache_key, list(keys), timeout=15 * 60)
+        return keys
+
+    def has_permission(self, key: str) -> bool:
+        return key in self.effective_permissions()
+
+    def has_any_permission(self, *keys: str) -> bool:
+        return bool(self.effective_permissions() & set(keys))

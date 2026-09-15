@@ -9,6 +9,7 @@ def _school_key(school_id, suffix):
 def invalidate_school_cache(school_id):
     patterns = [
         f"skuumate:school:{school_id}:dashboard",
+        f"skuumate:school:{school_id}:details",
         f"skuumate:school:{school_id}:onboarding",
         f"skuumate:school:{school_id}:students_count",
         f"skuumate:school:{school_id}:attendance_summary",
@@ -28,6 +29,10 @@ class CacheKeys:
         return _school_key(school_id, "dashboard")
 
     @staticmethod
+    def school_details(school_id):
+        return _school_key(school_id, "details")
+
+    @staticmethod
     def school_onboarding(school_id):
         return _school_key(school_id, "onboarding")
 
@@ -38,6 +43,10 @@ class CacheKeys:
     @staticmethod
     def school_revenue(school_id):
         return _school_key(school_id, "revenue")
+
+    @staticmethod
+    def user_permissions(user_id):
+        return f"skuumate:user:{user_id}:permissions"
 
 
 def cache_response(key_func, timeout=60 * 15):

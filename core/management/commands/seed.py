@@ -43,7 +43,7 @@ class Command(BaseCommand):
         steps = [
             ("Subscription Plans", self._seed_plans),
             ("Superadmin User", lambda: self._seed_superadmin(options)),
-            ("System Staff Positions", self._seed_staff_positions), 
+            ("Permission Registry & System Positions", self._seed_permissions),
         ]
 
         for step_name, step_fn in steps:
@@ -78,5 +78,5 @@ class Command(BaseCommand):
             verbosity=0,
         )
 
-    def _seed_staff_positions(self):
-        call_command("seed_staff_positions", verbosity=0)
+    def _seed_permissions(self):
+        call_command("seed_permissions", verbosity=0)

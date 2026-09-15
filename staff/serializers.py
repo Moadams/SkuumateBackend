@@ -6,6 +6,7 @@ from core.validations import validate_date, validate_name, validate_phone_number
 from staff.enums.staff_status import StaffStatus
 from students.utils import generate_user_email
 from .models import (
+    PermissionKey,
     StaffPosition,
     StaffProfile,
     PERMISSION_CHOICES,
@@ -27,7 +28,28 @@ class PermissionChoiceSerializer(serializers.Serializer):
         return grouped
 
 
+class PermissionKeysField(serializers.ListField):
+    """Handles permission keys as a list, backed by the M2M relation."""
+    child = serializers.CharField(max_length=100)
+
+    def to_representation(self, value):
+        if hasattr(value, "permission_keys"):
+            return sorted(value.permission_keys())
+        return sorted(set(value or []))
+
+    def to_internal_value(self, data):
+        keys = list(set(super().to_internal_value(data)))
+        invalid = [k for k in keys if k not in PERMISSION_KEYS]
+        if invalid:
+            raise serializers.ValidationError(
+                f"Invalid permission key(s): {', '.join(sorted(invalid))}. "
+                f"Use GET /api/v1/staff/permissions/ to see valid keys."
+            )
+        return keys
+
+
 class StaffPositionSerializer(serializers.ModelSerializer):
+    permissions = PermissionKeysField(required=False)
     staff_count = serializers.SerializerMethodField()
     permission_labels = serializers.SerializerMethodField()
 
@@ -56,18 +78,29 @@ class StaffPositionSerializer(serializers.ModelSerializer):
     def get_permission_labels(self, obj):
         label_map = dict(PERMISSION_CHOICES)
         return [
-            {"key": p, "label": label_map.get(p, p)}
-            for p in (obj.permissions or [])
+            {"key": k, "label": label_map.get(k, k)}
+            for k in sorted(obj.permission_keys())
         ]
 
-    def validate_permissions(self, value):
-        invalid = [p for p in value if p not in PERMISSION_KEYS]
-        if invalid:
-            raise serializers.ValidationError(
-                f"Invalid permission key(s): {', '.join(invalid)}. "
-                f"Use GET /api/v1/staff/permissions/ to see valid keys."
+    def create(self, validated_data):
+        keys = validated_data.pop("permissions", [])
+        position = StaffPosition.objects.create(**validated_data)
+        if keys:
+            position.permissions.set(
+                PermissionKey.objects.filter(key__in=keys)
             )
-        return list(set(value))  # deduplicate
+        return position
+
+    def update(self, instance, validated_data):
+        keys = validated_data.pop("permissions", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if keys is not None:
+            instance.permissions.set(
+                PermissionKey.objects.filter(key__in=keys)
+            )
+        return instance
 
 
 class StaffPositionWriteSerializer(StaffPositionSerializer):
