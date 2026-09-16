@@ -96,11 +96,12 @@ class StudentBulkCreateView(APIView):
         # ── Plan limit check ──────────────────────────────────────
         from subscriptions.utils import get_active_subscription
         subscription = get_active_subscription(school)
-        if subscription and subscription.plan.max_students is not None:
+        if subscription and subscription.plan and subscription.plan.maximum_students is not None:
+            max_students = subscription.plan.maximum_students
             current_count = school.students.filter(
                 status="active"
             ).count()
-            remaining = subscription.plan.max_students - current_count
+            remaining = max_students - current_count
             if len(students_data) > remaining:
                 return ApiResponse.error(
                     message=(

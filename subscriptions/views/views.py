@@ -1,40 +1,46 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import generics
-from core.mixins import AuditLogMixin
 
 from core.responses import ApiResponse
 from core.cache import CacheKeys
 from schools.utils import check_and_complete_onboarding
-from subscriptions.models import Plan, Subscription
+from subscriptions.models import Package, Subscription
 
-from django.utils import timezone
 from django.core.cache import cache
-from datetime import timedelta
 
 from core.permissions import IsAdmin
 from core.models import AuditLog
 from core.utils import log_action
 
+from subscriptions.services.packages import package_feature_details, package_limit_details
 
 from ..serializers import (
-    PlanSerializer, SubscribeToPlanSerializer, SubscriptionSerializer,
-     InitiatePaymentSerializer,
+    PackageSerializer, SubscribeToPlanSerializer, SubscriptionSerializer,
+    InitiatePaymentSerializer,
 )
 from ..utils import get_active_subscription
 
 
-class PlanListView(APIView):
-    """Public — list all available plans (for signup/upgrade pages)."""
+class PackageListView(generics.ListAPIView):
+    """Public — list all active, public packages (for signup pages)."""
     permission_classes = [AllowAny]
+    serializer_class = PackageSerializer
 
-    def get(self, request):
+    def get_queryset(self):
+        return (
+            Package.objects
+            .filter(is_active=True, is_public=True)
+            .order_by("display_order", "price")
+        )
+
+    def list(self, request, *args, **kwargs):
         cached = cache.get(CacheKeys.PLAN_LIST)
         if cached is not None:
             return ApiResponse.success(data=cached)
 
-        plans = Plan.objects.filter(is_active=True)
-        data = PlanSerializer(plans, many=True).data
+        queryset = self.get_queryset()
+        data = self.get_serializer(queryset, many=True).data
         cache.set(CacheKeys.PLAN_LIST, data, timeout=60 * 60)
         return ApiResponse.success(data=data)
 
@@ -52,8 +58,6 @@ class CurrentSubscriptionView(APIView):
         return ApiResponse.success(data=SubscriptionSerializer(subscription).data)
 
 
-
-
 class InitiatePaymentView(APIView):
     """
     Initiates a payment with an external provider.
@@ -65,21 +69,20 @@ class InitiatePaymentView(APIView):
         serializer = InitiatePaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        plan = Plan.objects.get(id=serializer.validated_data["plan_id"])
-        billing_cycle = serializer.validated_data["billing_cycle"]
+        package = Package.objects.get(
+            id=serializer.validated_data["plan_id"],
+            is_active=True,
+        )
         provider = serializer.validated_data["provider"]
 
-        amount = (
-            plan.annual_price
-            if billing_cycle == "annual"
-            else plan.monthly_price
-        )
+        amount = float(package.price)
+        if serializer.validated_data.get("include_setup_fee"):
+            amount += float(package.setup_fee)
 
         # Build metadata to pass to the provider
         metadata = {
             "school_id": str(request.user.school.id),
-            "plan_id": str(plan.id),
-            "billing_cycle": billing_cycle,
+            "plan_id": str(package.id),
         }
 
         if provider == "paystack":
@@ -92,7 +95,11 @@ class InitiatePaymentView(APIView):
             )
 
         return ApiResponse.success(
-            data={"payment_url": payment_url, "amount": amount, "plan": plan.name},
+            data={
+                "payment_url": payment_url,
+                "amount": amount,
+                "plan": package.name,
+            },
             message="Payment initiated. Redirect user to payment_url.",
         )
 
@@ -123,7 +130,7 @@ class PaymentWebhookView(APIView):
 
     def _handle_paystack(self, request):
         # 1. Verify webhook signature
-        # 2. Extract metadata (school_id, plan_id, billing_cycle)
+        # 2. Extract metadata (school_id, plan_id)
         # 3. Activate subscription
         # Full implementation when wiring Paystack
         return ApiResponse.success(message="Webhook received.")
@@ -132,10 +139,11 @@ class PaymentWebhookView(APIView):
         # Full implementation when wiring Stripe
         return ApiResponse.success(message="Webhook received.")
 
-class PlanFeaturesView(APIView):
+
+class PackageFeaturesView(APIView):
     """
-    Public endpoint — returns all active plans with features
-    grouped by category for easy frontend rendering.
+    Public endpoint — returns all active packages with entitlements
+    grouped by feature category for easy frontend rendering.
     """
     permission_classes = [AllowAny]
 
@@ -144,171 +152,41 @@ class PlanFeaturesView(APIView):
         if cached is not None:
             return ApiResponse.success(data=cached)
 
-        plans = Plan.objects.filter(is_active=True).order_by("price_per_term")
+        packages = Package.objects.filter(
+            is_active=True, is_public=True
+        ).order_by("display_order", "price")
 
         data = {
-            "plans": [self._format_plan(plan) for plan in plans],
+            "packages": [self._format_package(package) for package in packages],
             "feature_categories": self._get_feature_categories(),
         }
         cache.set(CacheKeys.PLAN_FEATURES, data, timeout=60 * 60)
         return ApiResponse.success(data=data)
 
-    def _format_plan(self, plan):
+    def _format_package(self, package):
+        features = package_feature_details(package)
+        enabled_codes = {f["code"] for f in features if f["enabled"]}
         return {
-            "id": str(plan.id),
-            "name": plan.name,
-            "plan_type": plan.plan_type,
-            "tagline": plan.tagline,
-            "description": plan.description,
+            "id": str(package.id),
+            "name": package.name,
+            "code": package.code,
+            "plan_type": package.plan_type,
+            "tagline": package.tagline,
+            "description": package.description,
             "pricing": {
-                "per_term": float(plan.price_per_term),
-                "setup_fee": float(plan.setup_fee),
-                "currency": "GHS",
-                "billing_cycle": "per term",
+                "price": float(package.price),
+                "setup_fee": float(package.setup_fee),
+                "currency": package.currency,
+                "billing_period": package.billing_period,
             },
             "limits": {
-                "min_students": plan.min_students,
-                "max_students": plan.max_students,
-                "student_range": self._student_range(plan),
+                "minimum_students": package.minimum_students,
+                "maximum_students": package.maximum_students,
+                "student_range": self._student_range(package),
+                "package_limits": package_limit_details(package),
             },
-            "features": self._get_plan_features(plan),
-            "is_popular": plan.plan_type == "advantage",
-        }
-
-    def _get_plan_features(self, plan):
-        """
-        Returns features grouped by category.
-        Each feature has a label, included flag, and display hint.
-        """
-        return {
-            "core": [
-                {
-                    "key": "has_student_records",
-                    "label": "Student Registration & Digital Records",
-                    "included": plan.has_student_records,
-                },
-                {
-                    "key": "has_class_subject_setup",
-                    "label": "Class, Subjects & Timetable Setup",
-                    "included": plan.has_class_subject_setup,
-                },
-                {
-                    "key": "has_score_entry",
-                    "label": "Score Entry & Automated Report Cards",
-                    "included": plan.has_score_entry,
-                },
-                {
-                    "key": "has_basic_broadsheet",
-                    "label": "Basic Broadsheet Generation",
-                    "included": plan.has_basic_broadsheet,
-                },
-                {
-                    "key": "has_fee_billing",
-                    "label": "Fee Billing, Payment Tracking & Receipts",
-                    "included": plan.has_fee_billing,
-                },
-                {
-                    "key": "has_debtors_list",
-                    "label": "Debtors List & Basic Finance Summary",
-                    "included": plan.has_debtors_list,
-                },
-                {
-                    "key": "has_sms_alerts",
-                    "label": "SMS Alerts (Attendance & Fee Reminders)",
-                    "included": plan.has_sms_alerts,
-                },
-                {
-                    "key": "has_admin_teacher_portal",
-                    "label": "Admin & Teacher Portal Access",
-                    "included": plan.has_admin_teacher_portal,
-                },
-            ],
-            "finance_analytics": [
-                {
-                    "key": "has_advanced_finance",
-                    "label": "Advanced Finance Dashboard & Analytics",
-                    "included": plan.has_advanced_finance,
-                },
-                {
-                    "key": "has_income_expense_tracking",
-                    "label": "Income, Expense & Revenue Tracking",
-                    "included": plan.has_income_expense_tracking,
-                },
-                {
-                    "key": "has_full_broadsheet",
-                    "label": "Full Broadsheet & Performance Trends",
-                    "included": plan.has_full_broadsheet,
-                },
-                {
-                    "key": "has_term_comparison",
-                    "label": "Term-to-Term Academic Comparison",
-                    "included": plan.has_term_comparison,
-                },
-                {
-                    "key": "has_export",
-                    "label": "Branded Report Exports & Financial Reports",
-                    "included": plan.has_export,
-                },
-            ],
-            "access_communication": [
-                {
-                    "key": "has_audit_logs",
-                    "label": "Role-Based Access & Activity Logs",
-                    "included": plan.has_audit_logs,
-                },
-                {
-                    "key": "has_announcements",
-                    "label": "Announcement Broadcast",
-                    "included": plan.has_announcements,
-                },
-                {
-                    "key": "has_extended_sms",
-                    "label": "Extended SMS Alerts",
-                    "included": plan.has_extended_sms,
-                },
-                {
-                    "key": "has_student_portal",
-                    "label": "Student Portal Access (Results & Timetable)",
-                    "included": plan.has_student_portal,
-                },
-            ],
-            "enterprise": [
-                {
-                    "key": "has_advanced_analytics",
-                    "label": "Advanced Institutional Analytics Dashboard",
-                    "included": plan.has_advanced_analytics,
-                },
-                {
-                    "key": "has_multi_year_tracking",
-                    "label": "Multi-Year Academic & Financial Tracking",
-                    "included": plan.has_multi_year_tracking,
-                },
-                {
-                    "key": "has_department_access_control",
-                    "label": "Hierarchical Admin & Department-Level Access",
-                    "included": plan.has_department_access_control,
-                },
-                {
-                    "key": "has_custom_report_cards",
-                    "label": "Fully Customized Report Card Design",
-                    "included": plan.has_custom_report_cards,
-                },
-                {
-                    "key": "has_custom_branding",
-                    "label": "School Branding Across the System",
-                    "included": plan.has_custom_branding,
-                },
-                {
-                    "key": "has_data_migration",
-                    "label": "Data Migration & Dedicated Onboarding",
-                    "included": plan.has_data_migration,
-                },
-                {
-                    "key": "has_priority_support",
-                    "label": "Priority SLA Support & Operational Reviews",
-                    "included": plan.has_priority_support,
-                },
-            ],
+            "features": features,
+            "is_popular": package.code == "advantage",
         }
 
     def _get_feature_categories(self):
@@ -316,34 +194,29 @@ class PlanFeaturesView(APIView):
         Returns category metadata so the frontend can render
         section headers without hardcoding them.
         """
+        from subscriptions.models import Feature
+        categories = (
+            Feature.objects
+            .filter(is_active=True)
+            .exclude(category="")
+            .order_by("category")
+            .values_list("category", flat=True)
+            .distinct()
+        )
         return [
             {
-                "key": "core",
-                "label": "Core Features",
-                "description": "Available on all plans",
-            },
-            {
-                "key": "finance_analytics",
-                "label": "Finance & Analytics",
-                "description": "Advanced reporting and financial tools",
-            },
-            {
-                "key": "access_communication",
-                "label": "Access & Communication",
-                "description": "Portals, announcements and extended SMS",
-            },
-            {
-                "key": "enterprise",
-                "label": "Enterprise",
-                "description": "For large institutions needing full control",
-            },
+                "key": category,
+                "label": category.replace("_", " ").title(),
+            }
+            for category in categories
         ]
 
     @staticmethod
-    def _student_range(plan):
-        if plan.max_students is None:
-            return f"{plan.min_students}+ Students"
-        return f"{plan.min_students}–{plan.max_students} Students"
+    def _student_range(package):
+        if package.maximum_students is None:
+            return f"{package.minimum_students}+ Students"
+        return f"{package.minimum_students}–{package.maximum_students} Students"
+
 
 class SubscribeMySchool(APIView):
     def post(self, request):
@@ -352,15 +225,16 @@ class SubscribeMySchool(APIView):
         # SubscribeToPlanView which is called after payment confirmation.
         return ApiResponse.success(message="Subscription endpoint placeholder.")
 
+
 class SubscribeToPlanView(APIView):
     """
-    School admin — subscribe to a plan.
+    School admin — subscribe to a package.
 
     Logic:
         - If school has no existing subscription at all
           → create a trial subscription for the current term
         - If school already has an active/trial subscription
-          → upgrade/switch plan (requires payment reference)
+          → upgrade/switch package (requires payment reference)
         - If school is in grace or locked
           → reactivate with payment reference
     """
@@ -381,7 +255,7 @@ class SubscribeToPlanView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        plan = serializer.validated_data["plan"]
+        package = serializer.validated_data["plan"]
         term = serializer.validated_data.get("term")
         payment_reference = serializer.validated_data.get("payment_reference", "")
         payment_provider = serializer.validated_data.get("payment_provider", "")
@@ -392,11 +266,11 @@ class SubscribeToPlanView(APIView):
         if is_new_school or self._is_eligible_for_trial(existing):
             subscription = self._create_trial(
                 school=school,
-                plan=plan,
+                plan=package,
                 term=term,
             )
             message = (
-                f"Trial subscription started on the {plan.name} plan. "
+                f"Trial subscription started on the {package.name} package. "
                 f"You have {subscription.days_remaining} days remaining."
             )
         else:
@@ -404,28 +278,27 @@ class SubscribeToPlanView(APIView):
                 return ApiResponse.error(
                     message=(
                         "A payment reference is required to subscribe or "
-                        "switch plans. Please complete payment first."
+                        "switch packages. Please complete payment first."
                     ),
                     status_code=400,
                 )
             subscription = self._activate(
                 school=school,
-                plan=plan,
+                plan=package,
                 term=term,
                 payment_reference=payment_reference,
                 payment_provider=payment_provider,
                 activated_by=request.user,
-                amount_paid=serializer.validated_data.get("amount_paid"),
             )
             message = (
-                f"Successfully subscribed to the {plan.name} plan."
+                f"Successfully subscribed to the {package.name} package."
             )
 
         log_action(
             action=AuditLog.Action.CREATE,
             resource="Subscription",
             resource_id=str(subscription.pk),
-            description=f"{school.name} subscribed to {plan.name} ({subscription.status})",
+            description=f"{school.name} subscribed to {package.name} ({subscription.status})",
             request=request,
         )
 
@@ -490,7 +363,7 @@ class SubscribeToPlanView(APIView):
         resolved_term = term or self._get_current_term(school)
 
         # Trial ends at term end date if available,
-        # otherwise falls back to 14 days
+        # otherwise falls back to 90 days
         if resolved_term:
             end_date = timezone.make_aware(
                 timezone.datetime.combine(
@@ -515,8 +388,7 @@ class SubscribeToPlanView(APIView):
             status=Subscription.Status.TRIAL,
             start_date=timezone.now(),
             end_date=end_date,
-            payment_provider="trial",
-            setup_fee_paid=False,
+            is_paid=False,
         )
 
     @staticmethod
@@ -527,7 +399,6 @@ class SubscribeToPlanView(APIView):
         payment_reference="",
         payment_provider="",
         activated_by=None,
-        amount_paid=None,
     ):
         from subscriptions.utils import activate_subscription
         return activate_subscription(
@@ -537,10 +408,5 @@ class SubscribeToPlanView(APIView):
             activated_by=activated_by,
             payment_reference=payment_reference,
             payment_provider=payment_provider,
-            amount_paid=amount_paid or plan.price_per_term,
-            setup_fee_paid=bool(payment_reference),
+            is_paid=bool(payment_reference),
         )
-
-
-def invalidate_plan_cache(**kwargs):
-    cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])

@@ -2,12 +2,27 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.cache import cache
 
-from subscriptions.models import Plan, Subscription
+from subscriptions.models import Feature, Package, PackageFeature, PackageLimit, Subscription
 from core.cache import CacheKeys
 
 
-@receiver([post_save, post_delete], sender=Plan)
-def invalidate_plan_cache(sender, instance, **kwargs):
+@receiver([post_save, post_delete], sender=Package)
+def invalidate_package_cache(sender, instance, **kwargs):
+    cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])
+
+
+@receiver([post_save, post_delete], sender=Feature)
+def invalidate_feature_cache(sender, instance, **kwargs):
+    cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])
+
+
+@receiver([post_save, post_delete], sender=PackageFeature)
+def invalidate_package_feature_cache(sender, instance, **kwargs):
+    cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])
+
+
+@receiver([post_save, post_delete], sender=PackageLimit)
+def invalidate_package_limit_cache(sender, instance, **kwargs):
     cache.delete_many([CacheKeys.PLAN_LIST, CacheKeys.PLAN_FEATURES])
 
 

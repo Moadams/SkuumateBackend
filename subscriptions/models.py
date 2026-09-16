@@ -4,83 +4,135 @@ from datetime import timedelta
 from core.models import TimestampedModel
 
 
-class Plan(TimestampedModel):
+class Feature(TimestampedModel):
+    """A platform-level capability that may be granted to packages."""
+    name = models.CharField(max_length=120)
+    code = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=80, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Package(TimestampedModel):
+    """
+    A sellable platform package (supersedes the legacy ``Plan`` model).
+    Feature entitlements live in ``PackageFeature`` and usage restrictions
+    in ``PackageLimit`` so new capabilities never require schema changes.
+    """
 
     class PlanType(models.TextChoices):
         LITE = "lite", "Lite"
         ADVANTAGE = "advantage", "Advantage"
         ENTERPRISE = "enterprise", "Enterprise"
 
+    class BillingPeriod(models.TextChoices):
+        TERM = "TERM", "Term"
+        MONTH = "MONTH", "Month"
+        YEAR = "YEAR", "Year"
+
     name = models.CharField(max_length=100)
+    code = models.CharField(max_length=100, unique=True)
     plan_type = models.CharField(
         max_length=20,
         choices=PlanType.choices,
-        unique=True,
+        blank=True,
+        null=True,
+        help_text="Legacy display tier. Not used for feature gating.",
     )
     description = models.TextField(blank=True)
     tagline = models.CharField(max_length=255, blank=True)
 
     # ── Pricing ──────────────────────────────────────────────────
-    price_per_term = models.DecimalField(
+    price = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
-        help_text="Price in GHS per academic term"
+        help_text="Price per billing period"
     )
     setup_fee = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
-        help_text="One-time setup fee in GHS"
+        help_text="One-time setup fee"
     )
+    billing_period = models.CharField(
+        max_length=10,
+        choices=BillingPeriod.choices,
+        default=BillingPeriod.TERM,
+    )
+    currency = models.CharField(max_length=3, default="GHS")
 
-    # ── Hard limits ──────────────────────────────────────────────
-    min_students = models.PositiveIntegerField(
-        default=0,
-        help_text="Minimum student count for this plan"
-    )
-    max_students = models.PositiveIntegerField(
+    # ── Student range (pricing/display metadata) ─────────────────
+    minimum_students = models.PositiveIntegerField(default=0)
+    maximum_students = models.PositiveIntegerField(
         null=True, blank=True,
-        help_text="Maximum student count. null = unlimited"
+        help_text="Maximum student count for pricing. null = unlimited"
     )
 
-    # ── Core features (all plans) ────────────────────────────────
-    has_student_records = models.BooleanField(default=True)
-    has_class_subject_setup = models.BooleanField(default=True)
-    has_score_entry = models.BooleanField(default=True)
-    has_report_cards = models.BooleanField(default=True)
-    has_basic_broadsheet = models.BooleanField(default=True)
-    has_fee_billing = models.BooleanField(default=True)
-    has_payment_tracking = models.BooleanField(default=True)
-    has_debtors_list = models.BooleanField(default=True)
-    has_sms_alerts = models.BooleanField(default=True)
-    has_admin_teacher_portal = models.BooleanField(default=True)
-    has_attendance = models.BooleanField(default=True)
-
-    # ── Advantage+ features ───────────────────────────────────────
-    has_advanced_finance = models.BooleanField(default=False)
-    has_income_expense_tracking = models.BooleanField(default=False)
-    has_full_broadsheet = models.BooleanField(default=False)
-    has_term_comparison = models.BooleanField(default=False)
-    has_audit_logs = models.BooleanField(default=False)
-    has_announcements = models.BooleanField(default=False)
-    has_extended_sms = models.BooleanField(default=False)
-    has_student_portal = models.BooleanField(default=False)
-    has_export = models.BooleanField(default=False)
-
-    # ── Enterprise features ───────────────────────────────────────
-    has_advanced_analytics = models.BooleanField(default=False)
-    has_multi_year_tracking = models.BooleanField(default=False)
-    has_department_access_control = models.BooleanField(default=False)
-    has_custom_report_cards = models.BooleanField(default=False)
-    has_custom_report_formats = models.BooleanField(default=False)
-    has_custom_branding = models.BooleanField(default=False)
-    has_data_migration = models.BooleanField(default=False)
-    has_priority_support = models.BooleanField(default=False)
-
+    # ── Visibility ────────────────────────────────────────────────
     is_active = models.BooleanField(default=True)
+    is_public = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["price_per_term"]
+        ordering = ["display_order", "price"]
 
     def __str__(self):
-        return f"{self.name} — GHS {self.price_per_term}/term"
+        return f"{self.name} — {self.currency} {self.price}/{self.get_billing_period_display().lower()}"
+
+
+class PackageFeature(TimestampedModel):
+    """Entitlement linking a package to a feature."""
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.CASCADE,
+        related_name="package_features",
+    )
+    feature = models.ForeignKey(
+        Feature,
+        on_delete=models.CASCADE,
+        related_name="package_features",
+    )
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["package", "feature"],
+                name="uniq_package_feature",
+            ),
+        ]
+        ordering = ["feature__category", "feature__name"]
+
+    def __str__(self):
+        return f"{self.package.name} → {self.feature.name}"
+
+
+class PackageLimit(TimestampedModel):
+    """A numeric usage restriction for a package."""
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.CASCADE,
+        related_name="package_limits",
+    )
+    key = models.CharField(max_length=80)
+    name = models.CharField(max_length=120)
+    value = models.PositiveIntegerField()
+    description = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["package", "key"],
+                name="uniq_package_limit_key",
+            ),
+        ]
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.package.name} → {self.key}={self.value}"
 
 
 class Subscription(TimestampedModel):
@@ -101,7 +153,7 @@ class Subscription(TimestampedModel):
         related_name="subscriptions",
     )
     plan = models.ForeignKey(
-        Plan,
+        Package,
         blank=True,
         null=True,
         on_delete=models.PROTECT,

@@ -47,6 +47,8 @@ from .finance import SchoolFinanceService
 from .onboarding import OnboardingService
 from .term_progress import TermProgressService
 
+from subscriptions.services.packages import get_package_features
+
 
 class SchoolProjector:
     @staticmethod
@@ -126,26 +128,21 @@ class SubscriptionProjector:
         if not subscription or not subscription.plan:
             return None
         plan = subscription.plan
-        features = {
-            field.name: getattr(plan, field.name)
-            for field in plan._meta.get_fields()
-            if field.name.startswith("has_")
-        }
         return PlanDetailsDTO(
             name=plan.name,
             plan_type=plan.plan_type,
             description=plan.description,
             tagline=plan.tagline,
-            price_per_term=plan.price_per_term,
+            price_per_term=plan.price,
             setup_fee=plan.setup_fee,
-            features=features,
+            features=get_package_features(plan),
         )
 
     @staticmethod
     def _usage(school, subscription) -> PlanUsageDTO | None:
         if not subscription or not subscription.plan:
             return None
-        max_students = subscription.plan.max_students
+        max_students = subscription.plan.maximum_students
         active = school.students.filter(status="active").count()
         return PlanUsageDTO(
             active_students=active,

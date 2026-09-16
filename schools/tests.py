@@ -80,12 +80,12 @@ class OnboardingServiceTests(TestCase):
 
         from django.utils import timezone
 
-        from subscriptions.models import Plan, Subscription
+        from subscriptions.models import Package, Subscription
 
-        plan = Plan.objects.create(name="Lite Test", plan_type=Plan.PlanType.LITE)
+        package = Package.objects.create(name="Lite Test", code="lite-test")
         Subscription.objects.create(
             school=self.school,
-            plan=plan,
+            plan=package,
             status=Subscription.Status.TRIAL,
             end_date=timezone.now() + timedelta(days=90),
         )

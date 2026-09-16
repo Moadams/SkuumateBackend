@@ -2,6 +2,8 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.exceptions import PermissionDenied
 
+from .services.packages import get_package_limit, package_has_feature
+
 
 def get_active_subscription(school):
     if not school:
@@ -17,7 +19,8 @@ def get_active_subscription(school):
     return subscription
 
 
-def check_feature(school, feature: str):
+def check_feature(school, feature_code: str):
+    """Raise PermissionDenied if the school's package lacks ``feature_code``."""
     subscription = get_active_subscription(school)
 
     if not subscription:
@@ -35,14 +38,15 @@ def check_feature(school, feature: str):
             f"Please renew to make changes."
         )
 
-    if not getattr(subscription.plan, feature, False):
+    if not package_has_feature(subscription.plan, feature_code):
         raise PermissionDenied(
-            f"This feature is not included in your current plan. "
+            f"This feature is not included in your current package. "
             f"Please upgrade to access it."
         )
 
 
 def check_limit(school, resource: str):
+    """Raise PermissionDenied if the school has reached a usage limit."""
     subscription = get_active_subscription(school)
 
     if not subscription:
@@ -63,23 +67,26 @@ def check_limit(school, resource: str):
     if resource not in limit_map:
         return
 
-    plan_attr, count_fn = limit_map[resource]
-    limit = getattr(subscription.plan, plan_attr, None)
+    limit_key, count_fn = limit_map[resource]
+    limit = get_package_limit(subscription.plan, limit_key)
+    if limit is None:
+        limit = getattr(subscription.plan, "maximum_students", None)
 
     if limit is None:
         return  # unlimited
 
     current_count = count_fn()
     if current_count >= limit:
+        plan_name = subscription.plan.name if subscription.plan else "current"
         raise PermissionDenied(
             f"You have reached the {resource} limit ({limit}) "
-            f"for your {subscription.plan.name} plan. "
+            f"for your {plan_name} package. "
             f"Please upgrade to add more."
         )
 
 
 def create_trial_subscription(school, plan):
-    """Called on school signup — starts a 14-day trial on the Lite plan."""
+    """Called on school signup — starts a trial on the given package."""
     from .models import Subscription
 
     return Subscription.objects.create(
@@ -88,20 +95,32 @@ def create_trial_subscription(school, plan):
         status=Subscription.Status.TRIAL,
         start_date=timezone.now(),
         end_date=timezone.now() + timedelta(days=Subscription.TRIAL_DAYS),
-        payment_provider="trial",
-        setup_fee_paid=False,
+        is_paid=False,
+    )
+
+
+def record_payment(subscription, amount, provider="manual",
+                   payment_reference="", status="successful"):
+    """Persist a payment record against a subscription."""
+    from .models import SubscriptionPayment
+
+    return SubscriptionPayment.objects.create(
+        subscription=subscription,
+        amount=amount,
+        provider=provider,
+        payment_reference=payment_reference,
+        status=status,
     )
 
 
 def activate_subscription(school, plan, term=None, activated_by=None,
                            payment_reference="", payment_provider="manual",
-                           amount_paid=None, setup_fee_paid=False,
-                           setup_fee_amount=None, notes=""):
+                           is_paid=True, notes=""):
     """
     Activates a term-based subscription for a school.
     Cancels any existing active/trial/grace subscription first.
     End date defaults to term end date if term is provided,
-    otherwise 90 days (one term approx).
+    otherwise one standard term (~TRIAL_DAYS).
     """
     from .models import Subscription
 
@@ -120,10 +139,10 @@ def activate_subscription(school, plan, term=None, activated_by=None,
             timezone.datetime.combine(term.end_date, timezone.datetime.min.time())
         )
         if term
-        else now + timedelta(days=90)
+        else now + timedelta(days=Subscription.TRIAL_DAYS)
     )
 
-    return Subscription.objects.create(
+    subscription = Subscription.objects.create(
         school=school,
         plan=plan,
         term=term,
@@ -131,10 +150,14 @@ def activate_subscription(school, plan, term=None, activated_by=None,
         start_date=now,
         end_date=end_date,
         activated_by=activated_by,
-        payment_reference=payment_reference,
-        payment_provider=payment_provider,
-        amount_paid=amount_paid or plan.price_per_term,
-        setup_fee_paid=setup_fee_paid,
-        setup_fee_amount=setup_fee_amount or plan.setup_fee,
+        is_paid=is_paid,
         notes=notes,
     )
+    if is_paid and plan:
+        record_payment(
+            subscription,
+            amount=plan.price,
+            provider=payment_provider or "manual",
+            payment_reference=payment_reference,
+        )
+    return subscription

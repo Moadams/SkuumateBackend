@@ -1,6 +1,26 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
+from .services.packages import package_has_feature
 from .utils import get_active_subscription
+
+
+class IsPlatformSuperAdmin(BasePermission):
+    """
+    Platform-level staff gate for Package/Feature management.
+
+    Accepts Django superusers as well as users with the legacy
+    ``superadmin`` role so package administration works for both
+    existing platform admins and ``createsuperuser`` accounts.
+    """
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                request.user.is_superuser
+                or getattr(request.user, "role", "") == "superadmin"
+            )
+        )
 
 
 class SubscriptionPermission(BasePermission):
@@ -42,81 +62,83 @@ class SubscriptionPermission(BasePermission):
         return True
 
 
-def _make_feature_permission(feature_flag: str, message: str):
-    """Factory that generates a feature permission class."""
+def _make_feature_permission(feature_code: str, message: str):
+    """Factory that generates a feature-gated permission class."""
     class FeaturePermission(SubscriptionPermission):
         def has_permission(self, request, view):
             super().has_permission(request, view)
             sub = get_active_subscription(request.user.school)
-            if not getattr(sub.plan, feature_flag, False):
+            if not package_has_feature(sub.plan, feature_code):
                 raise PermissionDenied(message)
             return True
     return FeaturePermission
 
 
-# ── Generated permission classes ─────────────────────────────────
+# ── Generated permission classes ──────────────────────────────────
+# These evaluate against a package's PackageFeature entitlements using
+# stable feature codes (see subscriptions/services/packages.py).
 
 HasExportAccess = _make_feature_permission(
-    "has_export",
-    "Export is not available on your current plan. Upgrade to Advantage or higher.",
+    "export",
+    "Export is not available on your current package. Upgrade to Advantage or higher.",
 )
 
 HasAuditLogAccess = _make_feature_permission(
-    "has_audit_logs",
-    "Audit logs are not available on your current plan. Upgrade to Advantage or higher.",
+    "activity_logs",
+    "Activity logs are not available on your current package. Upgrade to Advantage or higher.",
 )
 
 HasAdvancedFinance = _make_feature_permission(
-    "has_advanced_finance",
-    "Advanced finance features require the Advantage plan or higher.",
+    "advanced_finance",
+    "Advanced finance features require the Advantage package or higher.",
 )
 
 HasAnnouncementAccess = _make_feature_permission(
-    "has_announcements",
-    "Announcements require the Advantage plan or higher.",
+    "announcements",
+    "Announcements require the Advantage package or higher.",
 )
 
 HasStudentPortalAccess = _make_feature_permission(
-    "has_student_portal",
-    "Student portal access requires the Advantage plan or higher.",
+    "student_portal",
+    "Student portal access requires the Advantage package or higher.",
 )
 
 HasAdvancedAnalytics = _make_feature_permission(
-    "has_advanced_analytics",
-    "Advanced analytics require the Enterprise plan.",
+    "advanced_analytics",
+    "Advanced analytics require the Enterprise package.",
 )
 
 HasCustomBranding = _make_feature_permission(
-    "has_custom_branding",
-    "Custom branding requires the Enterprise plan.",
+    "school_branding",
+    "School branding requires the Enterprise package.",
 )
 
 HasCustomReportCards = _make_feature_permission(
-    "has_custom_report_cards",
-    "Custom report card design requires the Enterprise plan.",
+    "custom_report_cards",
+    "Custom report card design requires the Enterprise package.",
 )
 
 HasSmsAlerts = _make_feature_permission(
-    "has_sms_alerts",
-    "SMS alerts are not available on your current plan.",
+    "sms",
+    "SMS alerts are not available on your current package.",
 )
 
 HasExtendedSms = _make_feature_permission(
-    "has_extended_sms",
-    "Extended SMS alerts require the Advantage plan or higher.",
+    "extended_sms",
+    "Extended SMS alerts require the Advantage package or higher.",
 )
 
 HasFullBroadsheet = _make_feature_permission(
-    "has_full_broadsheet",
-    "Full broadsheet generation requires the Advantage plan or higher.",
+    "full_broadsheet",
+    "Full broadsheet generation requires the Advantage package or higher.",
 )
 
 HasTermComparison = _make_feature_permission(
-    "has_term_comparison",
-    "Term-to-term comparison requires the Advantage plan or higher.",
+    "term_comparison",
+    "Term-to-term comparison requires the Advantage package or higher.",
 )
 
 HasAttendanceModule = _make_feature_permission(
-    "has_attendance",
-    "Attendance features require the Advantage plan or higher.",
+    "attendance",
+    "Attendance features are not available on your current package.",
 )
