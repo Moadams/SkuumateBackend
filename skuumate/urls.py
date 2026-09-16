@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/v1/", include("exams.urls")),
     path("api/v1/finance/", include("finance.urls")),
     path("api/v1/", include("dashboard.urls")),
+    path("api/v1/platform/", include("platform_rbac.urls")),
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT})
 ] 
 

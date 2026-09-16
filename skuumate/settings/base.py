@@ -38,6 +38,7 @@ LOCAL_APPS = [
     "staff",
     "communications",
     "dashboard",
+    "platform_rbac",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

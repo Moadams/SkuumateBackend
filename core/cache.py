@@ -48,6 +48,12 @@ class CacheKeys:
     def user_permissions(user_id):
         return f"skuumate:user:{user_id}:permissions"
 
+    PLATFORM_PERMISSIONS_VERSION = "skuumate:platform:permissions:version"
+
+    @staticmethod
+    def platform_permissions(user_id):
+        return f"skuumate:platform:permissions:{user_id}"
+
 
 def cache_response(key_func, timeout=60 * 15):
     def decorator(view_method):
