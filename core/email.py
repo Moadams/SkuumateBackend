@@ -1,6 +1,6 @@
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
+from integrations.registry import get_email_provider
 import datetime
 
 import logging
@@ -27,25 +27,30 @@ def send_templated_email(
             context={"admin_name": "Kwame", ...},
             recipient="kwame@school.edu.gh",
         )
+
+    Delegates to the email provider selected by INTEGRATION_MODE:
+    simulated providers print to the console in development, while the
+    real SMTP provider is used in production.
     """
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
 
+    # Get the sender, defaulting to the config's 'from' if provided
+    provider = get_email_provider("smtp")
+
     try:
         html_content = render_to_string(template, context)
-
-        # Plain text fallback — strip tags for basic readability
         text_content = _html_to_text(context)
-
-        email = EmailMultiAlternatives(
+        result = provider.send(
+            to_email=recipient,
             subject=subject,
             body=text_content,
+            html_body=html_content,
             from_email=from_email,
-            to=[recipient],
         )
-        email.attach_alternative(html_content, "text/html")
-        email.send(fail_silently=False)
-
-        logger.info(f"Email sent: '{subject}' → {recipient}")
+        if result.success:
+            logger.info("Email sent: '%s' → %s", subject, recipient)
+        else:
+            logger.error("Failed to send email '%s' to %s: %s", subject, recipient, result.message)
 
     except Exception as e:
         # Log but don't crash the request — email failure

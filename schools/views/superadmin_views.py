@@ -1,24 +1,27 @@
-from django.db.models import Count, Q
 from django.db import transaction
+from django.db.models import Count, Q
 
 # filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
-from core.models import AuditLog
-from core.utils import log_action
-from schools.filters import SchoolFilter
-
-from rest_framework.views import APIView
 from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.views import APIView
 
 # Core funtions
 from core.mixins import AuditLogMixin, ExportMixin
+from core.models import AuditLog
 from core.permissions import IsSuperAdmin
 from core.responses import ApiResponse
-
+from core.utils import log_action
+from schools.filters import SchoolFilter
 from schools.models import School
 from schools.serializers.serializers import SchoolListSerializer, SchoolSerializer
-from schools.serializers.superadmin_serializers import SchoolCreateSerializer, SchoolDetailSerializer, SchoolUpdateSerializer
+from schools.serializers.superadmin_serializers import (
+    SchoolCreateSerializer,
+    SchoolDetailSerializer,
+    SchoolUpdateSerializer,
+)
+
 
 class SchoolListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
     """
@@ -47,7 +50,6 @@ class SchoolListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVie
 
         from subscriptions.models import Subscription
 
-        # SQLite-compatible: fetch all, deduplicate in Python
         subscriptions = (
             Subscription.objects
             .filter(school_id__in=school_ids)

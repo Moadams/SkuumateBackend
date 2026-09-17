@@ -39,6 +39,7 @@ LOCAL_APPS = [
     "communications",
     "dashboard",
     "platform_rbac",
+    "integrations",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -153,6 +154,35 @@ EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+
+# ─── Third-party integrations (payment / SMS / email) ──────────────
+# "simulate"  → SimulatedProvider classes print to the console (development).
+# "live"      → real provider classes (Paystack/Stripe/Twilio/SMTP/...).
+INTEGRATION_MODE = config("INTEGRATION_MODE", default="simulate")
+
+# Payment
+PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_PUBLIC_KEY = config("PAYSTACK_PUBLIC_KEY", default="")
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+
+# SMS
+TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = config("TWILIO_AUTH_TOKEN", default="")
+TWILIO_FROM_NUMBER = config("TWILIO_FROM_NUMBER", default="")
+AFRICASTALKING_API_KEY = config("AFRICASTALKING_API_KEY", default="")
+AFRICASTALKING_USERNAME = config("AFRICASTALKING_USERNAME", default="")
+AFRICASTALKING_FROM = config("AFRICASTALKING_FROM", default="")
+MNOTIFY_API_KEY = config("MNOTIFY_API_KEY", default="")
+MNOTIFY_SENDER_ID = config("MNOTIFY_SENDER_ID", default="")
+ARKESEL_API_KEY = config("ARKESEL_API_KEY", default="")
+ARKESEL_SENDER = config("ARKESEL_SENDER", default="")
+
+# Email
+SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")
+MAILGUN_API_KEY = config("MAILGUN_API_KEY", default="")
+MAILGUN_DOMAIN = config("MAILGUN_DOMAIN", default="")
 
 # ─── Cache (overridden per environment) ────────────────────────────
 CACHES = {

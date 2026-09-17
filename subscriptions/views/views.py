@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import generics
+import json
 
 from core.responses import ApiResponse
 from core.cache import CacheKeys
@@ -14,6 +15,7 @@ from core.models import AuditLog
 from core.utils import log_action
 
 from subscriptions.services.packages import package_feature_details, package_limit_details
+from integrations.registry import get_payment_provider
 
 from ..serializers import (
     PackageSerializer, SubscribeToPlanSerializer, SubscriptionSerializer,
@@ -62,6 +64,10 @@ class InitiatePaymentView(APIView):
     """
     Initiates a payment with an external provider.
     Returns a payment URL for the frontend to redirect to.
+
+    In development (INTEGRATION_MODE=simulate) the simulated provider
+    prints the transaction to the console and returns a reference.
+    In production the real Paystack/Stripe/MoMo provider is used.
     """
     permission_classes = [IsAdmin]
 
@@ -73,7 +79,7 @@ class InitiatePaymentView(APIView):
             id=serializer.validated_data["plan_id"],
             is_active=True,
         )
-        provider = serializer.validated_data["provider"]
+        provider_name = serializer.validated_data["provider"]
 
         amount = float(package.price)
         if serializer.validated_data.get("include_setup_fee"):
@@ -85,59 +91,72 @@ class InitiatePaymentView(APIView):
             "plan_id": str(package.id),
         }
 
-        if provider == "paystack":
-            payment_url = self._initiate_paystack(
-                request.user.email, amount, metadata
-            )
-        else:
-            payment_url = self._initiate_stripe(
-                request.user.email, amount, metadata
+        provider_service = get_payment_provider(provider_name)
+        result = provider_service.initiate(
+            email=request.user.email,
+            amount=amount,
+            currency=package.currency,
+            metadata=metadata,
+        )
+
+        if not result.success:
+            return ApiResponse.error(
+                message=f"Payment could not be initiated. {result.message}",
+                status_code=400,
             )
 
         return ApiResponse.success(
             data={
-                "payment_url": payment_url,
-                "amount": amount,
+                "payment_url": result.payment_url,
+                "reference": result.reference,
+                "provider": result.provider,
+                "amount": result.amount or amount,
+                "currency": result.currency or package.currency,
                 "plan": package.name,
             },
             message="Payment initiated. Redirect user to payment_url.",
         )
 
-    def _initiate_paystack(self, email, amount, metadata):
-        # Paystack integration goes here
-        # Returns the authorization_url from Paystack's API
-        # We'll build this out when wiring payment providers
-        return "https://paystack.com/pay/placeholder"
-
-    def _initiate_stripe(self, email, amount, metadata):
-        # Stripe integration goes here
-        return "https://stripe.com/pay/placeholder"
-
 
 class PaymentWebhookView(APIView):
     """
     Receives webhook callbacks from Paystack/Stripe after payment.
-    Activates the subscription on successful payment.
+
+    The webhook handler reuses the same provider abstraction so the
+    signature verification / event parsing lives in one place per provider.
+    The actual subscription activation happens in SubscribeToPlanView
+    (called by the frontend after payment confirmation).
     """
     permission_classes = [AllowAny]  # webhooks come from providers, not users
 
     def post(self, request, provider):
-        if provider == "paystack":
-            return self._handle_paystack(request)
-        elif provider == "stripe":
-            return self._handle_stripe(request)
-        return ApiResponse.error(message="Unknown provider.", status_code=400)
+        # Read the raw body BEFORE touching request.data (parsing the JSON
+        # consumes the stream and would make request.body inaccessible).
+        raw_body = getattr(request, "body", b"") or b"{}"
+        try:
+            payload = json.loads(raw_body)
+        except (ValueError, TypeError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload["_raw_body"] = raw_body
 
-    def _handle_paystack(self, request):
-        # 1. Verify webhook signature
-        # 2. Extract metadata (school_id, plan_id)
-        # 3. Activate subscription
-        # Full implementation when wiring Paystack
-        return ApiResponse.success(message="Webhook received.")
+        provider_service = get_payment_provider(provider)
+        result = provider_service.verify_webhook(payload, request.headers)
 
-    def _handle_stripe(self, request):
-        # Full implementation when wiring Stripe
-        return ApiResponse.success(message="Webhook received.")
+        if not result.success:
+            return ApiResponse.error(
+                message=result.message or "Webhook verification failed.",
+                status_code=400,
+            )
+        return ApiResponse.success(
+            data={
+                "reference": result.reference,
+                "status": result.status,
+                "provider": result.provider,
+            },
+            message=result.message or "Webhook received.",
+        )
 
 
 class PackageFeaturesView(APIView):

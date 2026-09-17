@@ -5,6 +5,9 @@ DEBUG = False
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
 
+# ─── Third-party integrations — real providers in production ───────
+INTEGRATION_MODE = config("INTEGRATION_MODE", default="live")
+
 # ─── Database — MySQL ──────────────────────────────────────────────
 DATABASES = {
     "default": {

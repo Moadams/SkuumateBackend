@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from academics.models import AcademicYear, Term
@@ -9,6 +10,8 @@ from schools.models import School
 from schools.services.onboarding import OnboardingService
 from schools.services.school_details import SchoolDetailsService
 from schools.services.term_progress import TermProgressService
+from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
+from staff.models import PermissionKey, StaffPosition
 
 User = get_user_model()
 
@@ -143,3 +146,78 @@ class SchoolDetailsServiceTests(TestCase):
         client.force_authenticate(user=teacher)
         resp = client.get("/api/v1/schools/me/details/")
         self.assertEqual(resp.status_code, 403)
+
+
+class SchoolCreateSystemPositionsTests(TestCase):
+    """Regression: creating a school seeds system positions via
+    StaffPosition.permissions.set() (M2M), not direct assignment."""
+
+    def setUp(self):
+        # Seed a minimal permission registry so seeded keys resolve.
+        for pos_data in SYSTEM_POSITIONS:
+            for key in (pos_data["keys"] or []):
+                PermissionKey.objects.get_or_create(
+                    key=key,
+                    defaults={
+                        "label": key,
+                        "module": key.split(".")[0],
+                    },
+                )
+        self.superadmin = User.objects.create_user(
+            email="superadmin@platform.com",
+            password="pass1234",
+            is_superuser=True,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.superadmin)
+
+    def test_create_school_seeds_system_positions_without_typeerror(self):
+        resp = self.client.post(
+            reverse("school-list"),
+            {
+                "name": "Riverside Academy",
+                "email": "info@riverside.edu",
+                "phone": "+233241112233",
+                "school_code": "RIV-2026",
+                "admin_first_name": "Kwame",
+                "admin_last_name": "Mensah",
+                "admin_email": "kwame@riverside.edu",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+
+        school = School.objects.get(name="Riverside Academy")
+        positions = StaffPosition.objects.filter(school=school)
+        self.assertEqual(positions.count(), len(SYSTEM_POSITIONS))
+        self.assertTrue(all(p.is_system for p in positions))
+
+    def test_administrator_position_gets_all_seeded_keys(self):
+        resp = self.client.post(
+            reverse("school-list"),
+            {
+                "name": "Sunrise School",
+                "email": "info@sunrise.edu",
+                "phone": "+233244556677",
+                "school_code": "SUN-2026",
+                "admin_first_name": "Ama",
+                "admin_last_name": "Asante",
+                "admin_email": "ama@sunrise.edu",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+
+        school = School.objects.get(name="Sunrise School")
+        seeded_keys = {
+            key
+            for pos_data in SYSTEM_POSITIONS
+            for key in (pos_data["keys"] or [])
+        }
+        admin_position = StaffPosition.objects.get(
+            school=school, name="Administrator"
+        )
+        self.assertEqual(
+            set(admin_position.permissions.values_list("key", flat=True)),
+            seeded_keys,
+        )

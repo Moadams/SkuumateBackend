@@ -7,6 +7,7 @@ from rest_framework import serializers
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
+from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
 from subscriptions.services.SubscriptionService import SubscriptionService
 
 
@@ -123,7 +124,7 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = School
-        fields = [
+        fields = [  # noqa: RUF012
             "id",
             "name",
             "email",
@@ -216,17 +217,22 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def _seed_system_positions(school):
-        from staff.management.commands.seed_staff_positions import (
-            SYSTEM_POSITIONS,
-        )
-        from staff.models import StaffPosition
+
+        from staff.models import PermissionKey, StaffPosition
+        all_keys = list(PermissionKey.objects.values_list("key", flat=True))
         for pos_data in SYSTEM_POSITIONS:
-            StaffPosition.objects.get_or_create(
+            keys = pos_data["keys"] if pos_data["keys"] is not None else all_keys
+            position, created = StaffPosition.objects.get_or_create(
                 school=school,
                 name=pos_data["name"],
                 defaults={
                     "description": pos_data["description"],
-                    "permissions": pos_data["permissions"],
                     "is_system": True,
                 },
+            )
+            if created:
+                position.is_system = True
+            # permissions is a ManyToManyField — assign via .set()
+            position.permissions.set(
+                PermissionKey.objects.filter(key__in=keys)
             )
