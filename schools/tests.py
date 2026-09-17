@@ -48,20 +48,94 @@ class TermProgressServiceTests(TestCase):
 
 class OnboardingServiceTests(TestCase):
 
+    STEPS = OnboardingService.STEPS
+
     def setUp(self):
         self.school = School.objects.create(name="Onboarding School")
 
-    def test_not_complete_when_steps_missing(self):
-        dto = OnboardingService.build(self.school)
-        self.assertFalse(dto.onboarding_completed)
-        self.assertEqual(dto.completed_count, 0)
+    def _complete_profile(self):
+        self.school.email = "info@onboard.edu"
+        self.school.phone = "+233240000000"
+        self.school.address = "Accra"
+        self.school.city = "Accra"
+        self.school.school_code = "OBS-001"
+        self.school.save()
 
-    def test_complete_when_all_steps_present(self):
+    def _create_current_year_term(self):
         year = AcademicYear.objects.create(
             school=self.school,
             name="2026/27",
             start_date=date(2026, 1, 1),
             end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        term = Term.objects.create(
+            school=self.school,
+            academic_year=year,
+            name=Term.TermName.TERM_1,
+            start_date=date(2026, 1, 10),
+            end_date=date(2026, 4, 10),
+        )
+        term.is_current = True
+        term.save()
+        return year, term
+
+    def test_not_complete_when_steps_missing(self):
+        dto = OnboardingService.build(self.school)
+        self.assertFalse(dto.onboarding_completed)
+        self.assertEqual(dto.completed_count, 0)
+        self.assertEqual(dto.current_step, "school_profile")
+        self.assertFalse(dto.profile["done"])
+        self.assertIn("email", dto.profile["missing_fields"])
+        self.assertIn("school_code", dto.profile["missing_fields"])
+
+    def test_blank_profile_fields_count_as_incomplete(self):
+        self.school.email = ""
+        self.school.school_code = "  "
+        self.school.save(update_fields=["email", "school_code"])
+        steps = OnboardingService.steps(self.school)
+        self.assertFalse(steps["school_profile"])
+
+    def test_complete_when_all_steps_present(self):
+        self._complete_profile()
+        self._create_current_year_term()
+        self.school.classes.create(name="Primary 1")
+        self.school.subjects.create(name="Mathematics")
+        self._create_trial_subscription()
+
+        dto = OnboardingService.build(self.school)
+        self.assertTrue(dto.onboarding_completed)
+        self.assertEqual(dto.completed_count, dto.total_steps)
+        self.assertEqual(dto.total_steps, len(self.STEPS))
+        self.assertIsNone(dto.current_step)
+        self.assertTrue(dto.profile["done"])
+
+    def test_non_current_year_and_term_do_not_count(self):
+        self._complete_profile()
+        AcademicYear.objects.create(
+            school=self.school,
+            name="2025/26",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+        )
+        self.school.classes.create(name="Primary 1")
+        self.school.subjects.create(name="Mathematics")
+        self._create_trial_subscription()
+
+        dto = OnboardingService.build(self.school)
+        self.assertFalse(dto.completed_count >= dto.total_steps)
+        self.assertFalse(dto.steps["academic_year"])
+        self.assertFalse(dto.steps["term"])
+        self.assertEqual(dto.current_step, "academic_year")
+
+    def test_is_current_term_counts_only_current_terms(self):
+        self._complete_profile()
+        year = AcademicYear.objects.create(
+            school=self.school,
+            name="2026/27",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
         )
         Term.objects.create(
             school=self.school,
@@ -70,13 +144,50 @@ class OnboardingServiceTests(TestCase):
             start_date=date(2026, 1, 10),
             end_date=date(2026, 4, 10),
         )
+        term2 = Term.objects.create(
+            school=self.school,
+            academic_year=year,
+            name=Term.TermName.TERM_2,
+            start_date=date(2026, 4, 20),
+            end_date=date(2026, 8, 20),
+        )
         self.school.classes.create(name="Primary 1")
         self.school.subjects.create(name="Mathematics")
         self._create_trial_subscription()
 
+        self.assertFalse(OnboardingService.build(self.school).steps["term"])
+
+        term2.is_current = True
+        term2.save()
+        self.assertTrue(OnboardingService.build(self.school).steps["term"])
+
+    def test_class_subject_step_requires_both(self):
+        self._complete_profile()
+        self._create_current_year_term()
+        self.school.classes.create(name="Primary 1")  # no subject
+        self._create_trial_subscription()
+
         dto = OnboardingService.build(self.school)
-        self.assertTrue(dto.onboarding_completed)
-        self.assertEqual(dto.completed_count, dto.total_steps)
+        self.assertFalse(dto.steps["class_subject"])
+        self.assertEqual(dto.current_step, "class_subject")
+
+    def test_resume_data_returns_saved_rows(self):
+        self._complete_profile()
+        self._create_current_year_term()
+        self.school.classes.create(name="Primary 1")
+        self.school.subjects.create(name="Mathematics")
+
+        dto = OnboardingService.build(self.school, include_data=True)
+        self.assertEqual(dto.data["school"]["school_code"], "OBS-001")
+        self.assertEqual(len(dto.data["academic_years"]), 1)
+        self.assertEqual(dto.data["academic_years"][0]["name"], "2026/27")
+        self.assertEqual(len(dto.data["terms"]), 1)
+        self.assertEqual(dto.data["classes"][0]["name"], "Primary 1")
+        self.assertEqual(dto.data["subjects"][0]["name"], "Mathematics")
+
+    def test_details_payload_excludes_resume_data(self):
+        dto = OnboardingService.build(self.school)
+        self.assertEqual(dto.data, {})
 
     def _create_trial_subscription(self):
         from datetime import timedelta
@@ -146,6 +257,17 @@ class SchoolDetailsServiceTests(TestCase):
         client.force_authenticate(user=teacher)
         resp = client.get("/api/v1/schools/me/details/")
         self.assertEqual(resp.status_code, 403)
+
+    def test_onboarding_status_endpoint_serializes_without_logo(self):
+        """Regression: resume data must not leak ImageFieldFile into JSON."""
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        resp = client.get("/api/v1/schools/me/onboarding/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["data"]
+        self.assertIn("steps", data)
+        self.assertIn("current_step", data)
+        self.assertIsNone(data["data"]["school"]["logo"])
 
 
 class SchoolCreateSystemPositionsTests(TestCase):

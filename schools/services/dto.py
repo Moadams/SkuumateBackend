@@ -391,6 +391,9 @@ class OnboardingDTO:
     steps: OnboardingStepsDTO
     completed_count: int
     total_steps: int
+    current_step: Optional[str]
+    profile: Dict
+    data: Dict
 
 
 # ── Aggregate ─────────────────────────────────────────────────────────

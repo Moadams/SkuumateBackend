@@ -64,7 +64,6 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         ).exclude(id=self.instance.id if self.instance else None).exists():
             raise serializers.ValidationError("Academic year dates overlap with an existing academic year.")
         
-
         return attrs
 
 

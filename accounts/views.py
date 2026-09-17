@@ -23,10 +23,10 @@ from .serializers import (
     LoginSerializer,
     ResetPasswordConfirmSerializer,
     ResetUserPasswordSerializer,
+    SchoolUserUpdateSerializer,
     UserLoginSerializer,
     UserSerializer,
     UserUpdateSerializer,
-    SchoolUserUpdateSerializer,
 )
 
 logger = logging.getLogger(__name__)

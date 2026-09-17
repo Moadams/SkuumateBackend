@@ -160,10 +160,11 @@ class SchoolDetailsView(APIView):
 
 class SchoolOnboardingStatusView(APIView):
     """
-    Returns the current school's onboarding status and which steps
-    have been completed.
+    Returns the current school's onboarding status, per-step completion,
+    the next incomplete step, and the already-saved data needed to resume
+    a partially completed onboarding flow.
     """
-    permission_classes = [school_permission(read="school.manage")]
+    permission_classes = [school_permission(read="school.manage")]  # noqa: RUF012
 
     @cache_response(
         lambda self, request: CacheKeys.school_onboarding(
@@ -179,7 +180,7 @@ class SchoolOnboardingStatusView(APIView):
                 status_code=404,
             )
 
-        dto = OnboardingService.build(school)
+        dto = OnboardingService.build(school, include_data=True)
         return ApiResponse.success(
             data=SchoolDetailsPresenter(request).present(dto)
         )

@@ -1,4 +1,3 @@
-from core.school_permissions import school_permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -8,8 +7,8 @@ from academics.models import AcademicYear
 from academics.serializers import AcademicYearSerializer
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsAdminOrReadOnly
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
 from core.utils import log_action
 from schools.utils import check_and_complete_onboarding
 

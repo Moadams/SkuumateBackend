@@ -54,6 +54,7 @@ class UserLoginSerializer(SchoolAccessSerializerMixin, serializers.ModelSerializ
             "role",
             "school",
             "school_name",
+            "is_superuser",
             "onboarding_completed", 
             "must_change_password", "effective_permissions"
         ]
