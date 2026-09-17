@@ -8,7 +8,7 @@ from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
 from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
-from subscriptions.services.SubscriptionService import SubscriptionService
+from subscriptions.services.subscriptions import SubscriptionService
 
 
 class SchoolUpdateSerializer(serializers.ModelSerializer):

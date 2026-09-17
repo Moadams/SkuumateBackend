@@ -250,9 +250,11 @@ class InitiatePaymentWiringTests(APITestCase):
             role="admin",
             school=self.school,
         )
+        # NOTE: code="advantage" collides with the package seeded in
+        # subscriptions.0006_seed_packages, so use a unique fixture code.
         self.package = Package.objects.create(
             name="Advantage",
-            code="advantage",
+            code="wiring-test",
             price="250.00",
             is_active=True,
             is_public=True,

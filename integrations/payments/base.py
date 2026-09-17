@@ -53,3 +53,16 @@ class BasePaymentProvider(BaseProvider):
         raise NotImplementedError(
             f"{self.label} does not support webhook verification."
         )
+
+    def verify_reference(
+        self, reference: str, amount: float | None = None
+    ) -> PaymentVerificationResult:
+        """Confirm a transaction by its gateway reference.
+
+        Used after a payment callback, when the frontend submits the returned
+        reference to complete a subscription. Implementations should query the
+        gateway for the transaction's status and amount.
+        """
+        raise NotImplementedError(
+            f"{self.label} does not support reference verification."
+        )

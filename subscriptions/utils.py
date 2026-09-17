@@ -1,22 +1,20 @@
+"""Subscription helpers for cross-app feature gates.
+
+Deprecated lifecycle functions (``create_trial_subscription``, ``record_payment``,
+``activate_subscription``) are kept as thin wrappers over the service layer so
+existing callers keep working while all state changes go through services.
+"""
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework.exceptions import PermissionDenied
 
 from .services.packages import get_package_limit, package_has_feature
+from .services.subscriptions import SubscriptionService
 
 
 def get_active_subscription(school):
-    if not school:
-        return None
-    subscription = (
-        school.subscriptions
-        .select_related("plan")
-        .order_by("-start_date")
-        .first()
-    )
-    if subscription:
-        subscription.sync_status()
-    return subscription
+    """Return the school's current (live) subscription, if any."""
+    return SubscriptionService.get_current(school) if school else None
 
 
 def check_feature(school, feature_code: str):
@@ -87,15 +85,10 @@ def check_limit(school, resource: str):
 
 def create_trial_subscription(school, plan):
     """Called on school signup — starts a trial on the given package."""
-    from .models import Subscription
-
-    return Subscription.objects.create(
+    return SubscriptionService.start_trial(
         school=school,
         plan=plan,
-        status=Subscription.Status.TRIAL,
-        start_date=timezone.now(),
-        end_date=timezone.now() + timedelta(days=Subscription.TRIAL_DAYS),
-        is_paid=False,
+        activated_by=None,
     )
 
 
@@ -103,13 +96,17 @@ def record_payment(subscription, amount, provider="manual",
                    payment_reference="", status="successful"):
     """Persist a payment record against a subscription."""
     from .models import SubscriptionPayment
+    from .services.payments import PaymentService
 
-    return SubscriptionPayment.objects.create(
+    return PaymentService.record_successful_payment(
         subscription=subscription,
+        school=subscription.school if subscription.school_id else None,
+        plan=subscription.plan,
+        term=subscription.term,
         amount=amount,
-        provider=provider,
-        payment_reference=payment_reference,
-        status=status,
+        provider=provider or "manual",
+        reference=payment_reference,
+        payment_mode=SubscriptionPayment.PaymentMode.VIRTUAL,
     )
 
 
@@ -122,33 +119,10 @@ def activate_subscription(school, plan, term=None, activated_by=None,
     End date defaults to term end date if term is provided,
     otherwise one standard term (~TRIAL_DAYS).
     """
-    from .models import Subscription
-
-    # Cancel existing subscriptions
-    school.subscriptions.filter(
-        status__in=[
-            Subscription.Status.ACTIVE,
-            Subscription.Status.TRIAL,
-            Subscription.Status.GRACE,
-        ]
-    ).update(status=Subscription.Status.CANCELLED)
-
-    now = timezone.now()
-    end_date = (
-        timezone.make_aware(
-            timezone.datetime.combine(term.end_date, timezone.datetime.min.time())
-        )
-        if term
-        else now + timedelta(days=Subscription.TRIAL_DAYS)
-    )
-
-    subscription = Subscription.objects.create(
+    subscription = SubscriptionService.activate(
         school=school,
         plan=plan,
         term=term,
-        status=Subscription.Status.ACTIVE,
-        start_date=now,
-        end_date=end_date,
         activated_by=activated_by,
         is_paid=is_paid,
         notes=notes,

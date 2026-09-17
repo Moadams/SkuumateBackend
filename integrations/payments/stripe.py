@@ -97,3 +97,53 @@ class StripePaymentProvider(BasePaymentProvider):
             reference=(event.get("data", {}).get("object") or {}).get("id", ""),
             raw=event,
         )
+
+    def verify_reference(self, reference, amount=None):
+        """Confirm a checkout session by its id against Stripe."""
+        secret_key = self._secret_key()
+        if not secret_key:
+            return PaymentVerificationResult(False, self.key, "Stripe secret key not configured.")
+        if not reference:
+            return PaymentVerificationResult(False, self.key, "Payment reference is required.")
+
+        try:
+            import stripe
+        except ImportError:
+            return PaymentVerificationResult(False, self.key, "stripe package not installed.")
+
+        stripe.api_key = secret_key
+        try:
+            session = stripe.checkout.Session.retrieve(reference)
+        except Exception as exc:  # noqa: BLE001
+            self.log_error(exc)
+            return PaymentVerificationResult(False, self.key, str(exc))
+
+        if session.get("payment_status") != "paid":
+            return PaymentVerificationResult(
+                False, self.key,
+                f"Payment is not successful (status: {session.get('payment_status')}).",
+                reference=reference,
+                status=session.get("payment_status") or "",
+            )
+
+        verified_amount = (session.get("amount_total") or 0) / 100
+        if amount is not None and abs(verified_amount - amount) > 0.01:
+            return PaymentVerificationResult(
+                False, self.key,
+                "Verified amount does not match the expected amount.",
+                reference=reference,
+                status="paid",
+                amount=verified_amount,
+            )
+
+        return PaymentVerificationResult(
+            success=True,
+            provider=self.key,
+            message="Payment verified.",
+            reference=reference,
+            status="paid",
+            amount=verified_amount,
+            currency=(session.get("currency") or "").upper(),
+            metadata=session.get("metadata") or {},
+            raw=session,
+        )

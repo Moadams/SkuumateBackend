@@ -455,3 +455,191 @@ class PackageAPITests(APITestCase):
         codes = [p["code"] for p in response.json()["data"]]
         self.assertIn("test-public", codes)
         self.assertNotIn("hidden", codes)
+
+
+class SubscriptionAPITests(APITestCase):
+    """End-to-end coverage for the rebuilt subscription endpoints."""
+
+    def setUp(self):
+        from subscriptions.models import Subscription, SubscriptionPayment
+
+        self.Subscription = Subscription
+        self.SubscriptionPayment = SubscriptionPayment
+
+        self.school = create_school()
+        self.admin = create_admin_user(self.school)
+        self.superadmin = create_superadmin_user()
+
+        self.package = Package.objects.create(
+            name="Advantage", code="advantage-api",
+            price="250.00", setup_fee="50.00",
+            billing_period=Package.BillingPeriod.TERM,
+            minimum_students=0, maximum_students=500,
+            is_active=True, is_public=True,
+        )
+
+    def test_trial_eligible_school_subscribes_for_free(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {"plan_id": self.package.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()["data"]
+        self.assertEqual(data["status"], "trial")
+        self.assertTrue(data["is_current"])
+        self.assertEqual(data["plan"]["code"], "advantage-api")
+        self.assertIn("days_remaining", data)
+
+    def test_paid_subscription_flow_activate_and_link_payment(self):
+        # Make the school ineligible for a trial (it already had a real plan).
+        self.Subscription.objects.create(
+            school=self.school,
+            plan=self.package,
+            status=self.Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True,
+        )
+
+        self.client.force_authenticate(self.admin)
+        initiate = self.client.post(
+            reverse("school-subscribe-initiate"),
+            {"plan_id": self.package.pk, "provider": "paystack"},
+            format="json",
+        )
+        self.assertEqual(initiate.status_code, 200)
+        reference = initiate.json()["data"]["reference"]
+        self.assertTrue(reference.startswith("SIM-"))
+
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {
+                "plan_id": self.package.pk,
+                "payment_reference": reference,
+                "payment_provider": "paystack",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()["data"]
+        self.assertEqual(data["status"], "active")
+        self.assertTrue(data["is_paid"])
+
+        payment = self.SubscriptionPayment.objects.get(payment_reference=reference)
+        self.assertEqual(payment.status, "successful")
+        self.assertEqual(payment.school, self.school)
+        self.assertEqual(str(payment.subscription_id), data["id"])
+
+    def test_paid_school_without_reference_is_rejected(self):
+        self.Subscription.objects.create(
+            school=self.school,
+            plan=self.package,
+            status=self.Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True,
+        )
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {"plan_id": self.package.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_school_admin_can_list_own_subscriptions(self):
+        from subscriptions.services.subscriptions import SubscriptionService
+
+        SubscriptionService.start_trial(
+            school=self.school, plan=self.package, activated_by=self.admin
+        )
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(reverse("subscription-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["data"]["results"]
+        self.assertTrue(any(r["status"] == "trial" for r in results))
+
+    def test_school_admin_cannot_access_admin_subscriptions(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(reverse("admin-subscription-list"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_superadmin_subscribes_school_with_cash_payment(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post(
+            reverse("admin-subscription-subscribe"),
+            {
+                "school_id": self.school.pk,
+                "plan_id": self.package.pk,
+                "status": "active",
+                "payment_mode": "cash",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()["data"]
+        self.assertEqual(data["status"], "active")
+        self.assertTrue(data["is_paid"])
+
+        payment = self.SubscriptionPayment.objects.get(school=self.school)
+        self.assertEqual(payment.payment_mode, "cash")
+        self.assertEqual(payment.provider, "cash")
+        self.assertEqual(payment.status, "successful")
+
+    def test_superadmin_paid_subscription_requires_payment_mode(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post(
+            reverse("admin-subscription-subscribe"),
+            {
+                "school_id": self.school.pk,
+                "plan_id": self.package.pk,
+                "status": "active",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_superadmin_start_trial_for_school(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post(
+            reverse("admin-subscription-subscribe"),
+            {
+                "school_id": self.school.pk,
+                "plan_id": self.package.pk,
+                "status": "trial",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["data"]["status"], "trial")
+
+    def test_admin_subscriptions_filters_by_status(self):
+        from subscriptions.services.subscriptions import SubscriptionService
+
+        SubscriptionService.start_trial(
+            school=self.school, plan=self.package, activated_by=self.admin
+        )
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.get(
+            reverse("admin-subscription-list"), {"status": "trial"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["data"]["results"]
+        self.assertTrue(len(results) >= 1)
+        self.assertTrue(all(r["status"] == "trial" for r in results))
+
+    def test_admin_subscription_detail(self):
+        from subscriptions.services.subscriptions import SubscriptionService
+
+        sub = SubscriptionService.start_trial(
+            school=self.school, plan=self.package, activated_by=self.admin
+        )
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.get(
+            reverse("admin-subscription-detail", kwargs={"pk": sub.pk})
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["data"]["id"], str(sub.pk))
+        self.assertEqual(response.json()["data"]["school"]["id"], str(self.school.pk))

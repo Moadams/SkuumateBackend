@@ -54,3 +54,21 @@ class SimulatedPaymentProvider(BasePaymentProvider):
             amount=float(payload.get("amount", 0) or 0),
             metadata=payload.get("metadata") or {},
         )
+
+    def verify_reference(self, reference, amount=None):
+        reference = reference or f"SIM-{uuid.uuid4().hex[:12].upper()}"
+        log_simulated(
+            "PAYMENT",
+            "VERIFY",
+            provider=self.label,
+            reference=reference,
+            amount=amount,
+        )
+        return PaymentVerificationResult(
+            success=True,
+            provider=self.key,
+            message="Payment verified (simulated, dev only).",
+            reference=reference,
+            status="success",
+            amount=amount or 0,
+        )

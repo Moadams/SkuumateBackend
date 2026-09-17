@@ -98,3 +98,71 @@ class PaystackPaymentProvider(BasePaymentProvider):
             metadata=data.get("metadata") or {},
             raw=payload,
         )
+
+    def verify_reference(self, reference, amount=None):
+        """Confirm a transaction against Paystack's verify endpoint."""
+        secret_key = self._secret_key()
+        if not secret_key:
+            return PaymentVerificationResult(False, self.key, "Paystack secret key not configured.")
+        if not reference:
+            return PaymentVerificationResult(False, self.key, "Payment reference is required.")
+
+        try:
+            import requests
+        except ImportError:
+            return PaymentVerificationResult(False, self.key, "requests package not installed.")
+
+        try:
+            response = requests.get(
+                f"https://api.paystack.co/transaction/verify/{reference}",
+                headers={"Authorization": f"Bearer {secret_key}"},
+                timeout=30,
+            )
+            data = response.json() or {}
+        except Exception as exc:  # noqa: BLE001
+            self.log_error(exc)
+            return PaymentVerificationResult(False, self.key, str(exc))
+
+        status = data.get("status")
+        if status is not True:
+            return PaymentVerificationResult(
+                False, self.key,
+                data.get("message", "Paystack could not verify this transaction."),
+                reference=reference,
+                raw=data,
+            )
+
+        gateway_data = data.get("data") or {}
+        gateway_status = gateway_data.get("status")
+        verified_amount = (gateway_data.get("amount") or 0) / self.CURRENCY_SCALE
+        if gateway_status != "success":
+            return PaymentVerificationResult(
+                False, self.key,
+                f"Payment is not successful (status: {gateway_status}).",
+                reference=reference,
+                status=gateway_status,
+                amount=verified_amount,
+                raw=data,
+            )
+
+        if amount is not None and abs(verified_amount - amount) > 0.01:
+            return PaymentVerificationResult(
+                False, self.key,
+                "Verified amount does not match the expected amount.",
+                reference=reference,
+                status=gateway_status,
+                amount=verified_amount,
+                raw=data,
+            )
+
+        return PaymentVerificationResult(
+            success=True,
+            provider=self.key,
+            message="Payment verified.",
+            reference=reference,
+            status="success",
+            amount=verified_amount,
+            currency=gateway_data.get("currency") or "",
+            metadata=gateway_data.get("metadata") or {},
+            raw=data,
+        )
