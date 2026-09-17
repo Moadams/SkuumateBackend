@@ -102,7 +102,7 @@ AUTH_USER_MODEL = "accounts.User"
 # ─── Django REST Framework ─────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.SchoolJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -126,11 +126,14 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "50/hour",
         "user": "200/hour",
+        "private_media": "3000/hour",
     },
 }
 
 # ─── JWT ───────────────────────────────────────────────────────────
 SIMPLE_JWT = {
+    "CHECK_REVOKE_TOKEN": True,
+    "TOKEN_REFRESH_SERIALIZER": "accounts.serializers.SchoolTokenRefreshSerializer",
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,

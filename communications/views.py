@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
@@ -31,7 +32,7 @@ from .services.sender import NotificationSender
 # ─── Providers ─────────────────────────────────────────────────────
 
 class NotificationProviderListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="settings.manage", write="settings.manage")]
     serializer_class = NotificationProviderSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = NotificationProviderFilter
@@ -74,7 +75,7 @@ class NotificationProviderListCreateView(AuditLogMixin, generics.ListCreateAPIVi
 
 
 class NotificationProviderDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="settings.manage", write="settings.manage")]
     serializer_class = NotificationProviderSerializer
     audit_resource = "NotificationProvider"
 
@@ -102,7 +103,7 @@ class NotificationProviderDetailView(AuditLogMixin, generics.RetrieveUpdateDestr
 
 
 class SendTestNotificationView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="settings.manage", write="settings.manage")]
 
     def post(self, request):
         serializer = SendTestSerializer(data=request.data)
@@ -134,7 +135,7 @@ class SendTestNotificationView(APIView):
 # ─── Templates ─────────────────────────────────────────────────────
 
 class NotificationTemplateListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
     serializer_class = NotificationTemplateSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = NotificationTemplateFilter
@@ -177,7 +178,7 @@ class NotificationTemplateListCreateView(AuditLogMixin, generics.ListCreateAPIVi
 
 
 class NotificationTemplateDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
     serializer_class = NotificationTemplateSerializer
     audit_resource = "NotificationTemplate"
 
@@ -207,7 +208,7 @@ class NotificationTemplateDetailView(AuditLogMixin, generics.RetrieveUpdateDestr
 # ─── Notifications ─────────────────────────────────────────────────
 
 class NotificationListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = NotificationFilter
     search_fields = ["title", "message_body"]
@@ -283,7 +284,7 @@ class NotificationListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class NotificationDetailView(generics.RetrieveAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
     serializer_class = NotificationDetailSerializer
 
     def get_queryset(self):
@@ -297,7 +298,7 @@ class NotificationDetailView(generics.RetrieveAPIView):
 
 
 class NotificationRecipientsListView(generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
     serializer_class = NotificationRecipientSerializer
 
     def get_queryset(self):

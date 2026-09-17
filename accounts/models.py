@@ -29,6 +29,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         STUDENT = "student", "Student"
         FINANCE_MANAGER = "finance_manager", "Finance Manager"
         SUPERADMIN = 'superadmin', "Super Admin"
+        STAFF='staff', "Staff"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)

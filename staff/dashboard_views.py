@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django.utils import timezone
 import datetime
 from academics.models import ClassTeacher, Term, TimeTableSlot
@@ -16,7 +17,7 @@ from students.models import Enrollment
 
 
 class TeacherDasbhoardView(APIView):
-    permission_classes = [IsTeacher]
+    permission_classes = [school_permission(read="dashboard.teacher")]
     def get(self, request):
         current_term = Term.objects.filter(is_current = True).first()
         teacher_class = ClassTeacher.objects.filter(teacher = request.user, is_active =True).select_related("klass").first()

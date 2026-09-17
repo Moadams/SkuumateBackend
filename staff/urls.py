@@ -1,4 +1,5 @@
 from django.urls import path
+from .access_views import StaffAccessView
 from .views import (
     ActivateStaffUserAccountView,
     PermissionListView,
@@ -12,6 +13,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("staff/<uuid:pk>/access/", StaffAccessView.as_view(), name="staff-access"),
     # Permission registry
     path(
         "staff/permissions/",

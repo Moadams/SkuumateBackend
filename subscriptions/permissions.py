@@ -16,9 +16,10 @@ class IsPlatformSuperAdmin(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
+            and request.user.is_active
             and (
                 request.user.is_superuser
-                or getattr(request.user, "role", "") == "superadmin"
+                or (getattr(request.user, "role", "") == "superadmin" and request.user.school_id is None)
             )
         )
 

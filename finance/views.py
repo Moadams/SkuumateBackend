@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from decimal import Decimal
 from django.db import models, transaction
 from django.db.models import Sum
@@ -23,6 +24,7 @@ from .serializers import (
     SchoolFeeInvoiceCreateSerializer, BulkInvoiceSerializer,
     FeePaymentListSerializer, FeePaymentCreateSerializer,
     OtherIncomeSerializer, ExpenseSerializer,
+    FeePaymentUpdateSerializer,
 )
 from .filters import (
     FeeComponentFilter, SchoolFeeInvoiceFilter, FeePaymentFilter,
@@ -41,7 +43,7 @@ class IsAdminOrFinanceManagerReadOnly(OrPermission):
 # ─── Fee Components ────────────────────────────────────────────────
 
 class FeeComponentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = FeeComponentSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = FeeComponentFilter
@@ -76,7 +78,7 @@ class FeeComponentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
 
 
 class FeeComponentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = FeeComponentSerializer
     audit_resource = "FeeComponent"
 
@@ -100,7 +102,7 @@ class FeeComponentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 # ─── Income Types ──────────────────────────────────────────────────
 
 class IncomeTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = IncomeTypeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -126,7 +128,7 @@ class IncomeTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class IncomeTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = IncomeTypeSerializer
     audit_resource = "IncomeType"
 
@@ -145,7 +147,7 @@ class IncomeTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView)
 # ─── Expense Types ─────────────────────────────────────────────────
 
 class ExpenseTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = ExpenseTypeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -170,7 +172,7 @@ class ExpenseTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class ExpenseTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     serializer_class = ExpenseTypeSerializer
     audit_resource = "ExpenseType"
 
@@ -188,7 +190,7 @@ class ExpenseTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 # ─── School Fee Invoices ───────────────────────────────────────────
 
 class SchoolFeeInvoiceListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = SchoolFeeInvoiceFilter
     search_fields = ["invoice_number", "student__first_name", "student__last_name", "student__student_id"]
@@ -218,7 +220,7 @@ class SchoolFeeInvoiceListCreateView(AuditLogMixin, generics.ListCreateAPIView):
     
 
 class SchoolFeeInvoiceDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
     audit_resource = "SchoolFeeInvoice"
 
     def get_serializer_class(self):
@@ -253,23 +255,22 @@ class SchoolFeeInvoiceDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAP
         )
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.payments.exists():
-            return ApiResponse.error(
-                message="Cannot delete an invoice with payments.",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        self.perform_destroy(instance)
+        with transaction.atomic():
+            instance = self.get_queryset().select_for_update().get(pk=self.get_object().pk)
+            if instance.payments.exists():
+                return ApiResponse.error(message="Cannot delete an invoice with payments.", status_code=400)
+            self.perform_destroy(instance)
         return ApiResponse.success(message="Invoice deleted successfully.")
 
-
 class BulkInvoiceCreateView(APIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
 
     @transaction.atomic
     def post(self, request):
         school = request.user.school
-        serializer = BulkInvoiceSerializer(data=request.data)
+        from schools.models import School
+        School.objects.select_for_update().get(pk=school.pk)
+        serializer = BulkInvoiceSerializer(data=request.data, context={"request": request, "school": school})
         serializer.is_valid(raise_exception=True)
 
         from academics.models import AcademicYear, Term, Class
@@ -285,6 +286,9 @@ class BulkInvoiceCreateView(APIView):
         except Term.DoesNotExist:
             return ApiResponse.error(message="Term not found.", status_code=404)
 
+        if term.academic_year_id != academic_year.pk:
+            return ApiResponse.error(message="Term must belong to the selected academic year.", status_code=400)
+
         klass = None
         klass_id = serializer.validated_data.get("klass")
         if klass_id:
@@ -297,8 +301,8 @@ class BulkInvoiceCreateView(APIView):
             pk__in=serializer.validated_data["students"],
             school=school,
         )
-        if not students.exists():
-            return ApiResponse.error(message="No valid students found.", status_code=400)
+        if students.count() != len(set(serializer.validated_data["students"])):
+            return ApiResponse.error(message="One or more students are unavailable in this school.", status_code=400)
 
         line_items_data = serializer.validated_data["line_items"]
         due_date = serializer.validated_data.get("due_date")
@@ -324,15 +328,16 @@ class BulkInvoiceCreateView(APIView):
                 due_date=due_date,
                 notes=notes,
             )
-            total = 0
+            total = Decimal("0.00")
             for item in line_items_data:
                 InvoiceLineItem.objects.create(
+                    school=school,
                     invoice=invoice,
                     fee_component=item["fee_component"],
                     amount=item["amount"],
                 )
-                total += float(item["amount"])
-            invoice.total_amount = str(total)
+                total += item["amount"]
+            invoice.total_amount = total
             invoice.save(update_fields=["total_amount"])
             created.append(invoice.id)
 
@@ -357,7 +362,7 @@ class BulkInvoiceCreateView(APIView):
 # ─── Fee Payments ──────────────────────────────────────────────────
 
 class FeePaymentListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = FeePaymentFilter
     search_fields = ["invoice__invoice_number", "reference_number"]
@@ -389,6 +394,7 @@ class FeePaymentListCreateView(AuditLogMixin, generics.ListCreateAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -407,9 +413,14 @@ class FeePaymentListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class FeePaymentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     serializer_class = FeePaymentListSerializer
     audit_resource = "FeePayment"
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return FeePaymentUpdateSerializer
+        return FeePaymentListSerializer
 
     def get_queryset(self):
         return FeePayment.objects.filter(
@@ -427,7 +438,7 @@ class FeePaymentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView)
 
 
 class InvoicePaymentsListView(generics.ListAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view")]
     serializer_class = FeePaymentListSerializer
 
     def get_queryset(self):
@@ -446,7 +457,7 @@ class InvoicePaymentsListView(generics.ListAPIView):
 # ─── Other Income ──────────────────────────────────────────────────
 
 class OtherIncomeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     serializer_class = OtherIncomeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = OtherIncomeFilter
@@ -499,7 +510,7 @@ class OtherIncomeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class OtherIncomeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     serializer_class = OtherIncomeSerializer
     audit_resource = "OtherIncome"
 
@@ -531,7 +542,7 @@ class OtherIncomeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 # ─── Expenses ──────────────────────────────────────────────────────
 
 class ExpenseListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     serializer_class = ExpenseSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ExpenseFilter
@@ -584,7 +595,7 @@ class ExpenseListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class ExpenseDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
     serializer_class = ExpenseSerializer
     audit_resource = "Expense"
 
@@ -616,7 +627,7 @@ class ExpenseDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 # ─── Financial Overview Dashboard ──────────────────────────────────
 
 class FinancialOverviewView(APIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view")]
 
     def get(self, request):
         school = request.user.school
@@ -639,30 +650,31 @@ class FinancialOverviewView(APIView):
         # ── Summary cards ──────────────────────────────────────────
         total_fee_income = payment_qs.aggregate(total=Sum("amount_paid"))["total"] or 0
         total_other_income = other_income_qs.aggregate(total=Sum("amount"))["total"] or 0
-        total_income = float(total_fee_income) + float(total_other_income)
+        total_income = total_fee_income + total_other_income
         total_expenses = expense_qs.aggregate(total=Sum("amount"))["total"] or 0
-        net_income = total_income - float(total_expenses)
+        net_income = total_income - total_expenses
 
         invoice_status_agg = list(
             invoice_qs.values("status")
             .annotate(count=models.Count("id"), total=models.Sum("total_amount"))
             .order_by("status")
         )
-        pending_amount = invoice_qs.filter(is_fully_paid=False).aggregate(
-            total=models.Sum("total_amount")
-        )["total"] or 0
+        outstanding = invoice_qs.exclude(status__in=[SchoolFeeInvoice.Status.CANCELLED, SchoolFeeInvoice.Status.DRAFT]).annotate(paid_total=Sum("payments__amount_paid"))
+        pending_amount = sum(
+            (max(invoice.total_amount - (invoice.paid_total or Decimal("0.00")), Decimal("0.00")) for invoice in outstanding),
+            Decimal("0.00"),
+        )
         overdue_count = invoice_qs.filter(
             status=SchoolFeeInvoice.Status.OVERDUE
         ).count()
 
         # ── Monthly trends (last 12 months) ────────────────────────
-        from datetime import date, timedelta
+        from datetime import date
         today = date.today()
-        twelve_months_ago = today - timedelta(days=365)
         months = []
         for i in range(12):
-            first = date(today.year, today.month, 1) - timedelta(days=30 * (11 - i))
-            month_start = first.replace(day=1)
+            year, month = divmod(today.year * 12 + today.month - 1 - (11 - i), 12)
+            month_start = date(year, month + 1, 1)
             if month_start.month == 12:
                 month_end = date(month_start.year + 1, 1, 1)
             else:
@@ -685,7 +697,7 @@ class FinancialOverviewView(APIView):
                 "label": month_start.strftime("%b %Y"),
                 "fee_income": str(fee),
                 "other_income": str(other),
-                "total_income": str(float(fee) + float(other)),
+                "total_income": str(fee + other),
                 "expenses": str(exp),
             })
 
@@ -807,7 +819,7 @@ class FinancialOverviewView(APIView):
 # ─── Reports ───────────────────────────────────────────────────────
 
 class IncomeStatementView(APIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view")]
 
     def get(self, request):
         school = request.user.school
@@ -868,9 +880,9 @@ class IncomeStatementView(APIView):
         # ── Compute totals from grouped results (no extra queries) ─
         total_fee_income = sum(item["total"] for item in fee_by_component) or 0
         total_other_income = sum(item["total"] for item in other_by_type) or 0
-        total_income = float(total_fee_income) + float(total_other_income)
+        total_income = total_fee_income + total_other_income
         total_expenses = sum(item["total"] for item in expense_by_type) or 0
-        net_income = total_income - float(total_expenses)
+        net_income = total_income - total_expenses
 
         return ApiResponse.success(data={
             "income": {
@@ -908,7 +920,7 @@ class IncomeStatementView(APIView):
 
 
 class IncomeByTypeReportView(APIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view")]
 
     def get(self, request):
         school = request.user.school
@@ -964,7 +976,7 @@ class IncomeByTypeReportView(APIView):
 
 
 class ExpenseByTypeReportView(APIView):
-    permission_classes = [IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="finance.view")]
 
     def get(self, request):
         school = request.user.school

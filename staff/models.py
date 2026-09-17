@@ -171,17 +171,9 @@ class StaffProfile(TimestampedModel):
         return " ".join(n for n in names if n).strip()
 
     def effective_permissions(self):
-        from django.core.cache import cache
-        from core.cache import CacheKeys
-
-        user_id = self.user_id or self.id
-        cache_key = CacheKeys.user_permissions(user_id)
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return set(cached)
-
+        # Resolve live grants so revocation applies on the next request.
         keys = set()
-        for position in self.positions.all().prefetch_related("permissions"):
+        for position in self.positions.filter(school_id=self.school_id).prefetch_related("permissions"):
             keys.update(position.permission_keys())
         keys.update(
             self.permission_grants.values_list("key", flat=True)
@@ -190,7 +182,6 @@ class StaffProfile(TimestampedModel):
             self.permission_revokes.values_list("key", flat=True)
         )
 
-        cache.set(cache_key, list(keys), timeout=15 * 60)
         return keys
 
     def has_permission(self, key: str) -> bool:

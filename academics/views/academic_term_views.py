@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 # ─── Term ────────────────────────────────────────────────────────
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
@@ -22,7 +23,7 @@ from schools.utils import check_and_complete_onboarding
 
 
 class AcademicYearTermsListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = TermSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TermFilter
@@ -39,7 +40,7 @@ class AcademicYearTermsListView(generics.ListAPIView):
     
     
 class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = TermSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TermFilter
@@ -84,7 +85,7 @@ class TermListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView)
 
 
 class TermDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = TermSerializer
     audit_resource = "Term"
 
@@ -97,7 +98,7 @@ class TermDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = TermUpdateSerializer(instance, data=request.data, partial=True)
+        serializer = TermUpdateSerializer(instance, data=request.data, partial=True, context=self.get_serializer_context())
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return ApiResponse.success(
@@ -116,6 +117,7 @@ class TermDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
         return ApiResponse.success(message="Term deleted successfully.")
 
 class ActivateTermView(APIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     def post(self, request, term_id):
         try:
             term = Term.objects.get(pk=term_id, school=request.user.school)
@@ -145,7 +147,7 @@ class ActivateTermView(APIView):
         )
 
 class TermExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = TermSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TermFilter

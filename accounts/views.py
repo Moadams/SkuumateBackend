@@ -26,6 +26,7 @@ from .serializers import (
     UserLoginSerializer,
     UserSerializer,
     UserUpdateSerializer,
+    SchoolUserUpdateSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,7 +157,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
 
     def get_queryset(self):
-        return User.objects.filter(school=self.request.user.school)
+        return User.objects.filter(school=self.request.user.school, is_superuser=False).exclude(role="superadmin")
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -165,7 +166,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         kwargs["partial"] = True
         instance = self.get_object()
-        serializer = UserSerializer(instance, data=request.data, partial=True)
+        serializer = SchoolUserUpdateSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return ApiResponse.success(
@@ -217,7 +218,7 @@ class ResetUserPassword(APIView):
     def put(self, request, user_id):
         school = request.user.school
         try:
-            user = User.objects.get(school = school, id = user_id)
+            user = User.objects.filter(is_superuser=False).exclude(role="superadmin").get(school=school, id=user_id)
             data = request.data.copy()
             data['user_id'] = user.id
         except User.DoesNotExist:
@@ -225,7 +226,7 @@ class ResetUserPassword(APIView):
                 message="User not found", status_code=404
             )
 
-        serializer = ResetUserPasswordSerializer(data = data)
+        serializer = ResetUserPasswordSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         log_action(
@@ -245,7 +246,7 @@ class ChangePasswordView(APIView):
         user = request.user
         data = request.data.copy()
         data['user_id'] = user.id
-        serializer = ResetUserPasswordSerializer(data=data)
+        serializer = ResetUserPasswordSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         log_action(
@@ -263,7 +264,7 @@ class ChangeUserPasswordView(APIView):
 
     def put(self, request):
 
-        serializer = ResetUserPasswordSerializer(data=request.data)
+        serializer = ResetUserPasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         log_action(

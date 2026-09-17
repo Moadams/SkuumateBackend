@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -14,7 +15,7 @@ from schools.utils import check_and_complete_onboarding
 
 
 class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = AcademicYearSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AcademicYearFilter
@@ -58,7 +59,7 @@ class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
 
 
 class AcademicYearDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = AcademicYearSerializer
     audit_resource = "AcademicYear"
 
@@ -97,7 +98,7 @@ class AcademicYearDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
 
 class AcademicYearExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = AcademicYearSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AcademicYearFilter

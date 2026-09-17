@@ -33,6 +33,8 @@ class PermissionKeysField(serializers.ListField):
     child = serializers.CharField(max_length=100)
 
     def to_representation(self, value):
+        if hasattr(value, "values_list"):
+            return sorted(value.values_list("key", flat=True))
         if hasattr(value, "permission_keys"):
             return sorted(value.permission_keys())
         return sorted(set(value or []))
@@ -173,6 +175,16 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
 
 class StaffCreationSerializer(serializers.ModelSerializer):
+    def validate_role(self, value):
+        if value not in ("admin", "teacher", "finance_manager"):
+            raise serializers.ValidationError("Select a school staff role.")
+        request = self.context.get("request")
+        if value == "admin" and request:
+            from core.permissions import effective_keys
+            if request.user.role != "admin" and "school.manage" not in effective_keys(request.user):
+                raise serializers.ValidationError("Only a school administrator can create administrators.")
+        return value
+
     class Meta:
         model = StaffProfile
         fields = [

@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
@@ -191,7 +192,7 @@ class SuperadminDashboardView(APIView):
 
 class FinanceManagerDashboardView(APIView):
     """Dashboard for finance managers — financial KPIs and transaction history."""
-    permission_classes = [IsAuthenticated, IsFinanceManager]
+    permission_classes = [school_permission(read="dashboard.finance")]
 
     def get(self, request):
         school = request.user.school
@@ -412,7 +413,7 @@ class FinanceManagerDashboardView(APIView):
 
 class TeacherDashboardView(APIView):
     """Dashboard for teachers — classes, subjects, attendance."""
-    permission_classes = [IsAuthenticated, IsTeacher]
+    permission_classes = [school_permission(read="dashboard.teacher")]
 
     def get(self, request):
         from staff.models import StaffProfile
@@ -578,7 +579,7 @@ class AdminDashboardView(APIView):
     School-level admin/finance manager dashboard.
     Returns key metrics scoped to the user's school.
     """
-    permission_classes = [IsAuthenticated, IsAdminOrFinanceManager]
+    permission_classes = [school_permission(read="dashboard.admin")]
 
     def get(self, request):
         school = request.user.school

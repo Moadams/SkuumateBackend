@@ -92,6 +92,8 @@ class BulkAttendanceSerializer(serializers.Serializer):
         klass = attrs["class_id"]
         records = attrs["records"]
         student_ids = [str(record["student_id"]) for record in records]
+        if len(student_ids) != len(set(student_ids)):
+            raise serializers.ValidationError({"records": "Students must not be repeated."})
 
         # Verify all students belong to this school and class
         valid_students = Student.objects.filter(

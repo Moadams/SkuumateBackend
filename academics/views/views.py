@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
@@ -39,7 +40,7 @@ class GradeScaleBulkSetView(APIView):
     submit the complete set and we validate the entire
     range for gaps, overlaps and coverage.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     def get_grading_system(self, pk, school):
         try:
@@ -138,7 +139,7 @@ class GradeScaleBulkSetView(APIView):
 
 class GradeScaleUpdateView(APIView):
     """Update or delete a single grade scale."""
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     def get_scale(self, pk, school):
         try:
@@ -234,7 +235,7 @@ class GradeResolverView(APIView):
     Test endpoint — given a score, returns the matching grade.
     Useful for the frontend to preview grading before saving.
     """
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     def post(self, request, pk):
         from ..utils import resolve_grade
@@ -288,7 +289,7 @@ class BulkSubjectTeacherAssignView(APIView):
     Validates ALL items before saving ANY of them —
     so either the entire batch succeeds or nothing is saved.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     def post(self, request):
         school = request.user.school
@@ -366,7 +367,7 @@ class ClassSubjectTeacherSummaryView(APIView):
     Shows unassigned subjects too so the admin can see
     what still needs a teacher.
     """
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     def get(self, request, class_id):
         school = request.user.school
@@ -462,7 +463,7 @@ class TimeTableSlotListCreateView(
     AuditLogMixin, generics.ListCreateAPIView
 ):
     """List or create timetable slots for a class."""
-    permission_classes = [IsAdminOrTeacherReadOnly]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = TimeTableSlotSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = [

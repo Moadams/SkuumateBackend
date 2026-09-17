@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 
 from core.models import TimestampedModel
 
@@ -72,8 +72,12 @@ class SchoolFeeInvoice(TimestampedModel):
     def __str__(self):
         return f"{self.invoice_number} - {self.student} ({self.term})"
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
         if not self.invoice_number:
+            # Serialize number allocation for this school, including bulk API calls.
+            from schools.models import School
+            School.objects.select_for_update().get(pk=self.school_id)
             self.invoice_number = self._generate_invoice_number()
         super().save(*args, **kwargs)
 
@@ -82,10 +86,11 @@ class SchoolFeeInvoice(TimestampedModel):
 
         year = datetime.date.today().year
         prefix = self.school.school_code.upper() if self.school.school_code else "SCH"
-        last = SchoolFeeInvoice.objects.filter(
+        numbers = SchoolFeeInvoice.objects.filter(
             school=self.school,
             invoice_number__startswith=f"{prefix}-INV-{year}"
-        ).count() + 1
+        ).values_list("invoice_number", flat=True)
+        last = max((int(number.rsplit("-", 1)[-1]) for number in numbers), default=0) + 1
         return f"{prefix}-INV-{year}-{last:04d}"
 
 
@@ -128,20 +133,32 @@ class FeePayment(TimestampedModel):
     def __str__(self):
         return f"{self.amount_paid} on {self.invoice.invoice_number}"
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
+        self.invoice = SchoolFeeInvoice.objects.select_for_update().get(pk=self.invoice_id)
         super().save(*args, **kwargs)
         self._update_invoice_status()
+
+    @transaction.atomic
+    def delete(self, *args, **kwargs):
+        self.invoice = SchoolFeeInvoice.objects.select_for_update().get(pk=self.invoice_id)
+        result = super().delete(*args, **kwargs)
+        self._update_invoice_status()
+        return result
 
     def _update_invoice_status(self):
         total_paid = FeePayment.objects.filter(invoice=self.invoice).aggregate(
             total=models.Sum("amount_paid")
         )["total"] or 0
         invoice = self.invoice
+        invoice.is_fully_paid = False
         if total_paid >= invoice.total_amount:
             invoice.status = SchoolFeeInvoice.Status.PAID
             invoice.is_fully_paid = True
         elif total_paid > 0:
             invoice.status = SchoolFeeInvoice.Status.PARTIALLY_PAID
+        else:
+            invoice.status = SchoolFeeInvoice.Status.ISSUED
         invoice.save(update_fields=["status", "is_fully_paid"])
 
 

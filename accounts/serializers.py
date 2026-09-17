@@ -1,6 +1,8 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .models import User
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -25,10 +27,20 @@ class LoginSerializer(serializers.Serializer):
         if not user.check_password(password):
             raise serializers.ValidationError("Invalid email or password.")
 
+        from .authentication import validate_account_access
+        validate_account_access(user)
         attrs["user"] = user
         return attrs
 
-class UserLoginSerializer(serializers.ModelSerializer):
+class SchoolAccessSerializerMixin:
+    def get_effective_permissions(self, obj):
+        from core.permissions import effective_keys
+        from staff.permission_registry import PERMISSION_KEYS
+        return sorted(PERMISSION_KEYS if obj.role == "admin" else effective_keys(obj))
+
+
+class UserLoginSerializer(SchoolAccessSerializerMixin, serializers.ModelSerializer):
+    effective_permissions = serializers.SerializerMethodField()
     full_name = serializers.CharField(read_only=True)
     school_name = serializers.CharField(source="school.name", read_only=True, allow_null = True)
     onboarding_completed = serializers.BooleanField(source="school.onboarding_completed", read_only=True, allow_null = True)
@@ -43,11 +55,12 @@ class UserLoginSerializer(serializers.ModelSerializer):
             "school",
             "school_name",
             "onboarding_completed", 
-            "must_change_password"
+            "must_change_password", "effective_permissions"
         ]
         read_only_fields = ["id", "created_at", "school"]
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(SchoolAccessSerializerMixin, serializers.ModelSerializer):
+    effective_permissions = serializers.SerializerMethodField()
     full_name = serializers.CharField(read_only=True)
     school_name = serializers.CharField(source="school.name", read_only=True, allow_null = True)
     onboarding_completed = serializers.BooleanField(source="school.onboarding_completed", read_only=True, allow_null = True)
@@ -66,6 +79,8 @@ class UserSerializer(serializers.ModelSerializer):
             "school_name",
             "onboarding_completed", 
             "is_active",
+            "is_superuser",
+            "effective_permissions",
             "created_at",
         ]
         read_only_fields = ["id", "created_at", "school"]
@@ -79,6 +94,13 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "phone",
             "email"
         ]
+
+
+class SchoolUserUpdateSerializer(UserSerializer):
+    def validate_role(self, value):
+        if value == User.Role.SUPERADMIN:
+            raise serializers.ValidationError("Platform roles cannot be assigned by a school.")
+        return value
 
 class CreateUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -125,7 +147,7 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
             user_id = force_str(urlsafe_base64_decode(uid))
             user = User.objects.get(pk=user_id)
 
-        except Exception as e:
+        except (User.DoesNotExist, ValueError, TypeError, UnicodeDecodeError, DjangoValidationError):
             raise serializers.ValidationError(
                 {"uid": "Invalid reset link."}
             )
@@ -170,11 +192,15 @@ class ResetUserPasswordSerializer(serializers.Serializer):
                 {"confirm_password": "Passwords do not match."}
             )
 
-        try:            
-            user = User.objects.get(pk=user_id)
-        except Exception as e:
+        try:
+            actor = self.context["request"].user
+            users = User.objects.filter(pk=actor.pk)
+            if actor.role == "admin" and actor.school_id:
+                users = User.objects.filter(school_id=actor.school_id, is_superuser=False).exclude(role="superadmin")
+            user = users.get(pk=user_id)
+        except User.DoesNotExist:
             raise serializers.ValidationError(
-                {"uid": "Invalid reset link."}
+                {"user_id": "User not found."}
             )
 
         validate_password(password, user)
@@ -196,3 +222,11 @@ class ResetUserPasswordSerializer(serializers.Serializer):
         user.save()
 
         return user
+
+
+class SchoolTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        from .authentication import SchoolJWTAuthentication
+        token = self.token_class(attrs["refresh"])
+        SchoolJWTAuthentication().get_user(token)
+        return super().validate(attrs)

@@ -94,7 +94,7 @@ def valid_package_payload(**overrides):
 
 class PackageServiceTests(TestCase):
     def setUp(self):
-        self.package = Package.objects.create(name="Lite", code="lite", price="1000.00")
+        self.package = Package.objects.create(name="Test Lite", code="test-lite", price="1000.00")
         self.attendance = create_feature()
         self.sms = create_feature(code="sms", name="SMS Alerts")
         PackageFeature.objects.create(
@@ -442,7 +442,7 @@ class PackageAPITests(APITestCase):
 
     def test_public_plan_list_returns_active_public_packages(self):
         Package.objects.create(
-            name="Lite", code="lite", price="1000.00",
+            name="Test Public", code="test-public", price="1000.00",
             is_active=True, is_public=True,
             billing_period=Package.BillingPeriod.TERM,
         )
@@ -453,5 +453,5 @@ class PackageAPITests(APITestCase):
         response = self.client.get(reverse("plan-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         codes = [p["code"] for p in response.json()["data"]]
-        self.assertIn("lite", codes)
+        self.assertIn("test-public", codes)
         self.assertNotIn("hidden", codes)

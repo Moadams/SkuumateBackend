@@ -1,3 +1,5 @@
+from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.school_permissions import school_permission
 
 from this import d
 
@@ -20,8 +22,8 @@ from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTea
 from core.responses import ApiResponse
 
 
-class ClassListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+class ClassListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClassFilter
@@ -60,8 +62,8 @@ class ClassListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView
         )
 
 
-class ClassDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+class ClassDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassSerializer
     audit_resource = "Class"
 
@@ -88,8 +90,8 @@ class ClassDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
         return ApiResponse.success(message="Class deleted successfully.")
 
 
-class ClassExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class ClassExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClassFilter
@@ -105,8 +107,8 @@ class ClassExportView(ExportMixin, generics.ListAPIView):
 
 # ─── Class Subjects ───────────────────────────────────────────────
 
-class ClassSubjectsListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+class ClassSubjectsListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassSubjectSerializer
     audit_resource = "ClassSubject"
 
@@ -134,8 +136,8 @@ class ClassSubjectsListCreateView(AuditLogMixin, generics.ListCreateAPIView):
             message="Subject assigned to class successfully.",
         )
 
-class ClassSubjectDetailView(AuditLogMixin, generics.RetrieveDestroyAPIView):
-    permission_classes = [IsAdmin]
+class ClassSubjectDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveDestroyAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassSubjectSerializer
     audit_resource = "ClassSubject"
 
@@ -159,7 +161,7 @@ class BulkAssignClassSubjectsView(APIView):
     Payload: {"subjects": ["uuid1", "uuid2", ...]}
     Skips subjects already assigned to the class.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
 
     @transaction.atomic
     def post(self, request, class_id):
@@ -215,8 +217,8 @@ class BulkAssignClassSubjectsView(APIView):
 
 
 # CLASS TEACHER ASSIGNMENT
-class ClassTeacherView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+class ClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassTeacherSerializer
     audit_resource = "ClassTeacher"
 
@@ -245,8 +247,8 @@ class ClassTeacherView(AuditLogMixin, generics.ListCreateAPIView):
             message="Teacher assigned to class successfully.",
         )
 
-class UnassignClassTeacherView(AuditLogMixin, generics.DestroyAPIView):
-    permission_classes = [IsAdmin]
+class UnassignClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.DestroyAPIView):
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = ClassTeacherSerializer
     audit_resource = "ClassTeacher"
 
@@ -265,8 +267,8 @@ class UnassignClassTeacherView(AuditLogMixin, generics.DestroyAPIView):
         return ApiResponse.success(message=f"Teacher '{teacher_name}' unassigned from class '{class_name}' successfully.")
 
 
-class TeacherClassesView(generics.ListAPIView):
-    permission_classes = [IsTeacher]
+class TeacherClassesView(TeacherScopedQuerysetMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="class.teach")]
     serializer_class = ClassTeacherSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClassTeacherFilter

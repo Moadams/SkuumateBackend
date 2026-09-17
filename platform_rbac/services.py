@@ -41,7 +41,7 @@ def is_platform_user(user):
         return False
     if user.is_superuser:
         return True
-    return user.role == PLATFORM_STAFF_ROLE
+    return user.role == PLATFORM_STAFF_ROLE and user.school_id is None
 
 
 def get_user_platform_permissions(user):
@@ -99,7 +99,7 @@ def has_platform_permission(user, code):
         return False
     if user.is_superuser:
         return True
-    if user.role != PLATFORM_STAFF_ROLE:
+    if user.role != PLATFORM_STAFF_ROLE or user.school_id is not None:
         return False
     if code is None:
         return True

@@ -1,6 +1,6 @@
-from this import s
-
 from rest_framework import serializers
+from core.tenant_serializers import SchoolRelatedFieldsMixin
+from core.teacher_scope import ensure_teacher_assignment
 
 from academics.models import Class, Term
 from exams.models import (
@@ -57,7 +57,8 @@ class AssessmentTypeSerializer(serializers.ModelSerializer):
 
         return attrs
 
-class ReportSchemeSerializer(serializers.ModelSerializer):
+class ReportSchemeSerializer(SchoolRelatedFieldsMixin, serializers.ModelSerializer):
+    school_related_fields = ("sba_components", "main_exam")
     sba_component_names = serializers.StringRelatedField(source = "sba_components", read_only = True, many = True)
     main_exam_name = serializers.CharField(source = "main_exam.name", read_only = True)
     class Meta:
@@ -161,7 +162,8 @@ class StudentMarkSerializer(serializers.ModelSerializer):
         ]
 
 
-class StudentMarkCreationSerializer(serializers.ModelSerializer):
+class StudentMarkCreationSerializer(SchoolRelatedFieldsMixin, serializers.ModelSerializer):
+    school_related_fields = ("student", "academic_year", "term", "subject", "assessment", "student_class", "teacher")
     student_name = serializers.CharField(source = "student.full_name", read_only = True)
     subject_name = serializers.CharField(source = "subject.name", read_only = True)
     assessment_name = serializers.CharField(source = "assessment.name", read_only = True)
@@ -191,25 +193,36 @@ class StudentMarkCreationSerializer(serializers.ModelSerializer):
         academic_year = attrs.get("academic_year")
 
 
-        student_enrollment = Enrollment.objects.filter(school = school, student = student, klass = student_class, academic_year = academic_year ).first()
+        student_enrollment = Enrollment.objects.filter(school=school, student=student, klass=student_class, academic_year=academic_year, is_active=True).first()
         if student_enrollment is None:
             raise serializers.ValidationError({
                 "student":f"{student.full_name} is not enrolled in this class for the current academic year"
             })
 
+        if attrs["term"].academic_year_id != academic_year.pk:
+            raise serializers.ValidationError({"term": "Term must belong to the selected academic year."})
+        ensure_teacher_assignment(self.context["request"].user, student_class, attrs["term"], attrs["subject"])
+        score = attrs.get("score")
+        if score is not None and (score < 0 or score > attrs["assessment"].max_score):
+            raise serializers.ValidationError({"score": "Score is outside the assessment range."})
         return attrs
 
-    def validate_score(self, value):
-        assessment = self.initial_data.get("assessment")
-        if not assessment:
-            raise serializers.ValidationError("Assessment is required to validate score")
-        try:
-            assessment_instance = AssessmentType.objects.get(id = assessment)
-        except AssessmentType.DoesNotExist:
-            raise serializers.ValidationError("Invalid assessment ID")
 
-        if value < 0 or value > assessment_instance.max_score:
-            raise serializers.ValidationError(f"Score must be between 0 and {assessment_instance.max_score}")
+class BulkMarksRequestSerializer(serializers.Serializer):
+    class MarkItemSerializer(serializers.Serializer):
+        student = serializers.UUIDField()
+        score = serializers.JSONField(required=False, allow_null=True)
+        teacher_remarks = serializers.CharField(required=False, allow_blank=True)
+
+    assessment = serializers.UUIDField()
+    subject = serializers.UUIDField()
+    student_class = serializers.UUIDField()
+    marks = MarkItemSerializer(many=True, allow_empty=False)
+
+    def validate_marks(self, value):
+        ids = [item["student"] for item in value]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Students must not be repeated.")
         return value
 
 

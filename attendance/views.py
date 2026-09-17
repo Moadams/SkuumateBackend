@@ -1,3 +1,5 @@
+from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.school_permissions import school_permission
 import datetime
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -21,6 +23,7 @@ from .serializers import (
     UpdateAttendanceSerializer,
 )
 from .utils import mark_bulk_attendance
+from core.teacher_scope import ensure_teacher_assignment
 
 # ─── Bulk Mark Attendance ─────────────────────────────────────────
 
@@ -30,7 +33,7 @@ class BulkMarkAttendanceView(APIView):
     Creates new records or updates existing ones for the given date.
     Accessible by both admins and teachers.
     """
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(create="attendance.mark")]
 
     def post(self, request):
         school = request.user.school
@@ -41,6 +44,7 @@ class BulkMarkAttendanceView(APIView):
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
+        ensure_teacher_assignment(request.user, data["klass"], data["term"])
         created, updated = mark_bulk_attendance(
             school=school,
             klass=data["klass"],
@@ -86,13 +90,13 @@ class BulkMarkAttendanceView(APIView):
 
 # ─── Attendance List ──────────────────────────────────────────────
 
-class AttendanceListView(ExportMixin, generics.ListAPIView):
+class AttendanceListView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
     """
     Paginated, filtered list of individual attendance records.
     Useful for viewing a student's attendance history
     or a class's attendance on a specific date.
     """
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="attendance.view")]
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AttendanceFilter
@@ -119,8 +123,8 @@ class AttendanceListView(ExportMixin, generics.ListAPIView):
         return ApiResponse.success(data=serializer.data)
 
 
-class AttendanceExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+class AttendanceExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="attendance.export"), HasAttendanceModule]
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AttendanceFilter
@@ -146,13 +150,15 @@ class AttendanceExportView(ExportMixin, generics.ListAPIView):
 
 class AttendanceDetailView(APIView):
     """Retrieve or update a single attendance record."""
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [school_permission(read="attendance.view", edit="attendance.edit"), HasAttendanceModule]
 
     def get_object(self, pk, school):
         try:
-            return Attendance.objects.select_related(
+            record = Attendance.objects.select_related(
                 "student", "klass", "term", "recorded_by"
             ).get(pk=pk, school=school)
+            ensure_teacher_assignment(self.request.user, record.klass, record.term)
+            return record
         except Attendance.DoesNotExist:
             return None
 
@@ -221,7 +227,7 @@ class ClassAttendanceSheetView(APIView):
     Includes all enrolled students with their status for that day.
     Useful for the teacher's attendance marking screen.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [school_permission(read="attendance.view"), HasAttendanceModule]
 
     def get(self, request, class_id):
         from academics.models import Class
@@ -317,12 +323,12 @@ class ClassAttendanceSheetView(APIView):
 
 # ─── Attendance Summary List ──────────────────────────────────────
 
-class AttendanceSummaryListView(ExportMixin, generics.ListAPIView):
+class AttendanceSummaryListView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
     """
     Daily attendance summaries per class.
     Useful for admin overview and dashboard.
     """
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="attendance.view")]
     serializer_class = AttendanceSummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AttendanceSummaryFilter
@@ -349,8 +355,8 @@ class AttendanceSummaryListView(ExportMixin, generics.ListAPIView):
         return ApiResponse.success(data=serializer.data)
 
 
-class AttendanceSummaryExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+class AttendanceSummaryExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="attendance.export"), HasAttendanceModule]
     serializer_class = AttendanceSummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AttendanceSummaryFilter
@@ -374,7 +380,7 @@ class StudentAttendanceReportView(APIView):
     Full attendance report for a single student.
     Shows day-by-day records plus summary stats for a term.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [school_permission(read="attendance.view"), HasAttendanceModule]
 
     def get(self, request, student_id):
         from django.db.models import Count
@@ -444,7 +450,7 @@ class ClassAttendanceReportView(APIView):
     Attendance summary report for all students in a class
     for a given term — useful for generating class reports.
     """
-    permission_classes = [IsAdminOrTeacher, HasAttendanceModule]
+    permission_classes = [school_permission(read="attendance.view"), HasAttendanceModule]
 
     def get(self, request, class_id):
         from academics.models import Class, Term

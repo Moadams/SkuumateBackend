@@ -12,7 +12,9 @@ def _make_json_serializable(data):
     """
     if isinstance(data, dict):
         return {
-            k: _make_json_serializable(v)
+            k: ("[REDACTED]" if any(secret in k.lower() for secret in
+                ("password", "token", "secret", "api_key", "authorization"))
+                else _make_json_serializable(v))
             for k, v in data.items()
             if not isinstance(v, UploadedFile)
         }
@@ -67,6 +69,7 @@ class AuditLogMixin:
         )
         return instance
 
+    @transaction.atomic
     def perform_update(self, serializer):
         instance = serializer.save()
         log_action(
@@ -79,6 +82,7 @@ class AuditLogMixin:
         )
         return instance
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         log_action(
             action=AuditLog.Action.DELETE,

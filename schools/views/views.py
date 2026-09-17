@@ -9,6 +9,7 @@ Schools HTTP layer — views only handle transport concerns:
 Business rules and read-model assembly live in schools.services.
 Presentation (DTO → JSON payload) lives in schools.serializers.presenters.
 """
+from core.school_permissions import school_permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -74,7 +75,7 @@ class SchoolListExportView(ExportMixin, generics.ListAPIView):
 
 class MySchoolRetrieveUpdateView(AuditLogMixin, generics.RetrieveUpdateAPIView):
     """Retrieve or update the current user's school."""
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="settings.view", write="settings.manage")]
     serializer_class = SchoolSerializer
 
     audit_action = AuditLog.Action.UPDATE
@@ -100,7 +101,7 @@ class SchoolProfileView(APIView):
     """
     Admin school profile — view and edit school details.
     """
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [school_permission(read="settings.view", write="settings.manage")]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
@@ -135,7 +136,7 @@ class SchoolDetailsView(APIView):
     staff, students, finance, attendance, communications, exams and
     onboarding status in one cached request.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="school.manage")]
 
     @cache_response(
         lambda self, request: CacheKeys.school_details(
@@ -162,7 +163,7 @@ class SchoolOnboardingStatusView(APIView):
     Returns the current school's onboarding status and which steps
     have been completed.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="school.manage")]
 
     @cache_response(
         lambda self, request: CacheKeys.school_onboarding(

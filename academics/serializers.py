@@ -1,5 +1,6 @@
 from django.db import transaction
 from rest_framework import serializers
+from core.tenant_serializers import SchoolRelatedFieldsMixin
 from staff.enums.staff_status import StaffStatus
 from staff.models import StaffProfile
 from students.models import Enrollment
@@ -42,8 +43,8 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        start = attrs.get("start_date")
-        end = attrs.get("end_date")
+        start = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end = attrs.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end <= start:
             raise serializers.ValidationError({
                 "end_date": "End date must be after start date."
@@ -51,7 +52,7 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         if AcademicYear.objects.filter(
             school=self.context["request"].user.school,
             is_current=True,
-        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", True):
+        ).exclude(id=self.instance.id if self.instance else None).exists() and attrs.get("is_current", getattr(self.instance, "is_current", False)):
             raise serializers.ValidationError({
                 "is_current": "Another academic year is already marked as current."
             })
@@ -67,7 +68,8 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class TermSerializer(serializers.ModelSerializer):
+class TermSerializer(SchoolRelatedFieldsMixin, serializers.ModelSerializer):
+    school_related_fields = ("academic_year",)
     academic_year = serializers.PrimaryKeyRelatedField(
         queryset=AcademicYear.objects.all(),
         required=True,
@@ -103,8 +105,13 @@ class TermSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        start = attrs.get("start_date")
-        end = attrs.get("end_date")
+        if "academic_year" in attrs and attrs["academic_year"] is None:
+            current = AcademicYear.objects.filter(school=self.context["request"].user.school, is_current=True).first()
+            if current is None:
+                raise serializers.ValidationError({"academic_year": "No current academic year is available."})
+            attrs["academic_year"] = current
+        start = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end = attrs.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end <= start:
             raise serializers.ValidationError({
                 "end_date": "End date must be after start date."
@@ -163,7 +170,7 @@ class TermSerializer(serializers.ModelSerializer):
         
         return super().create(validated_data)
 
-class TermUpdateSerializer(serializers.ModelSerializer):
+class TermUpdateSerializer(TermSerializer):
     class Meta:
         model = Term
         fields = [
@@ -176,6 +183,7 @@ class TermUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        attrs = super().validate(attrs)
         if "start_date" in attrs and "end_date" in attrs:
             start = attrs["start_date"]
             end = attrs["end_date"]

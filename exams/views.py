@@ -1,3 +1,5 @@
+from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.school_permissions import school_permission
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -35,8 +37,8 @@ from students.models import Enrollment
 
 
 # from exams.services import generate_class_report
-class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class AssessmentTypeListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="exams.view", write="exams.manage")]
     serializer_class = AssessmentTypeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AssessmentTypeFilter
@@ -69,8 +71,8 @@ class AssessmentTypeListCreateView(AuditLogMixin, ExportMixin, generics.ListCrea
             data = self.get_serializer(assessment_type).data
         )
 
-class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+class AssementTypeDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [school_permission(read="exams.view", write="exams.manage")]
     serializer_class = AssessmentTypeSerializer
     audit_resource = "AssessmentType"
 
@@ -82,8 +84,8 @@ class AssementTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
         return ApiResponse.success(data = self.get_serializer(instance).data)
 
 
-class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+class ReportSchemeListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="exams.view", write="exams.manage")]
     serializer_class = ReportSchemeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -107,15 +109,16 @@ class ReportSchemeListCreateView(AuditLogMixin, ExportMixin, generics.ListCreate
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
 
-class ReportSchemeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+class ReportSchemeDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [school_permission(read="exams.view", write="exams.manage")]
     serializer_class = ReportSchemeSerializer
     audit_resource = "ReportScheme"
 
     def get_queryset(self):
         return ReportScheme.objects.filter(school = self.request.user.school)
 
-class StudentMarksListView(generics.ListAPIView):
+class StudentMarksListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="exams.view")]
     serializer_class = StudentMarkSerializer
     pagination_class = None
 
@@ -205,7 +208,8 @@ class StudentMarksListView(generics.ListAPIView):
 
         return ApiResponse.success(data=registry_data)
 
-class StudentMarkBulkView(AuditLogMixin, generics.CreateAPIView):
+class StudentMarkBulkView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.CreateAPIView):
+    permission_classes = [school_permission(create="exams.enter_scores")]
     serializer_class = StudentMarkCreationSerializer
     audit_resource = "StudentMark"
 
@@ -216,24 +220,28 @@ class StudentMarkBulkView(AuditLogMixin, generics.CreateAPIView):
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
+        from .serializers import BulkMarksRequestSerializer
+        payload = BulkMarksRequestSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        submitted = payload.validated_data
         school = request.user.school
         current_term = Term.objects.select_related("academic_year").filter(school=school, is_current=True).first()
 
         if not current_term:
             return ApiResponse.error(message="Cannot save marks: No active term found.")
 
-        marks_data = request.data['marks']
+        marks_data = submitted['marks']
         results = []
 
         for item in marks_data:
 
             instance = StudentMark.objects.filter(
+                school=school,
                 student_id=item.get('student'),
                 assessment_id=request.data['assessment'],
                 subject_id=request.data['subject'],
                 term=current_term
             ).first()
-            print(instance)
 
             # Prepare data for the serializer
             data = {
@@ -257,7 +265,7 @@ class StudentMarkBulkView(AuditLogMixin, generics.CreateAPIView):
         return ApiResponse.success(message="Marks updated successfully", data=results)
 
 class ClassReportGenerationValidityView(APIView):
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="reports.view")]
     def get(self, request, class_id):
         school = request.user.school
         current_term = Term.objects.filter(school=school, is_current=True).first()
@@ -289,7 +297,7 @@ class ClassReportGenerationValidityView(APIView):
         return ApiResponse.success(data=context)
 
 class GenerateClassReportView(APIView):
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(create="reports.approve")]
     def post(self, request):
         serializer = StudentReportGeneratorSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
@@ -333,10 +341,11 @@ class GenerateClassReportView(APIView):
         )
         return ApiResponse.success(message = "Reports generated", data=result)
 
-class StudentReportListView(generics.ListAPIView):
+class StudentReportListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="reports.view")]
     serializer_class = StudentReportSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ["student__full_name", "student__student_id"]
+    search_fields = ["student__first_name", "student__last_name", "student__student_id"]
     ordering_fields = ["created_at"]
     ordering = ["-created_at"]
 
@@ -356,7 +365,8 @@ class StudentReportListView(generics.ListAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
 
-class StudentReportDetailView(AuditLogMixin, generics.RetrieveAPIView):
+class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveAPIView):
+    permission_classes = [school_permission(read="reports.view")]
     serializer_class = StudentReportDetailSerializer
 
     def get_queryset(self):
@@ -366,8 +376,8 @@ class StudentReportDetailView(AuditLogMixin, generics.RetrieveAPIView):
         ).prefetch_related('subject_scores__student_report')
 
 
-class StudentReportSubjectScoreListView(generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentReportSubjectScoreListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="reports.view")]
     serializer_class = SubjectScoreSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["student__first_name", "student__last_name"]
@@ -391,8 +401,8 @@ class StudentReportSubjectScoreListView(generics.ListAPIView):
         return ApiResponse.success(data = serializer.data)
 
 
-class StudentReportTeacherRemarksView(AuditLogMixin, generics.UpdateAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentReportTeacherRemarksView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.UpdateAPIView):
+    permission_classes = [school_permission(write="exams.enter_scores")]
     serializer_class = ReportTeacherRemarksSerializer
     audit_resource = "StudentReport"
 
@@ -414,8 +424,8 @@ class StudentReportTeacherRemarksView(AuditLogMixin, generics.UpdateAPIView):
         return ApiResponse.success("Teacher remarks updated")
 
 
-class StudentReportHeadteacherRemarksView(AuditLogMixin, generics.UpdateAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentReportHeadteacherRemarksView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.UpdateAPIView):
+    permission_classes = [school_permission(write="reports.approve")]
     serializer_class = HeadTeacherRemarksSerializer
     audit_resource = "StudentReport"
 
@@ -437,13 +447,17 @@ class StudentReportHeadteacherRemarksView(AuditLogMixin, generics.UpdateAPIView)
         return ApiResponse.success("Head Teacher remarks updated")
 
 class PublishStudentReportsView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(write="reports.approve")]
     def post(self, request):
         reports = request.data.get("reports",[])
 
-        StudentReport.objects.filter(
+        queryset = StudentReport.objects.filter(
             id__in=reports, school=request.user.school, status=StudentReport.ReportStatus.READY
-        ).update(
+        )
+        from core.teacher_scope import needs_teacher_scope, assigned_class_ids
+        if needs_teacher_scope(request.user):
+            queryset = queryset.filter(student_class_id__in=assigned_class_ids(request.user))
+        queryset.update(
             status=StudentReport.ReportStatus.PUBLISHED
         )
 

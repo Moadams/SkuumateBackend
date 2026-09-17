@@ -16,6 +16,8 @@ def invalidate_staff_cache(sender, instance, **kwargs):
 @receiver(m2m_changed, sender=StaffProfile.permission_grants.through)
 @receiver(m2m_changed, sender=StaffProfile.permission_revokes.through)
 def invalidate_profile_permissions_cache(sender, instance, action, **kwargs):
+    if kwargs.get("reverse"):
+        return  # Effective permissions are resolved live.
     if action not in ("post_add", "post_remove", "post_clear"):
         return
     cache.delete(CacheKeys.user_permissions(instance.user_id or instance.id))
@@ -23,6 +25,8 @@ def invalidate_profile_permissions_cache(sender, instance, action, **kwargs):
 
 @receiver(m2m_changed, sender=StaffPosition.permissions.through)
 def invalidate_position_permissions_cache(sender, instance, action, **kwargs):
+    if kwargs.get("reverse"):
+        return
     if action not in ("post_add", "post_remove", "post_clear"):
         return
     affected = StaffProfile.objects.filter(positions=instance).values_list(

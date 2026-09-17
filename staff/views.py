@@ -1,5 +1,6 @@
+from core.school_permissions import school_permission
 import logging
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from accounts.models import User
 from rest_framework import generics
 from rest_framework.views import APIView
@@ -8,6 +9,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from core.permissions import IsAdmin, IsTeacher
+from core.permissions import effective_keys
+from rest_framework.exceptions import PermissionDenied
 from core.responses import ApiResponse
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
@@ -32,6 +35,12 @@ from .filters import StaffProfileFilter
 
 logger = logging.getLogger(__name__)
 
+
+def check_staff_management(user, profile):
+    privileged = profile.role == "admin" or (profile.user and (profile.user.is_superuser or profile.user.role in ("admin", "superadmin")))
+    if privileged and user.role != "admin" and "school.manage" not in effective_keys(user):
+        raise PermissionDenied("Only school administrators can manage administrator accounts.")
+
 # ─── Permission Keys ──────────────────────────────────────────────
 
 class PermissionListView(APIView):
@@ -41,7 +50,7 @@ class PermissionListView(APIView):
     constants before the registry is seeded).
     Used by the frontend when building the position create/edit form.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="school.manage", write="school.manage")]
 
     def get(self, request):
         registry = PermissionKey.objects.all()
@@ -73,7 +82,7 @@ class PermissionListView(APIView):
 class StaffPositionListCreateView(
     AuditLogMixin, ExportMixin, generics.ListCreateAPIView
 ):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="school.manage", write="school.manage")]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at", "is_system"]
@@ -126,7 +135,7 @@ class StaffPositionListCreateView(
 class StaffPositionDetailView(
     AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 ):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="school.manage", write="school.manage")]
     audit_resource = "StaffPosition"
 
     def get_serializer_class(self):
@@ -218,7 +227,7 @@ class StaffPositionDetailView(
 class StaffListCreateView(
     AuditLogMixin, ExportMixin, generics.ListCreateAPIView
 ):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StaffProfileFilter
     search_fields = [
@@ -278,10 +287,14 @@ class StaffListCreateView(
 class StaffDetailView(
     AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 ):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     audit_resource = "StaffProfile"
     serializer_class = StaffProfileSerializer
+
+    def perform_destroy(self, instance):
+        check_staff_management(self.request.user, instance)
+        return super().perform_destroy(instance)
 
     def get_queryset(self):
         return (
@@ -298,11 +311,12 @@ class StaffDetailView(
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        check_staff_management(request.user, instance)
         serializer = UpdateStaffSerializer(
             instance,
             data=request.data,
             partial=True,
-            context={"school": request.user.school},
+            context={"school": request.user.school, "request": request},
         )
         serializer.is_valid(raise_exception=True)
         profile = self.perform_update(serializer)
@@ -316,12 +330,13 @@ class StaffDetailView(
 
 
 class UpdateStaffStatusView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
     audit_resource = "StaffProfile"
 
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            staff_profile = StaffProfile.objects.get(pk=pk)
+            staff_profile = StaffProfile.objects.get(pk=pk, school=request.user.school)
         except StaffProfile.DoesNotExist:
             return ApiResponse.error(
                 message="Staff profile not found.",
@@ -329,6 +344,7 @@ class UpdateStaffStatusView(APIView):
             )
         
         status = request.data.get("status")
+        check_staff_management(request.user, staff_profile)
         if status not in StaffStatus.values:
             return ApiResponse.error(
                 message=f"Invalid status '{status}'.",
@@ -382,7 +398,7 @@ class UpdateStaffStatusView(APIView):
         )
 
 class StaffExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="staff.manage")]
     serializer_class = StaffProfileSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StaffProfileFilter
@@ -435,34 +451,42 @@ class ActivateStaffUserAccountView(APIView):
     """
     Activates the user account associated with a staff profile.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
 
     def post(self, request, pk):
         try:
-            staff_profile = StaffProfile.objects.get(pk=pk)
+            staff_profile = StaffProfile.objects.get(pk=pk, school=request.user.school)
         except StaffProfile.DoesNotExist:
             return ApiResponse.error(
                 message="Staff profile not found.",
                 status_code=404,
             )
 
+        check_staff_management(request.user, staff_profile)
         if staff_profile.user:
             return ApiResponse.error(
                 message="Staff profile already has an associated user account.",
                 status_code=400,
             )
 
+        if staff_profile.role not in ("admin", "teacher", "finance_manager"):
+            return ApiResponse.error(message="Only school staff roles can be activated.", status_code=400)
+
         try:
-            user = User.objects.create_user(
-                email=staff_profile.email,
-                first_name=staff_profile.first_name,
-                last_name=staff_profile.last_name,
-                role=staff_profile.role,
-                school = request.user.school,
-                must_change_password=True
-            )
-            staff_profile.user = user
-            staff_profile.save()
+            with transaction.atomic():
+                staff_profile = StaffProfile.objects.select_for_update().get(pk=pk, school=request.user.school)
+                if staff_profile.user_id:
+                    return ApiResponse.error(message="Staff profile already has an associated user account.", status_code=400)
+                user = User.objects.create_user(
+                    email=staff_profile.email,
+                    first_name=staff_profile.first_name,
+                    last_name=staff_profile.last_name,
+                    role=staff_profile.role,
+                    school=request.user.school,
+                    must_change_password=True,
+                )
+                staff_profile.user = user
+                staff_profile.save()
        
         except IntegrityError as exc:
             logger.error(
@@ -483,7 +507,7 @@ class ActivateStaffUserAccountView(APIView):
         except Exception as e:
             logger.error(f"Failed to create user account for staff profile {staff_profile.pk}: {str(e)}")
             return ApiResponse.error(
-                message=f"Failed to create user account. Something went wrong: {str(e)}",
+                message="Failed to create user account. Please try again.",
                 status_code=500,
             )
         log_action(

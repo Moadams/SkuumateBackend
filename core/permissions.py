@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from core.access import school_access_allowed
 
 from subscriptions.permissions import HasAuditLogAccess
 
@@ -6,8 +7,8 @@ from subscriptions.permissions import HasAuditLogAccess
 # users who do not yet have positions/grants attached.
 LEGACY_ROLE_KEYS = {
     "admin": {"school.manage"},
-    "teacher": {"class.teach"},
-    "finance_manager": {"finance.view"},
+    "teacher": {"class.teach", "students.view", "attendance.view", "attendance.mark", "attendance.edit", "academics.view", "exams.view", "exams.enter_scores", "reports.view", "dashboard.teacher", "settings.view"},
+    "finance_manager": {"students.view", "finance.view", "finance.manage_fees", "finance.record_payments", "finance.export", "reports.view", "dashboard.finance", "settings.view"},
     "student": set(),
     "superadmin": set(),
 }
@@ -20,6 +21,8 @@ def effective_keys(user):
     a profile fall back to their legacy role mapping.
     """
     if user.is_superuser:
+        return set()
+    if not school_access_allowed(user):
         return set()
     profile = getattr(user, "staff_profile", None)
     if profile is not None:
@@ -39,6 +42,8 @@ class HasPermission(BasePermission):
             return False
         if request.user.is_superuser:
             return True
+        if not school_access_allowed(request.user):
+            return False
         keys = effective_keys(request.user)
         if "school.manage" in keys:
             return True
@@ -57,6 +62,8 @@ class HasAnyPermission(BasePermission):
             return False
         if request.user.is_superuser:
             return True
+        if not school_access_allowed(request.user):
+            return False
         keys = effective_keys(request.user)
         if "school.manage" in keys:
             return True
@@ -86,7 +93,7 @@ class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         return bool(
             request.user and
-            request.user.is_authenticated and
+            school_access_allowed(request.user) and
             request.user.role == "admin" and
             request.user.school is not None
         )
@@ -94,7 +101,7 @@ class IsAdmin(BasePermission):
 class IsAdminOrReadOnly(BasePermission):
     """Admins can access, others can only read."""
     def has_permission(self, request, view):
-        if request.user and request.user.is_authenticated:
+        if school_access_allowed(request.user):
             if request.user.role == "admin":
                 return True
 
@@ -107,7 +114,7 @@ class IsTeacher(BasePermission):
     def has_permission(self, request, view):
         return bool(
             request.user and
-            request.user.is_authenticated and
+            school_access_allowed(request.user) and
             request.user.role == "teacher"
         )
 
@@ -116,7 +123,7 @@ class IsStudent(BasePermission):
     def has_permission(self, request, view):
         return bool(
             request.user and
-            request.user.is_authenticated and
+            school_access_allowed(request.user) and
             request.user.role == "student"
         )
 
@@ -125,7 +132,7 @@ class IsFinanceManager(BasePermission):
     def has_permission(self, request, view):
         return bool(
             request.user and
-            request.user.is_authenticated and
+            school_access_allowed(request.user) and
             request.user.role == "finance_manager"
         )
 
@@ -134,14 +141,14 @@ class IsAdminOrTeacher(BasePermission):
     def has_permission(self, request, view):
         return bool(
             request.user and
-            request.user.is_authenticated and
+            school_access_allowed(request.user) and
             request.user.role in ("admin", "teacher")
         )
 
 class IsAdminOrTeacherReadOnly(BasePermission):
     """Admins and teachers can access, but teachers have read-only access."""
     def has_permission(self, request, view):
-        if request.user and request.user.is_authenticated:
+        if school_access_allowed(request.user):
             if request.user.role == "admin":
                 return True
             elif request.user.role == "teacher":
@@ -154,7 +161,8 @@ class IsSuperAdmin(BasePermission):
         return bool(
             request.user and
             request.user.is_authenticated and
-            request.user.role == "superadmin"
+            request.user.is_active and
+            (request.user.is_superuser or (request.user.role == "superadmin" and request.user.school_id is None))
         )
 
 class OrPermission(BasePermission):
@@ -174,7 +182,7 @@ class OrPermission(BasePermission):
         return any(
             perm().has_object_permission(request, view, obj)
             for perm in self.permissions
-            if hasattr(perm(), "has_object_permission")
+            if perm().has_permission(request, view)
         )
 
 

@@ -1,3 +1,5 @@
+from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.school_permissions import school_permission
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
@@ -43,7 +45,7 @@ class StudentBulkCreateView(APIView):
     Individual students in the Excel can override class_id
     and academic_year_id per row.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(create="students.create")]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
@@ -237,7 +239,7 @@ class ClassBulkStudentsView(APIView):
 
     GET  /api/v1/students/class-bulk/ — downloads the template
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(create="students.create")]
     parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
@@ -823,8 +825,8 @@ class StudentExcelTemplateView(APIView):
         workbook.save(response)
         return response
 
-class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="students.view", create="students.create")]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StudentFilter
     search_fields = [
@@ -839,10 +841,6 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     audit_resource = "Student"
 
-    def get_permissions(self):
-        if self.request.method == "POST":
-            return [IsAdmin()]
-        return [IsAdminOrTeacher()]
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -886,15 +884,11 @@ class StudentListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         )
 
 
-class StudentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [school_permission(read="students.view", edit="students.edit", delete="students.delete")]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     audit_resource = "Student"
 
-    def get_permissions(self):
-        if self.request.method in ["PUT","PATCH", "DELETE"]:
-            return [IsAdmin()]
-        return [IsAdminOrTeacher()]
 
     def get_serializer_class(self):
         if self.request.method in ["PATCH","PUT"]:
@@ -929,8 +923,8 @@ class StudentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-class StudentExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher]
+class StudentExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
+    permission_classes = [school_permission(read="students.export")]
     serializer_class = StudentSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StudentFilter
@@ -948,8 +942,8 @@ class StudentExportView(ExportMixin, generics.ListAPIView):
 
 # ─── Guardians ────────────────────────────────────────────────────
 
-class GuardianListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+class GuardianListCreateView(TeacherScopedQuerysetMixin, generics.ListCreateAPIView):
+    permission_classes = [school_permission(read="students.view", write="students.edit")]
     serializer_class = GuardianSerializer
 
     def get_student(self, request, pk):
@@ -991,8 +985,8 @@ class GuardianListCreateView(generics.ListCreateAPIView):
         )
 
 
-class GuardianDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+class GuardianDetailView(TeacherScopedQuerysetMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [school_permission(read="students.view", write="students.edit")]
     serializer_class = GuardianSerializer
 
     def get_queryset(self):
@@ -1022,7 +1016,7 @@ class GuardianDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class StudentEnrollView(APIView):
     """Enroll a student into a class for a given academic year."""
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(create="students.create", delete="students.edit")]
 
     def get_student(self, request, pk):
         try:
@@ -1103,9 +1097,9 @@ class StudentEnrollView(APIView):
         return ApiResponse.success(message="Student withdrawn from class successfully.")
 
 
-class StudentEnrollmentHistoryView(generics.ListAPIView):
+class StudentEnrollmentHistoryView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     """Full enrollment history for a student."""
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="students.view")]
     serializer_class = EnrollmentSerializer
 
     def get_queryset(self):
@@ -1120,9 +1114,9 @@ class StudentEnrollmentHistoryView(generics.ListAPIView):
         return ApiResponse.success(data=serializer.data)
 
 
-class ClassStudentsListView(generics.ListAPIView):
+class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     '''List of students currently enrolled in a specific class.'''
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [school_permission(read="students.view")]
     serializer_class = StudentMinimalSerializer
 
     def get_queryset(self):

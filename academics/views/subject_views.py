@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django.db import transaction
 from rest_framework import generics
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -12,7 +13,7 @@ from core.permissions import IsAdmin, IsAdminOrTeacher
 from core.responses import ApiResponse
 
 class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = SubjectSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = SubjectFilter
@@ -54,7 +55,7 @@ class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
 
 
 class SubjectDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = SubjectSerializer
     audit_resource = "Subject"
 
@@ -84,7 +85,7 @@ class SubjectDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class SubjectExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdminOrTeacher]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = SubjectSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = SubjectFilter
@@ -98,7 +99,7 @@ class SubjectExportView(ExportMixin, generics.ListAPIView):
         return self.export(request, *args, **kwargs)
 
 class SubjectTeacherListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = SubjectTeacherFilter
@@ -140,7 +141,7 @@ class SubjectTeacherListCreateView(AuditLogMixin, generics.ListCreateAPIView):
         )
     
 class UnassignSubjectTeacherView(AuditLogMixin, generics.DestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = SubjectTeacherListSerializer
     audit_resource = "SubjectTeacher"
 

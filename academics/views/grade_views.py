@@ -1,3 +1,4 @@
+from core.school_permissions import school_permission
 from django.db import transaction
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -21,7 +22,7 @@ class GradingSystemListCreateView(
     List all grading systems for the school
     or create a new one.
     """
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
@@ -68,7 +69,7 @@ class GradingSystemDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVi
     """
     Retrieve, update or delete a grading system.
     """
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     audit_resource = "GradingSystem"
 
     def get_serializer_class(self):
@@ -100,7 +101,7 @@ class GradingSystemDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVi
         )
 
 class GradingScaleCreateListView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = GradeScaleSerializer
     audit_resource = "GradeScale"
 
@@ -128,7 +129,7 @@ class GradingScaleCreateListView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class GradeScaleUpdateDestroyView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
     serializer_class = GradeScaleSerializer
     audit_resource = "GradeScale"
 

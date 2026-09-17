@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
+from core.access import school_access_allowed
 
 
 class HasStaffPermission(BasePermission):
@@ -23,6 +24,9 @@ class HasStaffPermission(BasePermission):
         # Superusers bypass all staff permission checks
         if request.user.is_superuser:
             return True
+
+        if not school_access_allowed(request.user):
+            return False
 
         # School owner/admin role bypasses staff permission checks
         if request.user.role == "admin":
