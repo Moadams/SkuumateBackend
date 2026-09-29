@@ -1,7 +1,6 @@
 from rest_framework.permissions import BasePermission
-from core.access import school_access_allowed
 
-from subscriptions.permissions import HasAuditLogAccess
+from core.access import school_access_allowed
 
 # Legacy role → key mapping used ONLY during the transition, for
 # users who do not yet have positions/grants attached.
@@ -155,15 +154,20 @@ class IsAdminOrTeacherReadOnly(BasePermission):
                 return request.method in ("GET", "HEAD", "OPTIONS")
         return False
 
+def is_platform_superadmin(user):
+    """A platform actor: root superuser or a school-less superadmin-role user."""
+    return bool(
+        user and
+        getattr(user, "is_authenticated", False) and
+        user.is_active and
+        (user.is_superuser or (user.role == "superadmin" and user.school_id is None))
+    )
+
+
 class IsSuperAdmin(BasePermission):
     """Only super admins can access."""
     def has_permission(self, request, view):
-        return bool(
-            request.user and
-            request.user.is_authenticated and
-            request.user.is_active and
-            (request.user.is_superuser or (request.user.role == "superadmin" and request.user.school_id is None))
-        )
+        return is_platform_superadmin(request.user)
 
 class OrPermission(BasePermission):
     """
@@ -187,6 +191,19 @@ class OrPermission(BasePermission):
 
 
 class CanAccessAuditLogs(OrPermission):
+
+    permissions = [
+        IsAdmin,
+        IsSuperAdmin,
+    ]
+
+
+class IsAdminOrSuperAdmin(OrPermission):
+    """School admins and super admins can access.
+
+    Row scoping is left to the view queryset: school admins are limited to
+    their own school, super admins see every user.
+    """
 
     permissions = [
         IsAdmin,

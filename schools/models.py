@@ -27,7 +27,25 @@ class School(TimestampedModel):
     
 
     class Meta:
-        ordering = ["name"]
+        ordering = ("name",)
 
     def __str__(self):
         return self.name
+
+    def force_delete(self, *args, **kwargs):
+        """
+        Force delete the school and all related objects.
+        """
+        # Delete related objects first
+        self.users.all().delete()
+        self.subscriptions.all().delete()
+        self.students.all().delete()
+        self.staff_profiles.all().delete()
+        self.classes.all().delete()
+        from exams.models import ReportScheme
+
+        ReportScheme.objects.filter(school=self).delete()
+        self.assessment_types.all().delete()
+
+        # Now delete the school itself
+        super().delete(*args, **kwargs)

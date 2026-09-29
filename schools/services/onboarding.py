@@ -93,13 +93,15 @@ class OnboardingService:
         return None
 
     @staticmethod
-    def _resume_data(school):
+    def _resume_data(school, request=None):
         """Thin summary of already-saved data so the frontend can prefill
         each onboarding step without re-fetching full list endpoints."""
         profile = {field: getattr(school, field, None) for field in PROFILE_REQUIRED_FIELDS}
         logo = getattr(school, "logo", None)
         # ImageFieldFile is not JSON-serializable; return the URL or None.
-        profile["logo"] = logo.url if bool(logo) else None
+        profile["logo"] = (
+            request.build_absolute_uri(logo.url) if request else logo.url
+        ) if bool(logo) else None
 
         return {
             "school": profile,
@@ -116,7 +118,7 @@ class OnboardingService:
         }
 
     @staticmethod
-    def build(school, include_data: bool = False) -> OnboardingDTO:
+    def build(school, include_data: bool = False, request=None) -> OnboardingDTO:
         OnboardingService.check_and_complete(school)
         steps = OnboardingService.steps(school)
         return OnboardingDTO(
@@ -129,5 +131,5 @@ class OnboardingService:
                 "done": steps["school_profile"],
                 "missing_fields": _profile_missing_fields(school),
             },
-            data=OnboardingService._resume_data(school) if include_data else {},
+            data=OnboardingService._resume_data(school, request) if include_data else {},
         )

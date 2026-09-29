@@ -180,7 +180,7 @@ class SchoolOnboardingStatusView(APIView):
                 status_code=404,
             )
 
-        dto = OnboardingService.build(school, include_data=True)
+        dto = OnboardingService.build(school, include_data=True, request=request)
         return ApiResponse.success(
             data=SchoolDetailsPresenter(request).present(dto)
         )

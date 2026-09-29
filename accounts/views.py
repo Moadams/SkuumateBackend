@@ -1,6 +1,6 @@
 import logging
-from calendar import c
 
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -13,7 +13,12 @@ from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_forgot_password_mail
 from core.mixins import ExportMixin
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsSuperAdmin
+from core.permissions import (
+    IsAdmin,
+    IsAdminOrSuperAdmin,
+    IsSuperAdmin,
+    is_platform_superadmin,
+)
 from core.responses import ApiResponse
 from core.utils import log_action
 
@@ -32,7 +37,7 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 class LoginView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -54,7 +59,7 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request):
         refresh_token = request.data.get("refresh")
@@ -79,7 +84,7 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         serializer = UserSerializer(request.user)
@@ -95,13 +100,13 @@ class MeView(APIView):
         )
 
 class UserExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [IsAdmin]
+    permission_classes = (IsAdminOrSuperAdmin,)
     serializer_class = UserSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["role", "is_active"]
-    search_fields = ["email", "first_name", "last_name"]
-    ordering_fields = ["created_at", "first_name", "last_name", "email"]
-    ordering = ["-created_at"]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter,)
+    filterset_fields = ("role", "is_active",)
+    search_fields = ("email", "first_name", "last_name",)
+    ordering_fields = ("created_at", "first_name", "last_name", "email",)
+    ordering = ("-created_at",)
 
     def get_queryset(self):
         return User.objects.filter(school=self.request.user.school)
@@ -109,55 +114,38 @@ class UserExportView(ExportMixin, generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return self.export(request, *args, **kwargs)
 
-class UserListCreateView(generics.ListCreateAPIView):
+class UserListView(generics.ListAPIView):
     """Admin only — list all users in their school / create a new user."""
-    permission_classes = [IsSuperAdmin]
+    permission_classes = (IsAdminOrSuperAdmin,)
     serializer_class = UserSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["role", "is_active"]
-    search_fields = ["email", "first_name", "last_name"]
-    ordering_fields = ["created_at", "email", "first_name", "last_name"]
-    ordering = ["-created_at"]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter,)
+    filterset_fields = ("role", "is_active", "school",)
+    search_fields = ("email", "first_name", "last_name")
+    ordering_fields = ("created_at", "email", "first_name", "last_name")
+    ordering = ("-created_at")
 
     def get_queryset(self):
-        return User.objects.all()
-
-    def get_serializer_class(self):
-        if self.request.method == "POST":
-            return CreateUserSerializer
-        return UserSerializer
-
-    def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        ctx["school"] = self.request.user.school
-        return ctx
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return ApiResponse.created(
-            data=UserSerializer(user).data,
-            message="User created successfully.",
-        )
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = UserSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = UserSerializer(queryset, many=True)
-        return ApiResponse.success(data=serializer.data)
+        if is_platform_superadmin(self.request.user):
+            return User.objects.all().exclude(deleted_at__isnull=False)
+        return User.objects.filter(school=self.request.user.school).exclude(deleted_at__isnull=False)
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Admin only — retrieve, update or deactivate a user."""
-    permission_classes = [IsAdmin]
+    """School admins and super admins — retrieve, update or deactivate a user.
+
+    School admins only reach users registered to their own school; super
+    admins reach every user.
+    """
+    permission_classes = (IsAdminOrSuperAdmin,)
     serializer_class = UserSerializer
 
     def get_queryset(self):
-        return User.objects.filter(school=self.request.user.school, is_superuser=False).exclude(role="superadmin")
+        if is_platform_superadmin(self.request.user):
+            return User.objects.all().exclude(deleted_at__isnull=False)
+        return User.objects.filter(
+            school=self.request.user.school,
+            is_superuser=False,
+        ).exclude(role=User.Role.SUPERADMIN).exclude(deleted_at__isnull=False)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -176,12 +164,14 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.is_active = False  # soft deactivate, never hard delete
+        instance.is_active = False
+        instance.deleted_at = timezone.now()
+        instance.deleted_by = request.user
         instance.save()
-        return ApiResponse.success(message="User deactivated successfully.")
+        return ApiResponse.success(message="User deleted successfully.")
 
 class ForgotPasswordView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
     def post(self, request):
         email = request.data.get("email")
@@ -189,7 +179,7 @@ class ForgotPasswordView(APIView):
             return ApiResponse.error(message="Email is required.")
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email=email, deleted_at__isnull=True)
 
             reset_link = generate_password_setup_link(user)
             send_forgot_password_mail(
@@ -214,11 +204,14 @@ class ResetPasswordConfirmView(APIView):
 
 
 class ResetUserPassword(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrSuperAdmin]
     def put(self, request, user_id):
         school = request.user.school
         try:
-            user = User.objects.filter(is_superuser=False).exclude(role="superadmin").get(school=school, id=user_id)
+            if is_platform_superadmin(request.user):
+                user = User.objects.get(id=user_id, deleted_at__isnull=True)
+            else:
+                user = User.objects.filter(is_superuser=False).exclude(role="superadmin", deleted_at__isnull=True).get(school=school, id=user_id)
             data = request.data.copy()
             data['user_id'] = user.id
         except User.DoesNotExist:

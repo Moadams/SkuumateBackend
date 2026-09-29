@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, ProtectedError, Q
 
 # filters
 from django_filters.rest_framework import DjangoFilterBackend
@@ -28,13 +28,13 @@ class SchoolListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVie
     Superadmin only — paginated, filtered, searchable list of all schools.
     Matches the Schools management page on the frontend.
     """
-    permission_classes = [IsSuperAdmin]
+    permission_classes = (IsSuperAdmin,)
     serializer_class = SchoolListSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter,)
     filterset_class = SchoolFilter
-    search_fields = ["name", "email", "city", "country"]
-    ordering_fields = ["name", "created_at", "city"]
-    ordering = ["-created_at"]
+    search_fields = ("name", "email", "city", "country")
+    ordering_fields = ("name", "created_at", "city")
+    ordering = ("-created_at",)
 
     # Auditing
     audit_action = AuditLog.Action.CREATE
@@ -92,7 +92,7 @@ class SchoolListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVie
         )
 
 class SuperSchoolDetailView(APIView):
-    permission_classes = [IsSuperAdmin]
+    permission_classes = (IsSuperAdmin,)
 
     def get(self, request, school_id=None):    
         # Fetch specific school details
@@ -132,7 +132,7 @@ class SuperSchoolDetailView(APIView):
         try:
             school = School.objects.get(id=school_id)
             metadata = SchoolSerializer(school).data
-            school.delete()
+            school.force_delete()  # Use force_delete to bypass soft delete if applicable
             log_action(
                 action=AuditLog.Action.DELETE,
                 resource="School",
@@ -146,3 +146,5 @@ class SuperSchoolDetailView(APIView):
             return ApiResponse.success(message="School deleted successfully.")
         except School.DoesNotExist:
             return ApiResponse.error(message="School not found", status_code=404)
+        except ProtectedError as e:  # noqa: BLE001
+            return ApiResponse.error(message=f"Error deleting school: {str(e)}", status_code=500)   

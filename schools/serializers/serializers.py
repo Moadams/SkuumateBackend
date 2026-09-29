@@ -1,6 +1,8 @@
-from rest_framework import serializers
-from ..models import School
 import re
+
+from rest_framework import serializers
+
+from ..models import School
 
 
 class SchoolListSerializer(serializers.ModelSerializer):
@@ -8,7 +10,7 @@ class SchoolListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = School
-        fields = [
+        fields = (
             "id",
             "name",
             "email",
@@ -17,7 +19,7 @@ class SchoolListSerializer(serializers.ModelSerializer):
             "city",
             "joined",
             "status"
-        ]
+        ,)
 
     
 
@@ -27,7 +29,7 @@ class SchoolSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = School
-        fields = [
+        fields = (
             "id",
             "name",
             "logo",
@@ -41,7 +43,7 @@ class SchoolSerializer(serializers.ModelSerializer):
             "total_users",
             "created_at",
             "updated_at",
-        ]
+        )
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_total_students(self, obj):

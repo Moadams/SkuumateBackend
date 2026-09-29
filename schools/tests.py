@@ -6,6 +6,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from academics.models import AcademicYear, Term
+from exams.models import AssessmentType, ReportScheme
 from schools.models import School
 from schools.services.onboarding import OnboardingService
 from schools.services.school_details import SchoolDetailsService
@@ -14,6 +15,28 @@ from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
 from staff.models import PermissionKey, StaffPosition
 
 User = get_user_model()
+
+
+class SchoolDeletionTests(TestCase):
+
+    def test_force_delete_removes_report_schemes_before_assessment_types(self):
+        school = School.objects.create(name="Deletion School")
+        assessment_type = AssessmentType.objects.create(
+            school=school,
+            name="Main Exam",
+            max_score=100,
+        )
+        ReportScheme.objects.create(
+            school=school,
+            name="Academic Sheet",
+            main_exam=assessment_type,
+        )
+
+        school.force_delete()
+
+        self.assertFalse(School.objects.filter(pk=school.pk).exists())
+        self.assertFalse(AssessmentType.objects.filter(pk=assessment_type.pk).exists())
+        self.assertFalse(ReportScheme.objects.filter(school_id=school.pk).exists())
 
 
 class TermProgressServiceTests(TestCase):

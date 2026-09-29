@@ -12,7 +12,7 @@ from .views import (
     ResetUserPassword,
     UserDetailView,
     UserExportView,
-    UserListCreateView,
+    UserListView,
 )
 
 urlpatterns = [
@@ -21,7 +21,7 @@ urlpatterns = [
     path("auth/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("auth/me/", MeView.as_view(), name="me"),
     path("users/export/", UserExportView.as_view(), name="user-export"),
-    path("users/", UserListCreateView.as_view(), name="user-list-create"),
+    path("users/", UserListView.as_view(), name="user-list-create"),
     path("users/<uuid:pk>/", UserDetailView.as_view(), name="user-detail"),
     path("users/<uuid:user_id>/reset-password/", ResetUserPassword.as_view(), name="reset-user-password"),
     path(

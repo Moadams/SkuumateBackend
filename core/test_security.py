@@ -67,6 +67,18 @@ class SchoolWorkflowSecurityTests(APITestCase):
         response = self.client.get(reverse("user-detail", args=[self.foreign_user.pk]))
         self.assertEqual(response.status_code, 404)
 
+    def test_superadmin_can_retrieve_any_school_user(self):
+        platform = User.objects.create_user(email="root@example.com", password="old-password", role="superadmin")
+        self.client.force_authenticate(platform)
+        response = self.client.get(reverse("user-detail", args=[self.foreign_user.pk]))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["id"], str(self.foreign_user.pk))
+
+    def test_user_detail_denies_non_admin_roles(self):
+        teacher = User.objects.create_user(email="teacher@example.com", password="old-password", role="teacher", school=self.school)
+        self.client.force_authenticate(teacher)
+        self.assertEqual(self.client.get(reverse("user-detail", args=[self.admin.pk])).status_code, 403)
+
     def test_suspended_staff_tokens_and_login_are_rejected(self):
         token = RefreshToken.for_user(self.admin)
         StaffProfile.objects.create(school=self.school, user=self.admin, first_name="Admin", last_name="User", date_joined=date(2026, 1, 1), status="suspended")

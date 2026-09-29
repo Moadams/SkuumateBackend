@@ -8,6 +8,7 @@ from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
 from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
+from staff.services import StaffService
 from subscriptions.services.subscriptions import SubscriptionService
 
 
@@ -65,7 +66,7 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = School
-        fields = [
+        fields = (
             "id",
             "name",
             "email",
@@ -77,7 +78,7 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
             "plan",
             "admin",
             "stats",
-        ]
+        )
 
     def get_stats(self, obj):
         return {
@@ -107,14 +108,14 @@ class SchoolDetailSerializer(serializers.ModelSerializer):
 class SchoolInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
-        fields = [
+        fields = (
             "id",
             "logo",
             "name",
             "email",
             "phone",
             "school_code",
-        ]
+        )
 
 class SchoolCreateSerializer(serializers.ModelSerializer):
     # Admin user fields only
@@ -188,21 +189,21 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
 
         temporary_password = secrets.token_urlsafe(16)
 
-        # 2. Create the first admin user
-        user = User.objects.create_user(
-            email=admin_email,
-            password=temporary_password,
-            first_name=admin_first_name,
-            last_name=admin_last_name,
-            role=User.Role.ADMIN,
-            must_change_password=True,
-            school=school
-        )
-
         # Seed system positions for this new school
         self._seed_system_positions(school)
+        user_data = {
+            "email": admin_email,
+            "password": temporary_password,
+            "first_name": admin_first_name,
+            "last_name": admin_last_name,
+            "role": User.Role.ADMIN,
+            "must_change_password": True,
+            "school": school
+        }
 
-        SubscriptionService.free_trial_subscription(school, user)
+        user = StaffService.create_staff(school, user_data, "Administrator")
+
+        # SubscriptionService.free_trial_subscription(school, user)
 
         reset_link = generate_password_setup_link(user)
 

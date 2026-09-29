@@ -389,11 +389,6 @@ class SchoolSubscribeSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()
     term_id = serializers.UUIDField(required=False, allow_null=True)
     payment_reference = serializers.CharField(required=False, allow_blank=True)
-    payment_provider = serializers.ChoiceField(
-        choices=["paystack", "stripe", "momo", "simulate"],
-        required=False,
-        allow_blank=True,
-    )
 
     def validate_plan_id(self, value):
         package = Package.objects.filter(id=value, is_active=True).first()

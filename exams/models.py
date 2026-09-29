@@ -3,7 +3,7 @@ from django.db import models
 from django.core.exceptions import ValidationError
 
 class AssessmentType(TimestampedModel):
-    school = models.ForeignKey('schools.School', on_delete=models.CASCADE, help_text = "School for this assessment type")
+    school = models.ForeignKey('schools.School', on_delete=models.CASCADE, help_text = "School for this assessment type", related_name = "assessment_types")
     name  = models.CharField(max_length = 100, help_text = "name of assessment type")
     max_score = models.DecimalField(max_digits = 5, decimal_places = 2)
     is_active = models.BooleanField(default = True)

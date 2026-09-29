@@ -52,17 +52,12 @@ class SubscriptionService:
 
     @staticmethod
     def is_eligible_for_trial(school) -> bool:
-        """A school may trial only if it has never had a real (paid) plan."""
-        ever_had_paid = Subscription.objects.filter(
+        """A school is eligible for a trial when it has no record of trial subscriptions"""
+        has_trial = Subscription.objects.filter(
             school=school,
-            status__in=[
-                Subscription.Status.ACTIVE,
-                Subscription.Status.EXPIRED,
-                Subscription.Status.GRACE,
-                Subscription.Status.LOCKED,
-            ],
+            is_paid=False,
         ).exists()
-        return not ever_had_paid
+        return not has_trial
 
     # ── Write-side lifecycle ───────────────────────────────────────
 
