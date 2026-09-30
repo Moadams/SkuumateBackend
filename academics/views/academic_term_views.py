@@ -20,6 +20,7 @@ from core.permissions import IsAdmin
 from core.responses import ApiResponse
 from core.utils import log_action
 from schools.utils import check_and_complete_onboarding
+from subscriptions.permissions import HasExportAccess
 
 
 class AcademicYearTermsListView(generics.ListAPIView):
@@ -147,7 +148,10 @@ class ActivateTermView(APIView):
         )
 
 class TermExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = [
+        school_permission(read="academics.view", write="academics.manage"),
+        HasExportAccess,
+    ]
     serializer_class = TermSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TermFilter

@@ -86,6 +86,7 @@ PACKAGE_CONFIG = {
             "department_access_control", "custom_report_cards",
             "custom_academic_reports", "custom_financial_reports",
             "school_branding",
+            "onboarding_support", "priority_support",
         ],
         "limits": [
             ("max_students", "Maximum Students", 1000),

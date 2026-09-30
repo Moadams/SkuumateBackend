@@ -8,6 +8,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from core.permissions import CanAccessAuditLogs
 from core.models import AuditLog
 from core.serializers import AuditLogSerializer
+from subscriptions.permissions import HasAuditLogAccess
 
 
 class HealthCheckView(APIView):
@@ -30,7 +31,8 @@ class HealthCheckView(APIView):
 
 class AuditLogListView(generics.ListAPIView):
     permission_classes = [
-        CanAccessAuditLogs
+        CanAccessAuditLogs,
+        HasAuditLogAccess,
     ]
     serializer_class = AuditLogSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -46,7 +48,7 @@ class AuditLogListView(generics.ListAPIView):
 
 
 class ClearAuditLogsView(APIView):
-    permission_classes = [CanAccessAuditLogs]
+    permission_classes = [CanAccessAuditLogs, HasAuditLogAccess]
 
     def delete(self, request, *args, **kwargs):
         if request.user.is_superuser:

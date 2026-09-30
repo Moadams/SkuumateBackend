@@ -8,6 +8,7 @@ from academics.models import Subject, SubjectTeacher
 from academics.serializers import SubjectSerializer, SubjectTeacherCreationSerializer, SubjectTeacherListSerializer
 from academics.filters import SubjectFilter, SubjectTeacherFilter
 from schools.utils import check_and_complete_onboarding
+from subscriptions.permissions import HasExportAccess
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrTeacher
 from core.responses import ApiResponse
@@ -85,7 +86,10 @@ class SubjectDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class SubjectExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = [
+        school_permission(read="academics.view", write="academics.manage"),
+        HasExportAccess,
+    ]
     serializer_class = SubjectSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = SubjectFilter

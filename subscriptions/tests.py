@@ -1,26 +1,34 @@
-from datetime import date
+from importlib import import_module
+from types import SimpleNamespace
 
+from django.contrib.auth.models import AnonymousUser
+from django.apps import apps as django_apps
 from django.db import IntegrityError
-from django.test import TestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from accounts.models import User
 from schools.models import School
+from subscriptions.feature_catalog import FEATURES, declared_feature_codes
 from subscriptions.models import (
     Feature,
     Package,
     PackageFeature,
     PackageLimit,
+    Subscription,
 )
-from subscriptions.serializers import PackageSerializer
-from subscriptions.feature_catalog import FEATURES, declared_feature_codes
+from subscriptions.permissions import _make_feature_permission
 from subscriptions.services.packages import (
     PackageService,
+    feature_entitlement_map,
     get_package_features,
     get_package_limit,
     package_has_feature,
+    resolve_package_limits,
+    subscription_entitlements,
 )
 from subscriptions.sync import sync_feature_catalog
 
@@ -180,6 +188,53 @@ class FeatureCatalogSyncTests(TestCase):
         for config in PACKAGE_CONFIG.values():
             for code in config["features"]:
                 self.assertIn(code, declared, f"Undefined feature code: {code}")
+
+    # Declared up front so the registry and the entitlement gates can be wired
+    # before the feature ships, but deliberately not sold in any tier yet.
+    RESERVED_UNASSIGNED = {
+        "finance",
+        "parent_portal",
+        "ges",
+        "eyfs",
+        "montessori",
+    }
+
+    def test_only_reserved_codes_are_declared_without_a_package(self):
+        """A declared-but-unassigned code is a reserved code or a dead gate."""
+        from subscriptions.services.seeding import PACKAGE_CONFIG
+        assigned = {
+            code
+            for config in PACKAGE_CONFIG.values()
+            for code in config["features"]
+        }
+        self.assertEqual(
+            declared_feature_codes() - assigned,
+            self.RESERVED_UNASSIGNED,
+            "Declared features are neither reserved nor assigned to a package.",
+        )
+
+    def test_service_features_are_enterprise_only(self):
+        from subscriptions.services.seeding import PACKAGE_CONFIG
+        service_codes = {"onboarding_support", "priority_support"}
+        for spec in FEATURES:
+            if spec.code not in service_codes:
+                continue
+            tiers = [
+                code
+                for code, config in PACKAGE_CONFIG.items()
+                if spec.code in config["features"]
+            ]
+            self.assertEqual(tiers, ["enterprise"])
+
+    def test_standard_tier_student_caps(self):
+        from subscriptions.services.seeding import PACKAGE_CONFIG
+        expected = {"lite": 250, "advantage": 500, "enterprise": 1000}
+        for code, cap in expected.items():
+            config = PACKAGE_CONFIG[code]
+            self.assertEqual(config["maximum_students"], cap)
+            self.assertIn(
+                ("max_students", "Maximum Students", cap), config["limits"]
+            )
 
 
 class PackageModelConstraintTests(TransactionTestCase):
@@ -643,3 +698,453 @@ class SubscriptionAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["data"]["id"], str(sub.pk))
         self.assertEqual(response.json()["data"]["school"]["id"], str(self.school.pk))
+
+
+class FeaturePermissionTests(APITestCase):
+    """The generated feature gates must never 500, whatever the actor looks like."""
+
+    ENABLED_CODE = "attendance"
+    DISABLED_CODE = "sms"
+
+    def setUp(self):
+        self.school = create_school()
+        self.admin = create_admin_user(self.school)
+        self.superadmin = create_superadmin_user()
+
+        self.package = Package.objects.create(
+            name="Lite", code="lite-perm", price="100.00",
+            billing_period=Package.BillingPeriod.TERM,
+        )
+        self.attendance = create_feature()
+        self.sms = create_feature(code=self.DISABLED_CODE, name="SMS Alerts")
+        PackageFeature.objects.create(
+            package=self.package, feature=self.attendance, is_enabled=True
+        )
+        PackageFeature.objects.create(
+            package=self.package, feature=self.sms, is_enabled=False
+        )
+
+        self.granted = _make_feature_permission(
+            self.ENABLED_CODE, "Attendance is not in your package."
+        )
+        self.withheld = _make_feature_permission(
+            self.DISABLED_CODE, "SMS is not in your package."
+        )
+
+    def _subscribe(self, subscription_status=None, **kwargs):
+        return Subscription.objects.create(
+            school=self.school,
+            plan=self.package,
+            status=subscription_status or Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True,
+            is_current=True,
+            **kwargs,
+        )
+
+    def _decision(self, gate, user, method="GET"):
+        request = APIRequestFactory().generic(method, "/")
+        request.user = user
+        return gate().has_permission(request, SimpleNamespace())
+
+    def test_school_admin_without_the_feature_is_denied(self):
+        self._subscribe()
+        with self.assertRaises(PermissionDenied) as ctx:
+            self._decision(self.withheld, self.admin)
+        self.assertIn("SMS is not in your package.", str(ctx.exception))
+
+    def test_school_admin_with_the_feature_is_allowed(self):
+        self._subscribe()
+        self.assertTrue(self._decision(self.granted, self.admin))
+
+    def test_schoolless_superadmin_bypasses_the_gate(self):
+        self.assertTrue(self._decision(self.granted, self.superadmin))
+        self.assertTrue(self._decision(self.withheld, self.superadmin))
+
+    def test_anonymous_user_is_denied_without_raising(self):
+        self.assertFalse(self._decision(self.granted, AnonymousUser()))
+
+    def test_school_without_a_subscription_is_denied_not_crashed(self):
+        with self.assertRaises(PermissionDenied) as ctx:
+            self._decision(self.granted, self.admin)
+        self.assertIn("No active subscription", str(ctx.exception))
+
+    def test_package_without_the_feature_row_is_denied(self):
+        self._subscribe()
+        PackageFeature.objects.filter(
+            package=self.package, feature=self.attendance
+        ).delete()
+        with self.assertRaises(PermissionDenied):
+            self._decision(self.granted, self.admin)
+
+    def test_subscription_without_a_plan_is_denied_not_crashed(self):
+        Subscription.objects.create(
+            school=self.school, plan=None,
+            status=Subscription.Status.TRIAL,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=False, is_current=True,
+        )
+        with self.assertRaises(PermissionDenied):
+            self._decision(self.granted, self.admin)
+
+    def test_locked_subscription_is_denied_before_the_feature_check(self):
+        self._subscribe(Subscription.Status.LOCKED)
+        with self.assertRaises(PermissionDenied) as ctx:
+            self._decision(self.granted, self.admin)
+        self.assertIn("expired", str(ctx.exception))
+
+    def test_grace_period_blocks_writes_but_allows_reads(self):
+        self._subscribe(Subscription.Status.GRACE)
+        self.assertTrue(self._decision(self.granted, self.admin, method="GET"))
+        with self.assertRaises(PermissionDenied) as ctx:
+            self._decision(self.granted, self.admin, method="POST")
+        self.assertIn("grace period", str(ctx.exception))
+
+
+class EntitlementMapTests(TestCase):
+    """The map the frontend reads must be complete and reflect real rows."""
+
+    def setUp(self):
+        self.school = create_school(name="Entitlement School", code="ES")
+        self.package = Package.objects.create(
+            name="Lite", code="lite-ent", price="100.00",
+            billing_period=Package.BillingPeriod.TERM, maximum_students=250,
+        )
+        self.attendance = create_feature()
+        PackageFeature.objects.create(
+            package=self.package, feature=self.attendance, is_enabled=True
+        )
+        PackageLimit.objects.create(
+            package=self.package, key="max_students", name="Maximum Students", value=250
+        )
+
+    def _subscription(self, **kwargs):
+        subscription = Subscription.objects.create(
+            school=self.school,
+            plan=self.package,
+            status=Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True,
+            is_current=True,
+            **kwargs,
+        )
+        # Reload so date fields are real datetimes, matching what the service
+        # layer hands to subscription_entitlements() in production.
+        subscription.refresh_from_db()
+        return subscription
+
+    def test_every_declared_code_is_present(self):
+        entitlements = feature_entitlement_map(self.package)
+        self.assertEqual(set(entitlements), declared_feature_codes())
+
+    def test_enabled_and_disabled_codes_are_distinguished(self):
+        entitlements = feature_entitlement_map(self.package)
+        self.assertTrue(entitlements["attendance"])
+        self.assertFalse(entitlements["sms"])
+        self.assertFalse(entitlements["onboarding_support"])
+
+    def test_none_package_reports_all_declared_codes_as_false(self):
+        entitlements = feature_entitlement_map(None)
+        self.assertEqual(set(entitlements), declared_feature_codes())
+        self.assertFalse(any(entitlements.values()))
+
+    def test_ad_hoc_feature_appears_when_enabled(self):
+        custom = create_feature(code="custom_widget", name="Custom Widget")
+        PackageFeature.objects.create(
+            package=self.package, feature=custom, is_enabled=True
+        )
+        self.assertTrue(feature_entitlement_map(self.package)["custom_widget"])
+
+    def test_limit_row_wins_over_the_duplicate_package_column(self):
+        PackageLimit.objects.filter(
+            package=self.package, key="max_students"
+        ).update(value=300)
+        self.assertEqual(resolve_package_limits(self.package)["max_students"], 300)
+
+    def test_limit_falls_back_to_the_package_column(self):
+        PackageLimit.objects.filter(package=self.package, key="max_students").delete()
+        self.assertEqual(resolve_package_limits(self.package)["max_students"], 250)
+
+    def test_snapshot_without_a_subscription_is_locked(self):
+        snapshot = subscription_entitlements(None)
+        self.assertFalse(snapshot["has_subscription"])
+        self.assertTrue(snapshot["is_locked"])
+        self.assertIsNone(snapshot["package"])
+        self.assertEqual(set(snapshot["features"]), declared_feature_codes())
+
+    def test_snapshot_reports_plan_and_state(self):
+        snapshot = subscription_entitlements(self._subscription())
+        self.assertTrue(snapshot["has_subscription"])
+        self.assertFalse(snapshot["is_locked"])
+        self.assertEqual(snapshot["package"]["code"], "lite-ent")
+        self.assertEqual(snapshot["limits"]["max_students"], 250)
+
+
+class CurrentEntitlementsAPITests(APITestCase):
+    def setUp(self):
+        self.school = create_school(name="API Entitlement School", code="AE")
+        self.admin = create_admin_user(self.school)
+        self.superadmin = create_superadmin_user()
+        self.url = reverse("subscription-current-features")
+
+    def test_anonymous_is_rejected(self):
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_school_admin_gets_the_entitlement_map(self):
+        package = Package.objects.create(
+            name="Lite", code="lite-api", price="100.00",
+            billing_period=Package.BillingPeriod.TERM, maximum_students=250,
+        )
+        PackageFeature.objects.create(
+            package=package, feature=create_feature(), is_enabled=True
+        )
+        Subscription.objects.create(
+            school=self.school, plan=package,
+            status=Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True, is_current=True,
+        )
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data["data"]
+        self.assertTrue(data["has_subscription"])
+        self.assertEqual(set(data["features"]), declared_feature_codes())
+        self.assertTrue(data["features"]["attendance"])
+        self.assertFalse(data["features"]["export"])
+        self.assertEqual(data["limits"]["max_students"], 250)
+
+    def test_school_without_a_subscription_still_gets_a_well_formed_map(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data["data"]
+        self.assertFalse(data["has_subscription"])
+        self.assertTrue(data["is_locked"])
+        self.assertEqual(set(data["features"]), declared_feature_codes())
+
+    def test_platform_superadmin_gets_a_well_formed_map(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data["data"]
+        self.assertFalse(data["has_subscription"])
+        self.assertEqual(set(data["features"]), declared_feature_codes())
+
+    def test_school_user_without_a_school_is_rejected(self):
+        orphan = User.objects.create_user(
+            email="orphan@school.com", password="password123",
+            first_name="No", last_name="School", role=User.Role.ADMIN,
+        )
+        self.client.force_authenticate(orphan)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
+
+
+class FeatureGateWiringTests(SimpleTestCase):
+    """Guards against a gate being dropped from a view by a later refactor.
+
+    These are structural assertions rather than HTTP round-trips: the point is
+    that a view never silently loses its entitlement check, which a functional
+    test would only catch while some other part of the view happens to fail
+    first.
+    """
+
+    def _enforced_codes(self, module_path, class_name):
+        view = getattr(import_module(module_path), class_name)
+        return {
+            getattr(permission, "enforced_feature_code", None)
+            for permission in view.permission_classes
+        }
+
+    def _assert_gated(self, module_path, class_name, feature_code):
+        self.assertIn(
+            feature_code,
+            self._enforced_codes(module_path, class_name),
+            f"{module_path}.{class_name} no longer requires '{feature_code}'.",
+        )
+
+    def test_export_endpoints_require_the_export_feature(self):
+        for module_path, class_name in [
+            ("academics.views.academic_year_views", "AcademicYearExportView"),
+            ("academics.views.subject_views", "SubjectExportView"),
+            ("academics.views.academic_term_views", "TermExportView"),
+            ("academics.views.class_views", "ClassExportView"),
+            ("attendance.views", "AttendanceExportView"),
+            ("attendance.views", "AttendanceSummaryExportView"),
+            ("accounts.views", "UserExportView"),
+            ("students.views", "StudentExportView"),
+            ("staff.views", "StaffExportView"),
+        ]:
+            with self.subTest(view=class_name):
+                self._assert_gated(module_path, class_name, "export")
+
+    def test_every_attendance_endpoint_requires_the_attendance_feature(self):
+        for class_name in [
+            "BulkMarkAttendanceView",
+            "AttendanceListView",
+            "AttendanceExportView",
+            "AttendanceDetailView",
+            "ClassAttendanceSheetView",
+            "AttendanceSummaryListView",
+            "AttendanceSummaryExportView",
+            "StudentAttendanceReportView",
+            "ClassAttendanceReportView",
+        ]:
+            with self.subTest(view=class_name):
+                self._assert_gated("attendance.views", class_name, "attendance")
+
+    def test_broadcast_endpoints_require_the_announcements_feature(self):
+        for class_name in [
+            "NotificationTemplateListCreateView",
+            "NotificationTemplateDetailView",
+            "NotificationListCreateView",
+            "NotificationDetailView",
+            "NotificationRecipientsListView",
+        ]:
+            with self.subTest(view=class_name):
+                self._assert_gated(
+                    "communications.views", class_name, "announcements"
+                )
+
+    def test_audit_log_endpoints_require_the_activity_logs_feature(self):
+        for class_name in ["AuditLogListView", "ClearAuditLogsView"]:
+            with self.subTest(view=class_name):
+                self._assert_gated("core.views", class_name, "activity_logs")
+
+    def test_advanced_finance_gates_the_finance_manager_dashboard(self):
+        self._assert_gated(
+            "dashboard.views", "FinanceManagerDashboardView", "advanced_finance"
+        )
+
+    def test_finance_reports_require_their_own_features(self):
+        self._assert_gated(
+            "finance.views", "FinancialOverviewView", "finance_analytics"
+        )
+        for class_name in [
+            "IncomeTypeListCreateView",
+            "IncomeTypeDetailView",
+            "ExpenseTypeListCreateView",
+            "ExpenseTypeDetailView",
+            "OtherIncomeListCreateView",
+            "OtherIncomeDetailView",
+            "ExpenseListCreateView",
+            "ExpenseDetailView",
+        ]:
+            with self.subTest(view=class_name):
+                self._assert_gated(
+                    "finance.views", class_name, "income_expense_tracking"
+                )
+        for class_name in [
+            "IncomeStatementView",
+            "IncomeByTypeReportView",
+            "ExpenseByTypeReportView",
+        ]:
+            with self.subTest(view=class_name):
+                self._assert_gated(
+                    "finance.views", class_name, "financial_reports"
+                )
+
+
+class EnterpriseServiceFeatureMigrationTests(TestCase):
+    """The new Enterprise entitlements must reach an existing database."""
+
+    MIGRATION = "subscriptions.migrations.0010_enterprise_service_features"
+
+    def setUp(self):
+        self.module = import_module(self.MIGRATION)
+        self.apps = django_apps
+        self.service_codes = [
+            code for code, _, _ in self.module.SERVICE_FEATURES
+        ]
+        self.enterprise, _ = Package.objects.get_or_create(
+            code="enterprise",
+            defaults={
+                "name": "Enterprise",
+                "price": "3000.00",
+                "billing_period": Package.BillingPeriod.TERM,
+                "maximum_students": 1000,
+            },
+        )
+        self.lite, _ = Package.objects.get_or_create(
+            code="lite",
+            defaults={
+                "name": "Lite",
+                "price": "1000.00",
+                "billing_period": Package.BillingPeriod.TERM,
+                "maximum_students": 250,
+            },
+        )
+        # Earlier migrations and the post_migrate catalog sync may already have
+        # granted these, so start from a known-empty state.
+        PackageFeature.objects.filter(
+            package=self.enterprise, feature__code__in=self.service_codes
+        ).delete()
+        PackageFeature.objects.filter(
+            package=self.lite, feature__code__in=self.service_codes
+        ).delete()
+
+    def _enabled_codes(self, package):
+        return set(
+            PackageFeature.objects.filter(
+                package=package, is_enabled=True
+            ).values_list("feature__code", flat=True)
+        )
+
+    def test_forward_grants_both_service_features_to_enterprise(self):
+        self.module.forward(self.apps, None)
+        self.assertTrue(
+            {"onboarding_support", "priority_support"}
+            <= self._enabled_codes(self.enterprise)
+        )
+
+    def test_forward_leaves_other_tiers_alone(self):
+        self.module.forward(self.apps, None)
+        self.assertEqual(
+            self._enabled_codes(self.lite)
+            & {"onboarding_support", "priority_support"},
+            set(),
+        )
+
+    def test_forward_is_idempotent(self):
+        self.module.forward(self.apps, None)
+        self.module.forward(self.apps, None)
+        self.assertEqual(
+            PackageFeature.objects.filter(
+                package=self.enterprise,
+                feature__code__in=["onboarding_support", "priority_support"],
+            ).count(),
+            2,
+        )
+
+    def test_forward_is_a_no_op_without_an_enterprise_package(self):
+        Package.objects.filter(code="enterprise").delete()
+        # Must not raise, and must not grant anything to the other tiers.
+        self.module.forward(self.apps, None)
+        self.assertEqual(
+            self._enabled_codes(self.lite) & set(self.service_codes), set()
+        )
+
+    def test_backward_removes_only_the_granted_rows(self):
+        keep = create_feature(code="school_branding", name="School Branding")
+        PackageFeature.objects.update_or_create(
+            package=self.enterprise, feature=keep, defaults={"is_enabled": True}
+        )
+        self.module.forward(self.apps, None)
+        self.module.backward(self.apps, None)
+
+        self.assertTrue(self._enabled_codes(self.enterprise) & {"school_branding"})
+        self.assertEqual(
+            self._enabled_codes(self.enterprise) & set(self.service_codes), set()
+        )
+
+    def test_migrated_features_are_declared_in_the_catalog(self):
+        self.assertIn("onboarding_support", declared_feature_codes())
+        self.assertIn("priority_support", declared_feature_codes())

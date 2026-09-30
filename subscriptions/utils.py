@@ -43,8 +43,24 @@ def check_feature(school, feature_code: str):
         )
 
 
+# resource -> (PackageLimit key, fallback Package column, usage counter).
+# An unrecognised resource is a no-op rather than a silent pass of a known one.
+LIMIT_RULES = {
+    "students": (
+        "max_students",
+        "maximum_students",
+        lambda school: school.students.filter(status="active").count(),
+    ),
+}
+
+
 def check_limit(school, resource: str):
-    """Raise PermissionDenied if the school has reached a usage limit."""
+    """Raise PermissionDenied if the school has reached a usage limit.
+
+    ``PackageLimit`` rows are the source of truth. The duplicated
+    ``Package.maximum_students`` column is a pricing/display field and is only
+    consulted for packages created without an explicit limit row.
+    """
     subscription = get_active_subscription(school)
 
     if not subscription:
@@ -55,30 +71,23 @@ def check_limit(school, resource: str):
             "Your subscription has expired. Please renew to continue."
         )
 
-    limit_map = {
-        "students": (
-            "max_students",
-            lambda: school.students.filter(status="active").count(),
-        ),
-    }
-
-    if resource not in limit_map:
+    rule = LIMIT_RULES.get(resource)
+    if rule is None or subscription.plan is None:
         return
 
-    limit_key, count_fn = limit_map[resource]
+    limit_key, fallback_attr, count_fn = rule
     limit = get_package_limit(subscription.plan, limit_key)
     if limit is None:
-        limit = getattr(subscription.plan, "maximum_students", None)
+        limit = getattr(subscription.plan, fallback_attr, None)
 
     if limit is None:
         return  # unlimited
 
-    current_count = count_fn()
+    current_count = count_fn(school)
     if current_count >= limit:
-        plan_name = subscription.plan.name if subscription.plan else "current"
         raise PermissionDenied(
             f"You have reached the {resource} limit ({limit}) "
-            f"for your {plan_name} package. "
+            f"for your {subscription.plan.name} package. "
             f"Please upgrade to add more."
         )
 

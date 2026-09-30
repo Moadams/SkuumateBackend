@@ -64,14 +64,35 @@ class SubscriptionPermission(BasePermission):
 
 
 def _make_feature_permission(feature_code: str, message: str):
-    """Factory that generates a feature-gated permission class."""
+    """Factory that generates a feature-gated permission class.
+
+    The generated class records the ``feature_code`` it enforces so a view's
+    ``permission_classes`` can be introspected (see the wiring tests) and a
+    traceback names the feature rather than a generic ``FeaturePermission``.
+    """
     class FeaturePermission(SubscriptionPermission):
+        enforced_feature_code = feature_code
+        denial_message = message
+
         def has_permission(self, request, view):
-            super().has_permission(request, view)
-            sub = get_active_subscription(request.user.school)
-            if not package_has_feature(sub.plan, feature_code):
+            if not super().has_permission(request, view):
+                return False
+
+            school = getattr(request.user, "school", None)
+            if school is None:
+                return True  # platform superusers bypass package entitlements
+
+            subscription = get_active_subscription(school)
+            if not package_has_feature(
+                subscription.plan if subscription else None, feature_code
+            ):
                 raise PermissionDenied(message)
             return True
+
+    FeaturePermission.__name__ = "Has" + "".join(
+        part.capitalize() for part in feature_code.split("_")
+    )
+    FeaturePermission.__qualname__ = FeaturePermission.__name__
     return FeaturePermission
 
 
@@ -92,6 +113,21 @@ HasAuditLogAccess = _make_feature_permission(
 HasAdvancedFinance = _make_feature_permission(
     "advanced_finance",
     "Advanced finance features require the Advantage package or higher.",
+)
+
+HasFinanceAnalytics = _make_feature_permission(
+    "finance_analytics",
+    "Finance analytics require the Advantage package or higher.",
+)
+
+HasIncomeExpenseTracking = _make_feature_permission(
+    "income_expense_tracking",
+    "Income and expense tracking requires the Advantage package or higher.",
+)
+
+HasFinancialReports = _make_feature_permission(
+    "financial_reports",
+    "Financial reports require the Advantage package or higher.",
 )
 
 HasAnnouncementAccess = _make_feature_permission(

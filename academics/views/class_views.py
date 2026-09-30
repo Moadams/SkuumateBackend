@@ -20,6 +20,7 @@ from academics.serializers import (
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
+from subscriptions.permissions import HasExportAccess
 
 
 class ClassListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
@@ -91,7 +92,10 @@ class ClassDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.Retrie
 
 
 class ClassExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = [
+        school_permission(read="academics.view", write="academics.manage"),
+        HasExportAccess,
+    ]
     serializer_class = ClassSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClassFilter

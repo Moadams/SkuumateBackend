@@ -12,6 +12,11 @@ from core.models import AuditLog
 from core.permissions import IsAdmin, IsFinanceManager, OrPermission
 from core.responses import ApiResponse
 from core.utils import log_action
+from subscriptions.permissions import (
+    HasFinanceAnalytics,
+    HasFinancialReports,
+    HasIncomeExpenseTracking,
+)
 
 from .models import (
     IncomeType, ExpenseType, FeeComponent,
@@ -102,7 +107,10 @@ class FeeComponentDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 # ─── Income Types ──────────────────────────────────────────────────
 
 class IncomeTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.manage_fees"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = IncomeTypeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -128,7 +136,10 @@ class IncomeTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class IncomeTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.manage_fees"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = IncomeTypeSerializer
     audit_resource = "IncomeType"
 
@@ -147,7 +158,10 @@ class IncomeTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView)
 # ─── Expense Types ─────────────────────────────────────────────────
 
 class ExpenseTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.manage_fees"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = ExpenseTypeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -172,7 +186,10 @@ class ExpenseTypeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class ExpenseTypeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.manage_fees")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.manage_fees"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = ExpenseTypeSerializer
     audit_resource = "ExpenseType"
 
@@ -457,7 +474,10 @@ class InvoicePaymentsListView(generics.ListAPIView):
 # ─── Other Income ──────────────────────────────────────────────────
 
 class OtherIncomeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.record_payments"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = OtherIncomeSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = OtherIncomeFilter
@@ -510,7 +530,10 @@ class OtherIncomeListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class OtherIncomeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.record_payments"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = OtherIncomeSerializer
     audit_resource = "OtherIncome"
 
@@ -542,7 +565,10 @@ class OtherIncomeDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 # ─── Expenses ──────────────────────────────────────────────────────
 
 class ExpenseListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.record_payments"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = ExpenseSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ExpenseFilter
@@ -595,7 +621,10 @@ class ExpenseListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class ExpenseDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="finance.view", write="finance.record_payments")]
+    permission_classes = [
+        school_permission(read="finance.view", write="finance.record_payments"),
+        HasIncomeExpenseTracking,
+    ]
     serializer_class = ExpenseSerializer
     audit_resource = "Expense"
 
@@ -627,7 +656,10 @@ class ExpenseDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
 # ─── Financial Overview Dashboard ──────────────────────────────────
 
 class FinancialOverviewView(APIView):
-    permission_classes = [school_permission(read="finance.view")]
+    permission_classes = [
+        school_permission(read="finance.view"),
+        HasFinanceAnalytics,
+    ]
 
     def get(self, request):
         school = request.user.school
@@ -819,7 +851,10 @@ class FinancialOverviewView(APIView):
 # ─── Reports ───────────────────────────────────────────────────────
 
 class IncomeStatementView(APIView):
-    permission_classes = [school_permission(read="finance.view")]
+    permission_classes = [
+        school_permission(read="finance.view"),
+        HasFinancialReports,
+    ]
 
     def get(self, request):
         school = request.user.school
@@ -920,7 +955,10 @@ class IncomeStatementView(APIView):
 
 
 class IncomeByTypeReportView(APIView):
-    permission_classes = [school_permission(read="finance.view")]
+    permission_classes = [
+        school_permission(read="finance.view"),
+        HasFinancialReports,
+    ]
 
     def get(self, request):
         school = request.user.school
@@ -976,7 +1014,10 @@ class IncomeByTypeReportView(APIView):
 
 
 class ExpenseByTypeReportView(APIView):
-    permission_classes = [school_permission(read="finance.view")]
+    permission_classes = [
+        school_permission(read="finance.view"),
+        HasFinancialReports,
+    ]
 
     def get(self, request):
         school = request.user.school

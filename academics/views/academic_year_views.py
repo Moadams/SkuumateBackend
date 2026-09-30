@@ -11,6 +11,7 @@ from core.responses import ApiResponse
 from core.school_permissions import school_permission
 from core.utils import log_action
 from schools.utils import check_and_complete_onboarding
+from subscriptions.permissions import HasExportAccess
 
 
 class AcademicYearListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
@@ -97,7 +98,10 @@ class AcademicYearDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIVie
 
 
 class AcademicYearExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = [
+        school_permission(read="academics.view", write="academics.manage"),
+        HasExportAccess,
+    ]
     serializer_class = AcademicYearSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AcademicYearFilter

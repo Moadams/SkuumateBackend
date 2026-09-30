@@ -21,6 +21,7 @@ from core.permissions import (
 )
 from core.responses import ApiResponse
 from core.utils import log_action
+from subscriptions.permissions import HasExportAccess
 
 from .models import User
 from .serializers import (
@@ -100,7 +101,7 @@ class MeView(APIView):
         )
 
 class UserExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = (IsAdminOrSuperAdmin,)
+    permission_classes = (IsAdminOrSuperAdmin, HasExportAccess)
     serializer_class = UserSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter,)
     filterset_fields = ("role", "is_active",)

@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
 from core.models import AuditLog
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, is_platform_superadmin
 from core.responses import ApiResponse
 from core.utils import log_action
 from integrations.registry import get_payment_provider
@@ -18,8 +18,10 @@ from subscriptions.serializers import (
     SchoolSubscribeSerializer,
     SubscriptionSerializer,
 )
+from subscriptions.services.packages import subscription_entitlements
 from subscriptions.services.payments import PaymentService
 from subscriptions.services.subscriptions import SubscriptionService
+from subscriptions.utils import get_active_subscription
 
 
 class MySubscriptionListView(generics.ListAPIView):
@@ -63,6 +65,34 @@ class CurrentSubscriptionView(APIView):
             return ApiResponse.error(message="No subscription found.", status_code=404)
 
         return ApiResponse.success(data=SubscriptionSerializer(subscription).data)
+
+
+class CurrentEntitlementsView(APIView):
+    """School user — returns the entitlement map for the school's current plan.
+
+    Lets the frontend decide which nav items and actions to render without
+    duplicating tier logic or making one request per feature. Every declared
+    feature code is present, so the client can branch on a known key and rely
+    on its absence meaning ``False`` rather than "unknown".
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        school = request.user.school
+        if school is None:
+            if is_platform_superadmin(request.user):
+                # A platform operator has no school and therefore no plan to
+                # report, but the flags must still be well formed.
+                return ApiResponse.success(
+                    data=subscription_entitlements(None)
+                )
+            return ApiResponse.error(
+                message="No school associated with this account.", status_code=404
+            )
+
+        subscription = get_active_subscription(school)
+        return ApiResponse.success(data=subscription_entitlements(subscription))
 
 
 class InitiatePaymentView(APIView):

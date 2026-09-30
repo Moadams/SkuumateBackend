@@ -10,6 +10,8 @@ from core.models import AuditLog
 from core.permissions import IsAdmin, IsSuperAdmin
 from core.responses import ApiResponse
 from core.utils import log_action
+from subscriptions.permissions import HasAnnouncementAccess
+from subscriptions.utils import check_feature
 
 from .models import (
     NotificationProvider, NotificationTemplate,
@@ -120,6 +122,9 @@ class SendTestNotificationView(APIView):
                 school_name=provider.school.name if provider.school else None,
             )
         elif provider.channel == NotificationProvider.Channel.SMS:
+            # This view serves both channels, so the SMS entitlement is checked
+            # on the branch rather than in permission_classes.
+            check_feature(provider.school or request.user.school, "sms")
             success, msg = SMSService.send(provider, recipient, message)
         else:
             return ApiResponse.error(message=f"Unknown channel: {provider.channel}")
@@ -135,7 +140,10 @@ class SendTestNotificationView(APIView):
 # ─── Templates ─────────────────────────────────────────────────────
 
 class NotificationTemplateListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
+    permission_classes = [
+        school_permission(read="announcements.view", write="announcements.manage"),
+        HasAnnouncementAccess,
+    ]
     serializer_class = NotificationTemplateSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = NotificationTemplateFilter
@@ -178,7 +186,10 @@ class NotificationTemplateListCreateView(AuditLogMixin, generics.ListCreateAPIVi
 
 
 class NotificationTemplateDetailView(AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
+    permission_classes = [
+        school_permission(read="announcements.view", write="announcements.manage"),
+        HasAnnouncementAccess,
+    ]
     serializer_class = NotificationTemplateSerializer
     audit_resource = "NotificationTemplate"
 
@@ -208,7 +219,10 @@ class NotificationTemplateDetailView(AuditLogMixin, generics.RetrieveUpdateDestr
 # ─── Notifications ─────────────────────────────────────────────────
 
 class NotificationListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
+    permission_classes = [
+        school_permission(read="announcements.view", write="announcements.manage"),
+        HasAnnouncementAccess,
+    ]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = NotificationFilter
     search_fields = ["title", "message_body"]
@@ -284,7 +298,10 @@ class NotificationListCreateView(AuditLogMixin, generics.ListCreateAPIView):
 
 
 class NotificationDetailView(generics.RetrieveAPIView):
-    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
+    permission_classes = [
+        school_permission(read="announcements.view", write="announcements.manage"),
+        HasAnnouncementAccess,
+    ]
     serializer_class = NotificationDetailSerializer
 
     def get_queryset(self):
@@ -298,7 +315,10 @@ class NotificationDetailView(generics.RetrieveAPIView):
 
 
 class NotificationRecipientsListView(generics.ListAPIView):
-    permission_classes = [school_permission(read="announcements.view", write="announcements.manage")]
+    permission_classes = [
+        school_permission(read="announcements.view", write="announcements.manage"),
+        HasAnnouncementAccess,
+    ]
     serializer_class = NotificationRecipientSerializer
 
     def get_queryset(self):

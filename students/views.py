@@ -15,10 +15,10 @@ from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher
 from core.responses import ApiResponse
 from core.utils import log_action
 from students.utils import parse_students_from_excel
+from subscriptions.permissions import HasExportAccess
+from subscriptions.utils import check_limit
 
 from .filters import StudentFilter
-
-# from subscriptions.utils import check_limit
 from .models import Enrollment, Guardian, Student
 from .serializers import (
     EnrollmentSerializer,
@@ -96,10 +96,19 @@ class StudentBulkCreateView(APIView):
             )
 
         # ── Plan limit check ──────────────────────────────────────
+        # Reads PackageLimit first, matching check_limit() used by the
+        # single-create path, and falls back to the display column.
+        from subscriptions.services.packages import get_package_limit
         from subscriptions.utils import get_active_subscription
         subscription = get_active_subscription(school)
-        if subscription and subscription.plan and subscription.plan.maximum_students is not None:
-            max_students = subscription.plan.maximum_students
+        plan = subscription.plan if subscription else None
+        if plan is not None:
+            max_students = get_package_limit(plan, "max_students")
+            if max_students is None:
+                max_students = plan.maximum_students
+        else:
+            max_students = None
+        if max_students is not None:
             current_count = school.students.filter(
                 status="active"
             ).count()
@@ -867,7 +876,7 @@ class StudentListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMix
         return ApiResponse.success(data=serializer.data)
 
     def create(self, request, *args, **kwargs):
-        # check_limit(request.user.school, "students")
+        check_limit(request.user.school, "students")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student = serializer.save()
@@ -924,7 +933,10 @@ class StudentDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.Retr
 
 
 class StudentExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="students.export")]
+    permission_classes = [
+        school_permission(read="students.export"),
+        HasExportAccess,
+    ]
     serializer_class = StudentSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StudentFilter

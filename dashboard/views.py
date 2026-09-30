@@ -12,6 +12,7 @@ from core.permissions import (
 )
 from core.responses import ApiResponse
 from core.school_permissions import school_permission
+from subscriptions.permissions import HasAdvancedFinance
 from dashboard.services import SuperAdminDashboardService
 
 logger = get_logger("dashboard.views")
@@ -44,7 +45,10 @@ class SuperadminDashboardView(APIView):
 
 class FinanceManagerDashboardView(APIView):
     """Dashboard for finance managers — financial KPIs and transaction history."""
-    permission_classes = [school_permission(read="dashboard.finance")]
+    permission_classes = [
+        school_permission(read="dashboard.finance"),
+        HasAdvancedFinance,
+    ]
 
     def get(self, request):
         school = request.user.school

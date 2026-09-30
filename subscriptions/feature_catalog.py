@@ -80,6 +80,14 @@ FEATURES = (
                 "finance", "Build custom financial reports."),
     FeatureSpec("school_branding", "School Branding Across the System",
                 "branding", "Apply the school's branding across the system."),
+    # ── Enterprise service deliverables ──────────────────────────
+    # Display and entitlement only: these are delivered by a human, so nothing
+    # in the codebase gates on them. They exist so the sales page and the
+    # school's plan record show what the tier includes.
+    FeatureSpec("onboarding_support", "Data Migration & Dedicated Onboarding",
+                "service", "Data migration of existing records plus dedicated onboarding sessions."),
+    FeatureSpec("priority_support", "Priority SLA Support & Operational Reviews",
+                "service", "Priority response SLA plus scheduled operational review sessions."),
     # ── Future-ready (created now, not assigned to any package) ───
     FeatureSpec("finance", "Finance", "finance", "Finance module."),
     FeatureSpec("parent_portal", "Parent Portal Access", "access",

@@ -16,6 +16,7 @@ from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.utils import log_action
 from staff.enums.staff_status import StaffStatus
+from subscriptions.permissions import HasExportAccess
 
 from .models import (
     PermissionKey,
@@ -398,7 +399,7 @@ class UpdateStaffStatusView(APIView):
         )
 
 class StaffExportView(ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="staff.manage")]
+    permission_classes = [school_permission(read="staff.manage"), HasExportAccess]
     serializer_class = StaffProfileSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = StaffProfileFilter

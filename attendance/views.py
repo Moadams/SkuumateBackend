@@ -12,7 +12,7 @@ from core.models import AuditLog
 from core.permissions import IsAdminOrTeacher
 from core.responses import ApiResponse
 from core.utils import log_action
-from subscriptions.permissions import HasAttendanceModule
+from subscriptions.permissions import HasAttendanceModule, HasExportAccess
 
 from .filters import AttendanceFilter, AttendanceSummaryFilter
 from .models import Attendance, AttendanceSummary
@@ -33,7 +33,10 @@ class BulkMarkAttendanceView(APIView):
     Creates new records or updates existing ones for the given date.
     Accessible by both admins and teachers.
     """
-    permission_classes = [school_permission(create="attendance.mark")]
+    permission_classes = [
+        school_permission(create="attendance.mark"),
+        HasAttendanceModule,
+    ]
 
     def post(self, request):
         school = request.user.school
@@ -96,7 +99,10 @@ class AttendanceListView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListA
     Useful for viewing a student's attendance history
     or a class's attendance on a specific date.
     """
-    permission_classes = [school_permission(read="attendance.view")]
+    permission_classes = [
+        school_permission(read="attendance.view"),
+        HasAttendanceModule,
+    ]
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AttendanceFilter
@@ -124,7 +130,11 @@ class AttendanceListView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListA
 
 
 class AttendanceExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="attendance.export"), HasAttendanceModule]
+    permission_classes = [
+        school_permission(read="attendance.export"),
+        HasAttendanceModule,
+        HasExportAccess,
+    ]
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AttendanceFilter
@@ -328,7 +338,10 @@ class AttendanceSummaryListView(TeacherScopedQuerysetMixin, ExportMixin, generic
     Daily attendance summaries per class.
     Useful for admin overview and dashboard.
     """
-    permission_classes = [school_permission(read="attendance.view")]
+    permission_classes = [
+        school_permission(read="attendance.view"),
+        HasAttendanceModule,
+    ]
     serializer_class = AttendanceSummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AttendanceSummaryFilter
@@ -356,7 +369,11 @@ class AttendanceSummaryListView(TeacherScopedQuerysetMixin, ExportMixin, generic
 
 
 class AttendanceSummaryExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="attendance.export"), HasAttendanceModule]
+    permission_classes = [
+        school_permission(read="attendance.export"),
+        HasAttendanceModule,
+        HasExportAccess,
+    ]
     serializer_class = AttendanceSummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AttendanceSummaryFilter

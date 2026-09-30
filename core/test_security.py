@@ -13,6 +13,42 @@ from finance.models import SchoolFeeInvoice, InvoiceLineItem, FeeComponent, FeeP
 from schools.models import School
 from staff.models import StaffProfile
 from students.models import Student
+from subscriptions.feature_catalog import declared_feature_codes
+from subscriptions.models import Feature, Package, PackageFeature, Subscription
+
+
+def grant_all_features(school):
+    """Put ``school`` on a live subscription that unlocks every feature.
+
+    These tests exercise cross-school isolation and payload validation, so the
+    package must never be the reason a request is rejected. Feature gating has
+    its own coverage in ``subscriptions.tests``.
+    """
+    package, _ = Package.objects.get_or_create(
+        code="test-unlimited",
+        defaults={
+            "name": "Test Unlimited",
+            "price": "0.00",
+            "billing_period": Package.BillingPeriod.TERM,
+            "is_active": True,
+        },
+    )
+    for code in declared_feature_codes():
+        feature, _ = Feature.objects.get_or_create(
+            code=code, defaults={"name": code, "category": "core", "is_active": True}
+        )
+        PackageFeature.objects.get_or_create(
+            package=package, feature=feature, defaults={"is_enabled": True}
+        )
+    return Subscription.objects.create(
+        school=school,
+        plan=package,
+        status=Subscription.Status.ACTIVE,
+        start_date="2020-01-01T00:00:00Z",
+        end_date="2099-01-01T00:00:00Z",
+        is_paid=True,
+        is_current=True,
+    )
 
 
 class SchoolWorkflowSecurityTests(APITestCase):
@@ -29,6 +65,10 @@ class SchoolWorkflowSecurityTests(APITestCase):
         self.foreign_student = Student.objects.create(school=self.other, first_name="B", last_name="Student", gender="male")
         self.component = FeeComponent.objects.create(school=self.school, name="Tuition")
         self.foreign_component = FeeComponent.objects.create(school=self.other, name="Tuition")
+        # Every workflow below is gated by a package feature, so both schools
+        # need a live subscription or the assertions would just see 403s.
+        grant_all_features(self.school)
+        grant_all_features(self.other)
 
     def invoice(self, school=None, student=None, amount="100.00"):
         school = school or self.school

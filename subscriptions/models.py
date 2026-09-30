@@ -238,7 +238,9 @@ class Subscription(TimestampedModel):
     @property
     def days_remaining(self) -> int:
         now = timezone.now()
-        target = self.grace_end_date if self.status == self.Status.GRACE else self.end_date
+        target = self.end_date
+        if self.status == self.Status.GRACE and self.grace_end_date:
+            target = self.grace_end_date
         return max(0, (target - now).days)
 
     def sync_status(self):
