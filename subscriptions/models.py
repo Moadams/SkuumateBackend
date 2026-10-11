@@ -15,7 +15,7 @@ class Feature(TimestampedModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["category", "name"]
+        ordering = ("category", "name")
 
     def __str__(self):
         return self.name
@@ -79,7 +79,7 @@ class Package(TimestampedModel):
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["display_order", "price"]
+        ordering = ("display_order", "price")
 
     def __str__(self):
         return (
@@ -107,13 +107,13 @@ class PackageFeature(TimestampedModel):
     is_enabled = models.BooleanField(default=True)
 
     class Meta:
-        constraints = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["package", "feature"],
                 name="uniq_package_feature",
             ),
-        ]
-        ordering = ["feature__category", "feature__name"]
+        )
+        ordering = ("feature__category", "feature__name")
 
     def __str__(self):
         return f"{self.package.name} → {self.feature.name}"
@@ -147,7 +147,6 @@ class PackageLimit(TimestampedModel):
 class Subscription(TimestampedModel):
 
     class Status(models.TextChoices):
-        TRIAL = "trial", "Trial"
         PENDING_PAYMENT = "pending_payment", "Pending Payment"
         ACTIVE = "active", "Active"
         PAST_DUE = "past_due", "Past Due"
@@ -171,12 +170,10 @@ class Subscription(TimestampedModel):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.TRIAL,
+        default=Status.ACTIVE,
     )
     is_paid = models.BooleanField(default=False)
 
-    # ── Term reference ────────────────────────────────────────────
-    # Subscription is tied to an academic term
     term = models.ForeignKey(
         "academics.Term",
         on_delete=models.SET_NULL,
@@ -186,9 +183,9 @@ class Subscription(TimestampedModel):
         help_text="The academic term this subscription covers",
     )
 
-    start_date = models.DateTimeField(default=timezone.now)
-    end_date = models.DateTimeField()
-    grace_end_date = models.DateTimeField(null=True, blank=True)
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField()
+    grace_end_date = models.DateField(null=True, blank=True)
 
     # ── Activation ────────────────────────────────────────────────
     activated_by = models.ForeignKey(
@@ -200,11 +197,11 @@ class Subscription(TimestampedModel):
     notes = models.TextField(blank=True)
     is_current = models.BooleanField(default=False)
 
-    TRIAL_DAYS = 90
+    ACTIVE_DAYS = 90
     GRACE_DAYS = 7
 
     class Meta:
-        ordering = ["-start_date"]
+        ordering = ("-start_date",)
 
     def __str__(self):
         plan_name = self.plan.name if self.plan else "No plan"
@@ -214,12 +211,12 @@ class Subscription(TimestampedModel):
 
     @property
     def is_on_trial(self) -> bool:
-        return self.status == self.Status.TRIAL
+        return self.status == self.Status.ACTIVE
 
     @property
     def is_accessible(self) -> bool:
         return self.status in (
-            self.Status.TRIAL,
+            self.Status.ACTIVE,
             self.Status.ACTIVE,
             self.Status.GRACE,
         )
@@ -248,7 +245,7 @@ class Subscription(TimestampedModel):
         now = timezone.now()
         changed = False
 
-        if self.status in (self.Status.TRIAL, self.Status.ACTIVE):
+        if self.status in (self.Status.ACTIVE, self.Status.ACTIVE):
             if now > self.end_date:
                 self.status = self.Status.GRACE
                 self.grace_end_date = self.end_date + timedelta(days=self.GRACE_DAYS)
@@ -256,13 +253,17 @@ class Subscription(TimestampedModel):
 
         elif self.status == self.Status.GRACE:
             if self.grace_end_date and now > self.grace_end_date:
-                self.status = self.Status.LOCKED
+                self.status = self.Status.EXPIRED
                 changed = True
 
         if changed:
             self.save(update_fields=["status", "grace_end_date"])
 
         return self
+
+    def save(self, *args, **kwargs):
+        self.sync_status()
+        super().save(*args, **kwargs)
 
 
 class SubscriptionPayment(TimestampedModel):
@@ -337,7 +338,7 @@ class SubscriptionPayment(TimestampedModel):
     )
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ("-created_at",)
 
     def __str__(self):
         return (
@@ -373,19 +374,19 @@ class Coupon(TimestampedModel):
     target_plan = models.ForeignKey(Package, null=True, blank=True, on_delete=models.PROTECT)
     max_usage = models.PositiveIntegerField(null=True, blank=True)
     usage_count = models.PositiveIntegerField(default=0, editable=False, db_index=True)
-    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    expiry_date = models.DateTimeField(null=True, blank=True, db_index=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE, db_index=True)
     created_by = models.ForeignKey('accounts.User', on_delete=models.PROTECT, related_name='created_coupons')
 
     class Meta:
-        ordering = ['-created_at', '-id']
-        constraints = [
+        ordering = ('-created_at', '-id')
+        constraints = (
             models.CheckConstraint(condition=models.Q(discount_value__gt=0), name='coupon_positive_discount'),
             models.CheckConstraint(condition=~models.Q(discount_type='percentage') | models.Q(discount_value__gte=1, discount_value__lte=100), name='coupon_percentage_range'),
             models.CheckConstraint(condition=models.Q(max_usage__isnull=True) | models.Q(max_usage__gt=0), name='coupon_positive_limit'),
             models.CheckConstraint(condition=models.Q(target='all', target_plan__isnull=True) | models.Q(target='specific_plan', target_plan__isnull=False), name='coupon_target_matches_plan'),
             models.CheckConstraint(condition=models.Q(code=models.functions.Upper('code')), name='coupon_uppercase_code'),
-        ]
+        )
 
     def save(self, *args, **kwargs):
         self.code = self.code.upper()
@@ -408,7 +409,8 @@ class CouponRedemption(TimestampedModel):
     school = models.ForeignKey('schools.School', on_delete=models.PROTECT)
     subscription = models.OneToOneField(Subscription, on_delete=models.PROTECT, related_name='coupon_redemption')
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2)
-    redeemed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [models.CheckConstraint(condition=models.Q(discount_applied__gte=0), name='redemption_nonnegative_discount')]
+        constraints = (
+            models.CheckConstraint(condition=models.Q(discount_applied__gte=0), name='redemption_nonnegative_discount'),
+        )

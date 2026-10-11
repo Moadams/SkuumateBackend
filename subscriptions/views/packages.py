@@ -10,7 +10,6 @@ from core.mixins import AuditLogMixin
 from core.models import AuditLog
 from core.responses import ApiResponse
 from core.utils import log_action
-
 from subscriptions.filters import FeatureFilter, PackageFilter
 from subscriptions.models import Feature, Package
 from subscriptions.permissions import IsPlatformSuperAdmin
@@ -21,7 +20,6 @@ from subscriptions.services.packages import (
     package_limit_details,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Public catalog (read-only, for signup pages)
 # ─────────────────────────────────────────────────────────────────────
@@ -29,7 +27,7 @@ from subscriptions.services.packages import (
 class PackageListView(APIView):
     """Public — list all active public packages. Filterable + cached."""
 
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
     def get(self, request):
         queryset = PackageFilter(

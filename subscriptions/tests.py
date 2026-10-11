@@ -1,17 +1,21 @@
+from datetime import timedelta
 from importlib import import_module
 from types import SimpleNamespace
 
-from django.contrib.auth.models import AnonymousUser
 from django.apps import apps as django_apps
+from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIRequestFactory, APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User
 from schools.models import School
+from students.models import Student
 from subscriptions.feature_catalog import FEATURES, declared_feature_codes
 from subscriptions.models import (
     Feature,
@@ -30,6 +34,10 @@ from subscriptions.services.packages import (
     resolve_package_limits,
     subscription_entitlements,
 )
+from subscriptions.state import (
+    ALWAYS_REACHABLE_URL_NAMES,
+    evaluate_request_state,
+)
 from subscriptions.sync import sync_feature_catalog
 
 
@@ -41,9 +49,9 @@ def create_school(name="Test School", code="TS"):
     )
 
 
-def create_admin_user(school):
+def create_admin_user(school, email="admin@school.com"):
     return User.objects.create_user(
-        email="admin@school.com",
+        email=email,
         password="password123",
         first_name="Admin",
         last_name="User",
@@ -781,7 +789,7 @@ class FeaturePermissionTests(APITestCase):
     def test_subscription_without_a_plan_is_denied_not_crashed(self):
         Subscription.objects.create(
             school=self.school, plan=None,
-            status=Subscription.Status.TRIAL,
+            status=Subscription.Status.ACTIVE,
             start_date="2020-01-01T00:00:00Z",
             end_date="2099-01-01T00:00:00Z",
             is_paid=False, is_current=True,
@@ -1148,3 +1156,287 @@ class EnterpriseServiceFeatureMigrationTests(TestCase):
     def test_migrated_features_are_declared_in_the_catalog(self):
         self.assertIn("onboarding_support", declared_feature_codes())
         self.assertIn("priority_support", declared_feature_codes())
+
+
+class SubscriptionStateEnforcementTests(APITestCase):
+    """LOCKED must stop the school entirely, GRACE must stop its writes.
+
+    These drive real bearer tokens rather than ``force_authenticate`` on
+    purpose. The API's only authenticator is JWT, so ``request.user`` is
+    anonymous at middleware time; a test that skips authentication would pass
+    without ever exercising the code that enforces anything.
+    """
+
+    def setUp(self):
+        self.school = create_school(name="State School", code="ST")
+        self.admin = create_admin_user(self.school, email="admin@state.com")
+        self.package = Package.objects.create(
+            name="Lite", code="lite-state", price="100.00",
+            billing_period=Package.BillingPeriod.TERM, maximum_students=250,
+        )
+        self.subscription = Subscription.objects.create(
+            school=self.school, plan=self.package,
+            status=Subscription.Status.ACTIVE,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True, is_current=True,
+        )
+        self._authenticate(self.admin)
+
+    def _authenticate(self, user):
+        token = RefreshToken.for_user(user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
+
+    def _set_state(self, subscription_status, **fields):
+        self.subscription.status = subscription_status
+        for field, value in fields.items():
+            setattr(self.subscription, field, value)
+        self.subscription.save()
+
+    def _to_grace(self):
+        self._set_state(
+            Subscription.Status.GRACE,
+            end_date=timezone.now() - timedelta(days=200),
+            grace_end_date=timezone.now() + timedelta(days=3),
+        )
+
+    def _student_payload(self, first_name="Ada"):
+        return {
+            "first_name": first_name,
+            "last_name": "Lovelace",
+            "gender": "female",
+            "email": f"{first_name.lower()}@state.com",
+        }
+
+    # -- ACTIVE: nothing changes -----------------------------------------
+
+    def test_active_school_reads_and_writes_normally(self):
+        self.assertEqual(
+            self.client.get(reverse("student-list")).status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("student-list"), self._student_payload(), format="json"
+            ).status_code,
+            status.HTTP_201_CREATED,
+        )
+
+    # -- LOCKED: everything gated, billing reachable ----------------------
+
+    def test_locked_school_cannot_read_ungated_endpoints(self):
+        """This is the hole the middleware closes: no feature gate on this view."""
+        self._set_state(Subscription.Status.LOCKED)
+        response = self.client.get(reverse("student-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("expired", response.json()["message"])
+
+    def test_locked_school_cannot_write_ungated_endpoints(self):
+        self._set_state(Subscription.Status.LOCKED)
+        response = self.client.post(
+            reverse("student-list"), self._student_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Student.objects.filter(school=self.school).exists())
+
+    def test_locked_school_cannot_read_the_user_directory(self):
+        self._set_state(Subscription.Status.LOCKED)
+        self.assertEqual(
+            self.client.get(reverse("user-detail", args=[self.admin.pk])).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_locked_school_can_still_reach_billing(self):
+        """A school that cannot reach the payment page cannot pay its way out."""
+        self._set_state(Subscription.Status.LOCKED)
+        for url_name in [
+            "subscription-current",
+            "subscription-current-features",
+            "plan-list",
+        ]:
+            with self.subTest(url=url_name):
+                self.assertEqual(
+                    self.client.get(reverse(url_name)).status_code,
+                    status.HTTP_200_OK,
+                )
+
+    def test_locked_school_can_still_bootstrap_the_session(self):
+        self._set_state(Subscription.Status.LOCKED)
+        self.assertEqual(
+            self.client.get(reverse("me")).status_code, status.HTTP_200_OK
+        )
+
+    # -- GRACE: reads fine, writes blocked --------------------------------
+
+    def test_grace_school_can_still_read(self):
+        self._to_grace()
+        self.assertEqual(
+            self.client.get(reverse("student-list")).status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_grace_school_cannot_write_ungated_endpoints(self):
+        self._to_grace()
+        response = self.client.post(
+            reverse("student-list"), self._student_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("grace period", response.json()["message"])
+        self.assertFalse(Student.objects.filter(school=self.school).exists())
+
+    def test_grace_school_can_still_reach_billing(self):
+        self._to_grace()
+        self.assertEqual(
+            self.client.get(reverse("plan-list")).status_code,
+            status.HTTP_200_OK,
+        )
+
+    # -- No subscription: must stay able to sign up -----------------------
+
+    def test_school_with_no_subscription_can_still_reach_subscribe_flow(self):
+        """Registration does not provision a subscription; subscribe is the entry."""
+        self.subscription.delete()
+        for url_name in ["me", "plan-list", "plan-features"]:
+            with self.subTest(url=url_name):
+                self.assertEqual(
+                    self.client.get(reverse(url_name)).status_code,
+                    status.HTTP_200_OK,
+                )
+
+    def test_school_with_no_subscription_is_still_denied_gated_features(self):
+        """State stays permissive, entitlements do not."""
+        self.subscription.delete()
+        PackageFeature.objects.create(
+            package=self.package, feature=create_feature("export", "Export"),
+            is_enabled=False,
+        )
+        self.assertEqual(
+            self.client.get(reverse("student-export")).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    # -- Actors outside the state machine ---------------------------------
+
+    def test_platform_superadmin_is_unaffected(self):
+        self._set_state(Subscription.Status.LOCKED)
+        self._authenticate(create_superadmin_user())
+        self.assertEqual(
+            self.client.get(reverse("school-list")).status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_anonymous_requests_are_left_to_the_view(self):
+        self.client.credentials()
+        self._set_state(Subscription.Status.LOCKED)
+        self.assertIn(
+            self.client.get(reverse("student-list")).status_code,
+            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
+        )
+
+    def test_expired_token_is_reported_as_unauthorized_not_locked(self):
+        """Middleware must not turn a bad token into a subscription error."""
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
+        self._set_state(Subscription.Status.LOCKED)
+        self.assertEqual(
+            self.client.get(reverse("student-list")).status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_middleware_attaches_the_subscription_to_the_request(self):
+        self.assertEqual(
+            self.client.get(reverse("subscription-current-features")).status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_active_school_is_not_blocked_anywhere(self):
+        """Regression guard for the middleware itself.
+
+        The rest of this module's suite, and most of the project's, uses
+        ``force_authenticate`` -- which bypasses the authenticator, so the
+        middleware sees an anonymous request and does nothing. A bug that broke
+        every real bearer-token request would sail through all of those. This
+        drives a real token across a spread of apps and asserts the state gate
+        never fires, whatever the view's own permissions decide.
+        """
+        feature = create_feature("export", "Export")
+        PackageFeature.objects.get_or_create(
+            package=self.package, feature=feature, defaults={"is_enabled": True}
+        )
+        targets = [
+            "me",
+            "student-list",
+            "school-profile",
+            "school-onboarding",
+            "audit-logs",
+            "academic-year-list",
+            "subject-list",
+            "attendance-list",
+            "fee-component-list",
+            "staff-list",
+            "notification-list",
+            "plan-list",
+        ]
+        for url_name in targets:
+            with self.subTest(url=url_name):
+                try:
+                    url = reverse(url_name)
+                except NoReverseMatch:
+                    continue
+                response = self.client.get(url)
+                body = response.content.decode()
+                self.assertNotIn(
+                    "subscription has expired", body, f"{url_name} was state-blocked."
+                )
+                self.assertNotIn(
+                    "grace period", body, f"{url_name} was state-blocked."
+                )
+
+
+class SubscriptionMiddlewareUnitTests(SimpleTestCase):
+    """The exemption list is the safety valve; it needs to stay correct."""
+
+    def _request(self, method="GET", path="/api/v1/students/"):
+        request = SimpleNamespace(
+            method=method,
+            path_info=path,
+            user=SimpleNamespace(is_authenticated=True, school=object()),
+        )
+        return request
+
+    def test_ungated_path_is_reachable_while_active(self):
+        self.assertIsNone(
+            evaluate_request_state(
+                self._request(), user=self._request().user, subscription=SimpleNamespace(
+                    is_locked=False, is_read_only=False, days_remaining=10
+                )
+            )
+        )
+
+    def test_locked_blocks_a_plain_read(self):
+        denial = evaluate_request_state(
+            self._request(),
+            user=self._request().user,
+            subscription=SimpleNamespace(
+                is_locked=True, is_read_only=False, days_remaining=0
+            ),
+        )
+        self.assertIn("expired", denial)
+
+    def test_every_always_reachable_name_resolves_to_a_real_url(self):
+        """A typo in the exemption list is a silently bypassed gate."""
+        for url_name in sorted(ALWAYS_REACHABLE_URL_NAMES):
+            with self.subTest(url_name=url_name):
+                try:
+                    reverse(url_name)
+                except NoReverseMatch:
+                    # Parameterised route (e.g. the provider webhooks).
+                    try:
+                        reverse(url_name, args=["stub"])
+                    except NoReverseMatch:
+                        self.fail(
+                            f"ALWAYS_REACHABLE_URL_NAMES lists '{url_name}', "
+                            "which no route defines."
+                        )

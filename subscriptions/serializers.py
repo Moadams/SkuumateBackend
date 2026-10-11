@@ -446,7 +446,7 @@ class AdminSubscribeSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()
     term_id = serializers.UUIDField(required=False, allow_null=True)
     status = serializers.ChoiceField(
-        choices=[Subscription.Status.TRIAL, Subscription.Status.ACTIVE],
+        choices=[Subscription.Status.ACTIVE, Subscription.Status.ACTIVE],
         default=Subscription.Status.ACTIVE,
     )
     payment_mode = serializers.ChoiceField(
@@ -494,7 +494,7 @@ class AdminSubscribeSerializer(serializers.Serializer):
         attrs["term"] = attrs.pop("term_id", None)
 
         status = attrs.get("status")
-        if status != Subscription.Status.TRIAL:
+        if status != Subscription.Status.ACTIVE:
             payment_mode = attrs.get("payment_mode")
             if not payment_mode:
                 raise serializers.ValidationError(

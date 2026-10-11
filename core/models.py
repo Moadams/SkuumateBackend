@@ -15,7 +15,7 @@ class TimestampedModel(models.Model):
 
     class Meta:
         abstract = True
-        ordering = ["-created_at"]
+        ordering = ("-created_at",)
 
 
 class AuditLog(models.Model):
@@ -52,7 +52,7 @@ class AuditLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-timestamp"]
+        ordering = ("-timestamp",)
 
     def __str__(self):
         return f"[{self.action}] {self.resource} by {self.actor} at {self.timestamp}"

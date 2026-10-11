@@ -74,10 +74,10 @@ class SubscriptionService:
 
         Any previous trial is cancelled and the new trial becomes the
         school's ``is_current`` subscription. The trial ends at the term's
-        end date when a term is supplied, otherwise ``TRIAL_DAYS``.
+        end date when a term is supplied, otherwise ``ACTIVE_DAYS``.
         """
         school.subscriptions.filter(
-            status=Subscription.Status.TRIAL
+            status=Subscription.Status.ACTIVE
         ).update(status=Subscription.Status.CANCELLED)
 
         # A trial needs no money — abandon any uncompleted payment intents.
@@ -89,14 +89,14 @@ class SubscriptionService:
         resolved_term = term or SubscriptionService._current_term(school)
         end_date = (
             _term_end_datetime(resolved_term)
-            or timezone.now() + timedelta(days=Subscription.TRIAL_DAYS)
+            or timezone.now() + timedelta(days=Subscription.ACTIVE_DAYS)
         )
 
         return SubscriptionService._create_current(
             school=school,
             plan=plan,
             term=resolved_term,
-            status=Subscription.Status.TRIAL,
+            status=Subscription.Status.ACTIVE,
             end_date=end_date,
             is_paid=False,
             activated_by=activated_by,
@@ -125,7 +125,7 @@ class SubscriptionService:
         school.subscriptions.filter(
             status__in=[
                 Subscription.Status.ACTIVE,
-                Subscription.Status.TRIAL,
+                Subscription.Status.ACTIVE,
                 Subscription.Status.GRACE,
                 Subscription.Status.PENDING_PAYMENT,
             ]
@@ -134,7 +134,7 @@ class SubscriptionService:
         resolved_term = term or SubscriptionService._current_term(school)
         end_date = (
             _term_end_datetime(resolved_term)
-            or timezone.now() + timedelta(days=Subscription.TRIAL_DAYS)
+            or timezone.now() + timedelta(days=Subscription.ACTIVE_DAYS)
         )
 
         subscription = SubscriptionService._create_current(
@@ -192,14 +192,14 @@ class SubscriptionService:
         Legacy signup hook — starts a plan-less trial when the school is
         first created (see ``schools.serializers.SchoolCreateSerializer``).
         """
-        if school.subscriptions.filter(status=Subscription.Status.TRIAL).exists():
+        if school.subscriptions.filter(status=Subscription.Status.ACTIVE).exists():
             return None
 
         subscription = Subscription.objects.create(
             school=school,
-            status=Subscription.Status.TRIAL,
+            status=Subscription.Status.ACTIVE,
             start_date=timezone.now(),
-            end_date=timezone.now() + timedelta(days=Subscription.TRIAL_DAYS),
+            end_date=timezone.now() + timedelta(days=Subscription.ACTIVE_DAYS),
             activated_by=user,
             is_current=True,
         )

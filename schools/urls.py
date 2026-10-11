@@ -1,11 +1,12 @@
 from django.urls import path
+
+from .views.superadmin_views import SchoolListCreateView, SuperSchoolDetailView
 from .views.views import (
-    SchoolListExportView,
     SchoolDetailsView,
-    SchoolProfileView,
+    SchoolListExportView,
     SchoolOnboardingStatusView,
+    SchoolProfileView,
 )
-from .views.superadmin_views import SuperSchoolDetailView, SchoolListCreateView
 
 urlpatterns = [
     # Superadmin — school management

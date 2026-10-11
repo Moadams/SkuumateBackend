@@ -223,7 +223,7 @@ class OnboardingServiceTests(TestCase):
         Subscription.objects.create(
             school=self.school,
             plan=package,
-            status=Subscription.Status.TRIAL,
+            status=Subscription.Status.ACTIVE,
             end_date=timezone.now() + timedelta(days=90),
         )
 

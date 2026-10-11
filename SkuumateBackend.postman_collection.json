@@ -1,0 +1,5056 @@
+{
+  "info": {
+    "_postman_id": "186fa9e8-b1e9-4c89-aafb-06c65e69e2f8",
+    "name": "Skuumate Backend API",
+    "description": "Generated from the Django URL configuration. Set base_url and authenticate via Auth > Login to store access_token. Write-request bodies are editable starter templates; replace them with the fields required by each endpoint.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pk",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "school_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "path",
+      "value": "replace-with-file-path",
+      "type": "string"
+    },
+    {
+      "key": "academic_year_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "term_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "class_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "grading_system_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "provider",
+      "value": "paystack",
+      "type": "string"
+    },
+    {
+      "key": "student_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "subject_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    },
+    {
+      "key": "invoice_id",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "API v1 / Academic Years",
+      "item": [
+        {
+          "name": "GET academic-year-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/academic-years/",
+            "description": "Resolved route name: academic-year-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST academic-year-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/academic-years/",
+            "description": "Resolved route name: academic-year-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET academic-year-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/academic-years/export/",
+            "description": "Resolved route name: academic-year-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET academic-year-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/academic-years/{{pk}}/",
+            "description": "Resolved route name: academic-year-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT academic-year-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/academic-years/{{pk}}/",
+            "description": "Resolved route name: academic-year-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH academic-year-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/academic-years/{{pk}}/",
+            "description": "Resolved route name: academic-year-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE academic-year-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/academic-years/{{pk}}/",
+            "description": "Resolved route name: academic-year-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET academic-year-term-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/academic-years/{{academic_year_id}}/terms/",
+            "description": "Resolved route name: academic-year-term-list. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Admin",
+      "item": [
+        {
+          "name": "GET admin-subscription-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/admin/subscriptions/",
+            "description": "Resolved route name: admin-subscription-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST admin-subscription-subscribe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/subscriptions/subscribe/",
+            "description": "Resolved route name: admin-subscription-subscribe. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET admin-subscription-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/admin/subscriptions/{{pk}}/",
+            "description": "Resolved route name: admin-subscription-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET admin-payment-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/admin/payments/",
+            "description": "Resolved route name: admin-payment-list. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Attendance",
+      "item": [
+        {
+          "name": "POST attendance-mark",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/attendance/mark/",
+            "description": "Resolved route name: attendance-mark. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET attendance-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/",
+            "description": "Resolved route name: attendance-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET attendance-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/export/",
+            "description": "Resolved route name: attendance-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET attendance-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/{{pk}}/",
+            "description": "Resolved route name: attendance-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PATCH attendance-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/attendance/{{pk}}/",
+            "description": "Resolved route name: attendance-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET attendance-sheet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/class/{{class_id}}/sheet/",
+            "description": "Resolved route name: attendance-sheet. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET attendance-summary-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/summaries/",
+            "description": "Resolved route name: attendance-summary-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET attendance-summary-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/summaries/export/",
+            "description": "Resolved route name: attendance-summary-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET student-attendance-report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/report/student/{{student_id}}/",
+            "description": "Resolved route name: student-attendance-report. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET class-attendance-report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/attendance/report/class/{{class_id}}/",
+            "description": "Resolved route name: class-attendance-report. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Audit Logs",
+      "item": [
+        {
+          "name": "GET audit-logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/audit-logs/",
+            "description": "Resolved route name: audit-logs. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "DELETE clear-audit-logs",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/audit-logs/clear/",
+            "description": "Resolved route name: clear-audit-logs. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Auth",
+      "item": [
+        {
+          "name": "POST login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login/",
+            "description": "Resolved route name: login. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"\",\n  \"password\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.access) pm.collectionVariables.set(\"access_token\", body.access);",
+                  "  if (body.refresh) pm.collectionVariables.set(\"refresh_token\", body.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/logout/",
+            "description": "Resolved route name: logout. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST token-refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/refresh/",
+            "description": "Resolved route name: token-refresh. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.access) pm.collectionVariables.set(\"access_token\", body.access);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/auth/me/",
+            "description": "Resolved route name: me. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PATCH me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/me/",
+            "description": "Resolved route name: me. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST reset-password-confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/reset-password/",
+            "description": "Resolved route name: reset-password-confirm. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST forgot-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/forgot-password/",
+            "description": "Resolved route name: forgot-password. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PUT change-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/change-password/",
+            "description": "Resolved route name: change-password. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PUT change-user-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/user/change-password/",
+            "description": "Resolved route name: change-user-password. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Class",
+      "item": [
+        {
+          "name": "GET class-students",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/class/{{class_id}}/students/",
+            "description": "Resolved route name: class-students. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Class Subjects",
+      "item": [
+        {
+          "name": "GET class-subject-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/class-subjects/{{pk}}/",
+            "description": "Resolved route name: class-subject-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "DELETE class-subject-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/class-subjects/{{pk}}/",
+            "description": "Resolved route name: class-subject-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Class Teachers",
+      "item": [
+        {
+          "name": "DELETE class-teacher-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/class-teachers/{{pk}}/",
+            "description": "Resolved route name: class-teacher-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Classes",
+      "item": [
+        {
+          "name": "GET class-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/",
+            "description": "Resolved route name: class-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST class-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/",
+            "description": "Resolved route name: class-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET class-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/export/",
+            "description": "Resolved route name: class-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET class-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/{{pk}}/",
+            "description": "Resolved route name: class-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT class-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/{{pk}}/",
+            "description": "Resolved route name: class-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH class-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/{{pk}}/",
+            "description": "Resolved route name: class-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE class-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/{{pk}}/",
+            "description": "Resolved route name: class-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET class-subjects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/{{class_id}}/subjects/",
+            "description": "Resolved route name: class-subjects. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST class-subjects",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/{{class_id}}/subjects/",
+            "description": "Resolved route name: class-subjects. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST class-bulk-assign-subjects",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/{{class_id}}/bulk-assign-subjects/",
+            "description": "Resolved route name: class-bulk-assign-subjects. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET class-teacher",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/classes/{{class_id}}/teacher/",
+            "description": "Resolved route name: class-teacher. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST class-teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/classes/{{class_id}}/teacher/",
+            "description": "Resolved route name: class-teacher. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Communications",
+      "item": [
+        {
+          "name": "GET provider-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/providers/",
+            "description": "Resolved route name: provider-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST provider-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/providers/",
+            "description": "Resolved route name: provider-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET provider-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/providers/{{pk}}/",
+            "description": "Resolved route name: provider-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT provider-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/providers/{{pk}}/",
+            "description": "Resolved route name: provider-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH provider-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/providers/{{pk}}/",
+            "description": "Resolved route name: provider-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE provider-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/providers/{{pk}}/",
+            "description": "Resolved route name: provider-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST provider-test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/providers/test/",
+            "description": "Resolved route name: provider-test. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET template-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/templates/",
+            "description": "Resolved route name: template-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST template-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/templates/",
+            "description": "Resolved route name: template-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET template-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/templates/{{pk}}/",
+            "description": "Resolved route name: template-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT template-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/templates/{{pk}}/",
+            "description": "Resolved route name: template-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH template-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/templates/{{pk}}/",
+            "description": "Resolved route name: template-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE template-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/templates/{{pk}}/",
+            "description": "Resolved route name: template-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET notification-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/notifications/",
+            "description": "Resolved route name: notification-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST notification-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/communications/notifications/",
+            "description": "Resolved route name: notification-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET notification-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/notifications/{{pk}}/",
+            "description": "Resolved route name: notification-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET notification-recipients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/communications/notifications/{{notification_id}}/recipients/",
+            "description": "Resolved route name: notification-recipients. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Dashboard",
+      "item": [
+        {
+          "name": "GET superadmin-dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/dashboard/superadmin/",
+            "description": "Resolved route name: superadmin-dashboard. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET admin-dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/dashboard/admin/",
+            "description": "Resolved route name: admin-dashboard. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET finance-dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/dashboard/finance/",
+            "description": "Resolved route name: finance-dashboard. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET teacher-dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/dashboard/teacher/",
+            "description": "Resolved route name: teacher-dashboard. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Exams",
+      "item": [
+        {
+          "name": "GET assessment-types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/",
+            "description": "Resolved route name: assessment-types. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST assessment-types",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/",
+            "description": "Resolved route name: assessment-types. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET assessment-type-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/{{pk}}/",
+            "description": "Resolved route name: assessment-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT assessment-type-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/{{pk}}/",
+            "description": "Resolved route name: assessment-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH assessment-type-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/{{pk}}/",
+            "description": "Resolved route name: assessment-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE assessment-type-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/assessment-types/{{pk}}/",
+            "description": "Resolved route name: assessment-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET report-scheme",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/",
+            "description": "Resolved route name: report-scheme. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST report-scheme",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/",
+            "description": "Resolved route name: report-scheme. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET report-scheme-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/{{pk}}/",
+            "description": "Resolved route name: report-scheme-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT report-scheme-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/{{pk}}/",
+            "description": "Resolved route name: report-scheme-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH report-scheme-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/{{pk}}/",
+            "description": "Resolved route name: report-scheme-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE report-scheme-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/report-scheme/{{pk}}/",
+            "description": "Resolved route name: report-scheme-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET class-student-marks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/classes/{{class_id}}/marks/",
+            "description": "Resolved route name: class-student-marks. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST student-mark-bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/exams/marks/class/",
+            "description": "Resolved route name: student-mark-bulk. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET generate-report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/exams/generate-report/class/{{class_id}}/info/",
+            "description": "Resolved route name: generate-report. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Features",
+      "item": [
+        {
+          "name": "GET feature-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/features/",
+            "description": "Resolved route name: feature-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST feature-list-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/features/",
+            "description": "Resolved route name: feature-list-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET feature-retrieve-update",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/features/{{pk}}/",
+            "description": "Resolved route name: feature-retrieve-update. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT feature-retrieve-update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/features/{{pk}}/",
+            "description": "Resolved route name: feature-retrieve-update. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH feature-retrieve-update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/features/{{pk}}/",
+            "description": "Resolved route name: feature-retrieve-update. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST feature-activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/features/{{pk}}/activate/",
+            "description": "Resolved route name: feature-activate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST feature-deactivate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/features/{{pk}}/deactivate/",
+            "description": "Resolved route name: feature-deactivate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Finance",
+      "item": [
+        {
+          "name": "GET fee-component-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/fee-components/",
+            "description": "Resolved route name: fee-component-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST fee-component-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/fee-components/",
+            "description": "Resolved route name: fee-component-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET fee-component-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/fee-components/{{pk}}/",
+            "description": "Resolved route name: fee-component-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT fee-component-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/fee-components/{{pk}}/",
+            "description": "Resolved route name: fee-component-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH fee-component-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/fee-components/{{pk}}/",
+            "description": "Resolved route name: fee-component-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE fee-component-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/fee-components/{{pk}}/",
+            "description": "Resolved route name: fee-component-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET income-type-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/income-types/",
+            "description": "Resolved route name: income-type-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST income-type-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/income-types/",
+            "description": "Resolved route name: income-type-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET income-type-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/income-types/{{pk}}/",
+            "description": "Resolved route name: income-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT income-type-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/income-types/{{pk}}/",
+            "description": "Resolved route name: income-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH income-type-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/income-types/{{pk}}/",
+            "description": "Resolved route name: income-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE income-type-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/income-types/{{pk}}/",
+            "description": "Resolved route name: income-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET expense-type-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expense-types/",
+            "description": "Resolved route name: expense-type-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST expense-type-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expense-types/",
+            "description": "Resolved route name: expense-type-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET expense-type-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expense-types/{{pk}}/",
+            "description": "Resolved route name: expense-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT expense-type-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expense-types/{{pk}}/",
+            "description": "Resolved route name: expense-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH expense-type-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expense-types/{{pk}}/",
+            "description": "Resolved route name: expense-type-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE expense-type-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expense-types/{{pk}}/",
+            "description": "Resolved route name: expense-type-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET invoice-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/invoices/",
+            "description": "Resolved route name: invoice-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST invoice-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/invoices/",
+            "description": "Resolved route name: invoice-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST invoice-bulk-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/invoices/bulk/",
+            "description": "Resolved route name: invoice-bulk-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET invoice-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/invoices/{{pk}}/",
+            "description": "Resolved route name: invoice-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT invoice-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/invoices/{{pk}}/",
+            "description": "Resolved route name: invoice-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH invoice-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/invoices/{{pk}}/",
+            "description": "Resolved route name: invoice-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE invoice-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/invoices/{{pk}}/",
+            "description": "Resolved route name: invoice-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET invoice-payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/invoices/{{invoice_id}}/payments/",
+            "description": "Resolved route name: invoice-payments. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET payment-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/payments/",
+            "description": "Resolved route name: payment-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST payment-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/payments/",
+            "description": "Resolved route name: payment-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET payment-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/payments/{{pk}}/",
+            "description": "Resolved route name: payment-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT payment-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/payments/{{pk}}/",
+            "description": "Resolved route name: payment-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH payment-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/payments/{{pk}}/",
+            "description": "Resolved route name: payment-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE payment-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/payments/{{pk}}/",
+            "description": "Resolved route name: payment-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET other-income-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/",
+            "description": "Resolved route name: other-income-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST other-income-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/",
+            "description": "Resolved route name: other-income-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET other-income-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/{{pk}}/",
+            "description": "Resolved route name: other-income-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT other-income-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/{{pk}}/",
+            "description": "Resolved route name: other-income-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH other-income-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/{{pk}}/",
+            "description": "Resolved route name: other-income-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE other-income-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/other-incomes/{{pk}}/",
+            "description": "Resolved route name: other-income-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET expense-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expenses/",
+            "description": "Resolved route name: expense-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST expense-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expenses/",
+            "description": "Resolved route name: expense-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET expense-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expenses/{{pk}}/",
+            "description": "Resolved route name: expense-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT expense-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expenses/{{pk}}/",
+            "description": "Resolved route name: expense-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH expense-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/finance/expenses/{{pk}}/",
+            "description": "Resolved route name: expense-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE expense-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/expenses/{{pk}}/",
+            "description": "Resolved route name: expense-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET financial-overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/overview/",
+            "description": "Resolved route name: financial-overview. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET report-income-statement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/reports/income-statement/",
+            "description": "Resolved route name: report-income-statement. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET report-income-by-type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/reports/income-by-type/",
+            "description": "Resolved route name: report-income-by-type. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET report-expense-by-type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/finance/reports/expense-by-type/",
+            "description": "Resolved route name: report-expense-by-type. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Grade Scales",
+      "item": [
+        {
+          "name": "GET grade-scale-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grade-scales/{{pk}}/",
+            "description": "Resolved route name: grade-scale-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT grade-scale-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grade-scales/{{pk}}/",
+            "description": "Resolved route name: grade-scale-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH grade-scale-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grade-scales/{{pk}}/",
+            "description": "Resolved route name: grade-scale-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE grade-scale-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grade-scales/{{pk}}/",
+            "description": "Resolved route name: grade-scale-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Grading Systems",
+      "item": [
+        {
+          "name": "GET grading-system-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grading-systems/",
+            "description": "Resolved route name: grading-system-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST grading-system-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/",
+            "description": "Resolved route name: grading-system-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET grading-system-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/",
+            "description": "Resolved route name: grading-system-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT grading-system-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/",
+            "description": "Resolved route name: grading-system-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH grading-system-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/",
+            "description": "Resolved route name: grading-system-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE grading-system-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/",
+            "description": "Resolved route name: grading-system-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET scales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grading-systems/{{grading_system_id}}/scales/",
+            "description": "Resolved route name: scales. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST scales",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/{{grading_system_id}}/scales/",
+            "description": "Resolved route name: scales. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET grade-scale-bulk",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/grades/",
+            "description": "Resolved route name: grade-scale-bulk. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST grade-scale-bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/grades/",
+            "description": "Resolved route name: grade-scale-bulk. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST grade-resolver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/grading-systems/{{pk}}/resolve/",
+            "description": "Resolved route name: grade-resolver. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Guardians",
+      "item": [
+        {
+          "name": "GET guardian-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/guardians/{{pk}}/",
+            "description": "Resolved route name: guardian-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT guardian-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/guardians/{{pk}}/",
+            "description": "Resolved route name: guardian-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH guardian-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/guardians/{{pk}}/",
+            "description": "Resolved route name: guardian-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE guardian-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/guardians/{{pk}}/",
+            "description": "Resolved route name: guardian-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Health",
+      "item": [
+        {
+          "name": "GET health-check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/health/",
+            "description": "Resolved route name: health-check. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Packages",
+      "item": [
+        {
+          "name": "GET package-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/packages/",
+            "description": "Resolved route name: package-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST package-list-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/packages/",
+            "description": "Resolved route name: package-list-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET package-retrieve-update",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/packages/{{pk}}/",
+            "description": "Resolved route name: package-retrieve-update. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT package-retrieve-update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/packages/{{pk}}/",
+            "description": "Resolved route name: package-retrieve-update. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH package-retrieve-update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/packages/{{pk}}/",
+            "description": "Resolved route name: package-retrieve-update. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST package-activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/packages/{{pk}}/activate/",
+            "description": "Resolved route name: package-activate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST package-deactivate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/packages/{{pk}}/deactivate/",
+            "description": "Resolved route name: package-deactivate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Plans",
+      "item": [
+        {
+          "name": "GET plan-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/plans/",
+            "description": "Resolved route name: plan-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET plan-features",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/plans/features/",
+            "description": "Resolved route name: plan-features. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Platform",
+      "item": [
+        {
+          "name": "GET platform-user-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/users/",
+            "description": "Resolved route name: platform-user-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST platform-user-list-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/",
+            "description": "Resolved route name: platform-user-list-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET platform-user-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/",
+            "description": "Resolved route name: platform-user-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT platform-user-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/",
+            "description": "Resolved route name: platform-user-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH platform-user-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/",
+            "description": "Resolved route name: platform-user-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST platform-user-activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/activate/",
+            "description": "Resolved route name: platform-user-activate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST platform-user-deactivate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/deactivate/",
+            "description": "Resolved route name: platform-user-deactivate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET platform-user-roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/roles/",
+            "description": "Resolved route name: platform-user-roles. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST platform-user-roles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/roles/",
+            "description": "Resolved route name: platform-user-roles. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE platform-user-roles",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/roles/",
+            "description": "Resolved route name: platform-user-roles. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET platform-user-permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/users/{{pk}}/permissions/",
+            "description": "Resolved route name: platform-user-permissions. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET platform-role-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/roles/",
+            "description": "Resolved route name: platform-role-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST platform-role-list-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/",
+            "description": "Resolved route name: platform-role-list-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET platform-role-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/",
+            "description": "Resolved route name: platform-role-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT platform-role-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/",
+            "description": "Resolved route name: platform-role-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH platform-role-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/",
+            "description": "Resolved route name: platform-role-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST platform-role-activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/activate/",
+            "description": "Resolved route name: platform-role-activate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST platform-role-deactivate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/deactivate/",
+            "description": "Resolved route name: platform-role-deactivate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET platform-role-permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/permissions/",
+            "description": "Resolved route name: platform-role-permissions. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST platform-role-permissions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/permissions/",
+            "description": "Resolved route name: platform-role-permissions. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE platform-role-permissions",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/roles/{{pk}}/permissions/",
+            "description": "Resolved route name: platform-role-permissions. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET platform-permission-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/permissions/",
+            "description": "Resolved route name: platform-permission-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET platform-permission-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/permissions/{{pk}}/",
+            "description": "Resolved route name: platform-permission-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET platform-me-permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/platform/me/permissions/",
+            "description": "Resolved route name: platform-me-permissions. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Private Media",
+      "item": [
+        {
+          "name": "GET private-media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/private-media/{{path}}",
+            "description": "Resolved route name: private-media. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Reports",
+      "item": [
+        {
+          "name": "POST generate-reports",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/generate/",
+            "description": "Resolved route name: generate-reports. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST publish-reports",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/publish/",
+            "description": "Resolved route name: publish-reports. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET class-students-report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/reports/class/{{class_id}}/term/{{term_id}}/",
+            "description": "Resolved route name: class-students-report. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET student-report-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/reports/{{pk}}/",
+            "description": "Resolved route name: student-report-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT teacher-remarks",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/{{pk}}/teacher-remarks/",
+            "description": "Resolved route name: teacher-remarks. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH teacher-remarks",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/{{pk}}/teacher-remarks/",
+            "description": "Resolved route name: teacher-remarks. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PUT head-teacher-remarks",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/{{pk}}/head-teacher-remarks/",
+            "description": "Resolved route name: head-teacher-remarks. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH head-teacher-remarks",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/{{pk}}/head-teacher-remarks/",
+            "description": "Resolved route name: head-teacher-remarks. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET student-report-subject-score",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/reports/subject-score/term/{{term_id}}/subject/{{subject_id}}/class/{{class_id}}/",
+            "description": "Resolved route name: student-report-subject-score. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Schools",
+      "item": [
+        {
+          "name": "GET school-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/",
+            "description": "Resolved route name: school-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST school-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/schools/",
+            "description": "Resolved route name: school-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET school-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/{{school_id}}/",
+            "description": "Resolved route name: school-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PATCH school-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/schools/{{school_id}}/",
+            "description": "Resolved route name: school-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE school-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/{{school_id}}/",
+            "description": "Resolved route name: school-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET school-list-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/export/",
+            "description": "Resolved route name: school-list-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET school-profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/me/",
+            "description": "Resolved route name: school-profile. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PATCH school-profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/schools/me/",
+            "description": "Resolved route name: school-profile. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET school-details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/me/details/",
+            "description": "Resolved route name: school-details. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET school-onboarding",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/schools/me/onboarding/",
+            "description": "Resolved route name: school-onboarding. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Staff",
+      "item": [
+        {
+          "name": "GET staff-access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/access/",
+            "description": "Resolved route name: staff-access. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PATCH staff-access",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/access/",
+            "description": "Resolved route name: staff-access. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET permission-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/permissions/",
+            "description": "Resolved route name: permission-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET staff-position-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/positions/",
+            "description": "Resolved route name: staff-position-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST staff-position-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/positions/",
+            "description": "Resolved route name: staff-position-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET staff-position-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/positions/{{pk}}/",
+            "description": "Resolved route name: staff-position-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT staff-position-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/positions/{{pk}}/",
+            "description": "Resolved route name: staff-position-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH staff-position-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/positions/{{pk}}/",
+            "description": "Resolved route name: staff-position-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE staff-position-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/positions/{{pk}}/",
+            "description": "Resolved route name: staff-position-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET staff-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/",
+            "description": "Resolved route name: staff-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST staff-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/",
+            "description": "Resolved route name: staff-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET staff-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/export/",
+            "description": "Resolved route name: staff-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET staff-me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/me/",
+            "description": "Resolved route name: staff-me. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET staff-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/",
+            "description": "Resolved route name: staff-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT staff-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/",
+            "description": "Resolved route name: staff-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH staff-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/",
+            "description": "Resolved route name: staff-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE staff-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/",
+            "description": "Resolved route name: staff-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST activate-staff-user-account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/user/activate/",
+            "description": "Resolved route name: activate-staff-user-account. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST update-staff-status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/staff/{{pk}}/status/",
+            "description": "Resolved route name: update-staff-status. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Students",
+      "item": [
+        {
+          "name": "GET student-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/",
+            "description": "Resolved route name: student-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST student-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/",
+            "description": "Resolved route name: student-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST student-bulk-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/bulk/",
+            "description": "Resolved route name: student-bulk-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET student-bulk-template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/bulk/template/",
+            "description": "Resolved route name: student-bulk-template. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET student-class-bulk",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/class-bulk/",
+            "description": "Resolved route name: student-class-bulk. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST student-class-bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/class-bulk/",
+            "description": "Resolved route name: student-class-bulk. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET student-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/export/",
+            "description": "Resolved route name: student-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET student-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/",
+            "description": "Resolved route name: student-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT student-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/",
+            "description": "Resolved route name: student-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH student-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/",
+            "description": "Resolved route name: student-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE student-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/",
+            "description": "Resolved route name: student-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET guardian-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/guardians/",
+            "description": "Resolved route name: guardian-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST guardian-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/guardians/",
+            "description": "Resolved route name: guardian-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST student-enroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/enroll/",
+            "description": "Resolved route name: student-enroll. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE student-enroll",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/enroll/",
+            "description": "Resolved route name: student-enroll. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET student-enrollments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/students/{{pk}}/enrollments/",
+            "description": "Resolved route name: student-enrollments. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Subject Teachers",
+      "item": [
+        {
+          "name": "GET subject-teacher-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subject-teachers/",
+            "description": "Resolved route name: subject-teacher-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST subject-teacher-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subject-teachers/",
+            "description": "Resolved route name: subject-teacher-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST subject-teacher-bulk-assign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subject-teachers/bulk-assign/",
+            "description": "Resolved route name: subject-teacher-bulk-assign. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE subject-teacher-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subject-teachers/{{pk}}/",
+            "description": "Resolved route name: subject-teacher-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET class-subject-teacher-summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subject-teachers/class/{{class_id}}/summary/",
+            "description": "Resolved route name: class-subject-teacher-summary. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Subjects",
+      "item": [
+        {
+          "name": "GET subject-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subjects/",
+            "description": "Resolved route name: subject-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST subject-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subjects/",
+            "description": "Resolved route name: subject-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET subject-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subjects/export/",
+            "description": "Resolved route name: subject-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET subject-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subjects/{{pk}}/",
+            "description": "Resolved route name: subject-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT subject-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subjects/{{pk}}/",
+            "description": "Resolved route name: subject-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH subject-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subjects/{{pk}}/",
+            "description": "Resolved route name: subject-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE subject-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subjects/{{pk}}/",
+            "description": "Resolved route name: subject-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Subscription",
+      "item": [
+        {
+          "name": "GET current-subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subscription/",
+            "description": "Resolved route name: current-subscription. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET current-entitlements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subscription/features/",
+            "description": "Resolved route name: current-entitlements. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST subscribe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscription/subscribe/",
+            "description": "Resolved route name: subscribe. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST initiate-payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscription/pay/",
+            "description": "Resolved route name: initiate-payment. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST payment-webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscription/webhook/{{provider}}/",
+            "description": "Resolved route name: payment-webhook. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Subscriptions",
+      "item": [
+        {
+          "name": "GET subscription-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subscriptions/",
+            "description": "Resolved route name: subscription-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET subscription-current",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subscriptions/current/",
+            "description": "Resolved route name: subscription-current. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET subscription-current-features",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/subscriptions/current/features/",
+            "description": "Resolved route name: subscription-current-features. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST school-subscribe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/subscribe/",
+            "description": "Resolved route name: school-subscribe. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST school-subscribe-initiate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/payments/initiate/",
+            "description": "Resolved route name: school-subscribe-initiate. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST school-webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/webhook/{{provider}}/",
+            "description": "Resolved route name: school-webhook. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST manual-school-subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/schools/",
+            "description": "Resolved route name: manual-school-subscription. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Teacher",
+      "item": [
+        {
+          "name": "GET teacher-classes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/teacher/me/classes/",
+            "description": "Resolved route name: teacher-classes. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Terms",
+      "item": [
+        {
+          "name": "GET term-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/terms/",
+            "description": "Resolved route name: term-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST term-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/terms/",
+            "description": "Resolved route name: term-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET term-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/terms/export/",
+            "description": "Resolved route name: term-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET term-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/terms/{{pk}}/",
+            "description": "Resolved route name: term-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT term-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/terms/{{pk}}/",
+            "description": "Resolved route name: term-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH term-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/terms/{{pk}}/",
+            "description": "Resolved route name: term-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE term-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/terms/{{pk}}/",
+            "description": "Resolved route name: term-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST activate-term",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/terms/{{term_id}}/activate/",
+            "description": "Resolved route name: activate-term. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Timetable Slots",
+      "item": [
+        {
+          "name": "GET timetable-slot-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/timetable-slots/{{class_id}}/",
+            "description": "Resolved route name: timetable-slot-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST timetable-slot-list-create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/timetable-slots/{{class_id}}/",
+            "description": "Resolved route name: timetable-slot-list-create. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / Users",
+      "item": [
+        {
+          "name": "GET user-export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/export/",
+            "description": "Resolved route name: user-export. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET user-list-create",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/",
+            "description": "Resolved route name: user-list-create. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "GET user-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/{{pk}}/",
+            "description": "Resolved route name: user-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT user-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/users/{{pk}}/",
+            "description": "Resolved route name: user-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH user-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/users/{{pk}}/",
+            "description": "Resolved route name: user-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE user-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/{{pk}}/",
+            "description": "Resolved route name: user-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT reset-user-password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/users/{{user_id}}/reset-password/",
+            "description": "Resolved route name: reset-user-password. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v1 / ^Coupons",
+      "item": [
+        {
+          "name": "GET coupon-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/^coupons/$",
+            "description": "Resolved route name: coupon-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST coupon-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/^coupons/$",
+            "description": "Resolved route name: coupon-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET coupon-stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/^coupons/stats/$",
+            "description": "Resolved route name: coupon-stats. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST coupon-validate-coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/^coupons/validate/$",
+            "description": "Resolved route name: coupon-validate-coupon. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET coupon-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT coupon-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH coupon-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE coupon-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Legacy API / ^Coupons",
+      "item": [
+        {
+          "name": "GET coupon-list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/^coupons/$",
+            "description": "Resolved route name: coupon-list. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST coupon-list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/^coupons/$",
+            "description": "Resolved route name: coupon-list. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET coupon-stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/^coupons/stats/$",
+            "description": "Resolved route name: coupon-stats. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "POST coupon-validate-coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/^coupons/validate/$",
+            "description": "Resolved route name: coupon-validate-coupon. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET coupon-detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed."
+          }
+        },
+        {
+          "name": "PUT coupon-detail",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH coupon-detail",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE coupon-detail",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/^coupons/(?P{{pk}}[^/.]+)/$",
+            "description": "Resolved route name: coupon-detail. Replace path variables and request data as needed."
+          }
+        }
+      ]
+    }
+  ]
+}

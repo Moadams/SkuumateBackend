@@ -1,7 +1,14 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from .services.packages import package_has_feature
+from .state import LOCKED_MESSAGE
 from .utils import get_active_subscription
+
+
+NO_SUBSCRIPTION_MESSAGE = (
+    "No active subscription found. "
+    "Please contact support to activate your account."
+)
 
 
 class IsPlatformSuperAdmin(BasePermission):
@@ -27,7 +34,12 @@ class IsPlatformSuperAdmin(BasePermission):
 class SubscriptionPermission(BasePermission):
     """
     Base subscription-aware permission.
-    Enforces lockout and grace period read-only across all views.
+
+    Enforces lockout and grace period read-only on the views that carry it.
+    ``SubscriptionMiddleware`` applies the same rules to *every* request, so
+    this is defence in depth for the feature-gated views rather than the only
+    place the rules run. The messages come from one function so the two cannot
+    drift apart.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -35,21 +47,15 @@ class SubscriptionPermission(BasePermission):
 
         school = request.user.school
         if not school:
-            return True  # superusers bypass
+            return True  # platform staff operate outside any subscription
 
         subscription = get_active_subscription(school)
 
         if not subscription:
-            raise PermissionDenied(
-                "No active subscription found. "
-                "Please contact support to activate your account."
-            )
+            raise PermissionDenied(NO_SUBSCRIPTION_MESSAGE)
 
         if subscription.is_locked:
-            raise PermissionDenied(
-                "Your subscription has expired and your account is locked. "
-                "Please renew your subscription to continue."
-            )
+            raise PermissionDenied(LOCKED_MESSAGE)
 
         if subscription.is_read_only and request.method not in (
             "GET", "HEAD", "OPTIONS"

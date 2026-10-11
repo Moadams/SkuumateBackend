@@ -18,3 +18,18 @@ class SchoolJWTAuthentication(JWTAuthentication):
         user = super().get_user(validated_token)
         validate_account_access(user)
         return user
+
+    def authenticate(self, request):
+        # SubscriptionMiddleware resolves the bearer token before DRF gets to
+        # it, so that subscription state can be enforced on views with no
+        # feature gate. Reuse that result rather than verifying the token (and
+        # hitting the database for the user) a second time.
+        cached = getattr(request, "_skuumate_jwt_user", None)
+        if cached is not None:
+            request._skuumate_jwt_user = None
+            return cached
+
+        result = super().authenticate(request)
+        if result is not None:
+            request._skuumate_jwt_user = result
+        return result

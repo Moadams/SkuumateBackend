@@ -85,7 +85,7 @@ class AdminSubscribeView(APIView):
         status = data["status"]
         notes = data.get("notes", "")
 
-        if status == Subscription.Status.TRIAL:
+        if status == Subscription.Status.ACTIVE:
             subscription = SubscriptionService.start_trial(
                 school=school,
                 plan=plan,

@@ -7,11 +7,10 @@ completed charge is auditable.
 from decimal import Decimal
 from uuid import uuid4
 
-from integrations.payments.base import PaymentInitResult
-
 from django.db import transaction
 from rest_framework import serializers
 
+from integrations.payments.base import PaymentInitResult
 from integrations.registry import get_payment_provider
 from subscriptions.models import SubscriptionPayment
 

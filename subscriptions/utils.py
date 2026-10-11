@@ -126,7 +126,7 @@ def activate_subscription(school, plan, term=None, activated_by=None,
     Activates a term-based subscription for a school.
     Cancels any existing active/trial/grace subscription first.
     End date defaults to term end date if term is provided,
-    otherwise one standard term (~TRIAL_DAYS).
+    otherwise one standard term (~ACTIVE_DAYS).
     """
     subscription = SubscriptionService.activate(
         school=school,

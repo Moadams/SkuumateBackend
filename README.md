@@ -335,6 +335,14 @@ POST /api/v1/auth/login/
 Authorization: Bearer <access_token>
 ```
 
+### Postman Collection
+
+Import [`SkuumateBackend.postman_collection.json`](./SkuumateBackend.postman_collection.json) into Postman. The collection includes the registered API routes and HTTP methods.
+
+- Set the collection variable `base_url` to your server URL, for example `http://localhost:8000`.
+- Use **Auth > Login** with your account credentials. A successful response saves the access and refresh tokens as collection variables; authenticated requests use the access token automatically.
+- Replace the placeholder IDs and starter JSON bodies with values required by each endpoint.
+
 ### Main API Endpoints
 
 | Module | Endpoints |

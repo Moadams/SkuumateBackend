@@ -26,7 +26,6 @@ from subscriptions.views.superadmin import (
 )
 
 urlpatterns = [
-    # ── Public package browsing (read-only, for signup/selection) ──
     path("plans/", PackageListView.as_view(), name="plan-list"),
     path("plans/features/", PackageFeaturesView.as_view(), name="plan-features"),
 

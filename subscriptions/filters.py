@@ -19,16 +19,16 @@ class PackageFilter(django_filters.FilterSet):
 
     class Meta:
         model = Package
-        fields = [
+        fields = (
             "plan_type",
-            "billing_period",
+            "billing_period", 
             "currency",
             "is_active",
             "is_public",
             "min_price",
             "max_price",
             "more_students_than",
-        ]
+        )
 
 
 class FeatureFilter(django_filters.FilterSet):
@@ -37,7 +37,7 @@ class FeatureFilter(django_filters.FilterSet):
 
     class Meta:
         model = Feature
-        fields = ["is_active", "category"]
+        fields = ("is_active", "category")
 
 
 class SubscriptionFilter(django_filters.FilterSet):
@@ -64,7 +64,7 @@ class SubscriptionFilter(django_filters.FilterSet):
 
     class Meta:
         model = Subscription
-        fields = [
+        fields = (
             "school",
             "school_name",
             "school_code",
@@ -74,7 +74,7 @@ class SubscriptionFilter(django_filters.FilterSet):
             "is_paid",
             "is_current",
             "term",
-        ]
+        )
 
 
 class MySubscriptionFilter(django_filters.FilterSet):
@@ -92,14 +92,14 @@ class MySubscriptionFilter(django_filters.FilterSet):
 
     class Meta:
         model = Subscription
-        fields = [
+        fields = (
             "plan",
             "plan_code",
             "status",
             "is_paid",
             "is_current",
             "term",
-        ]
+        )
 
 
 class SubscriptionPaymentFilter(django_filters.FilterSet):
@@ -120,7 +120,7 @@ class SubscriptionPaymentFilter(django_filters.FilterSet):
 
     class Meta:
         model = SubscriptionPayment
-        fields = [
+        fields = (
             "school",
             "school_name",
             "subscription",
@@ -130,4 +130,4 @@ class SubscriptionPaymentFilter(django_filters.FilterSet):
             "provider",
             "min_amount",
             "max_amount",
-        ]
+        )
