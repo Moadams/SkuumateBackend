@@ -11,7 +11,6 @@ from subscriptions.views.packages import (
     PackageRetrieveUpdateView,
 )
 from subscriptions.views.subscriptions import (
-    CurrentEntitlementsView,
     CurrentSubscriptionView,
     InitiatePaymentView,
     MySubscriptionListView,
@@ -32,11 +31,7 @@ urlpatterns = [
     # ── School — subscriptions & payments ──────────────────────────
     path("subscriptions/", MySubscriptionListView.as_view(), name="subscription-list"),
     path("subscriptions/current/", CurrentSubscriptionView.as_view(), name="subscription-current"),
-    path("subscription/", CurrentSubscriptionView.as_view(), name="current-subscription"),
-    path("subscriptions/current/features/", CurrentEntitlementsView.as_view(), name="subscription-current-features"),
-    path("subscription/features/", CurrentEntitlementsView.as_view(), name="current-entitlements"),
     path("subscriptions/subscribe/", SchoolSubscribeView.as_view(), name="school-subscribe"),
-    path("subscription/subscribe/", SchoolSubscribeView.as_view(), name="subscribe"),
     path("subscriptions/payments/initiate/", InitiatePaymentView.as_view(), name="school-subscribe-initiate"),
     path("subscription/pay/", InitiatePaymentView.as_view(), name="initiate-payment"),
     path("subscriptions/webhook/<str:provider>/", PaymentWebhookView.as_view(), name="school-webhook"),

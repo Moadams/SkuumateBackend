@@ -54,17 +54,8 @@ class SubscriptionPermission(BasePermission):
         if not subscription:
             raise PermissionDenied(NO_SUBSCRIPTION_MESSAGE)
 
-        if subscription.is_locked:
+        if subscription.status == subscription.Status.LOCKED:
             raise PermissionDenied(LOCKED_MESSAGE)
-
-        if subscription.is_read_only and request.method not in (
-            "GET", "HEAD", "OPTIONS"
-        ):
-            raise PermissionDenied(
-                f"Your account is in the grace period "
-                f"({subscription.days_remaining} days remaining). "
-                f"Please renew to make changes."
-            )
 
         return True
 

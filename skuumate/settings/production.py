@@ -80,3 +80,6 @@ STORAGES = {
 LOGGING["handlers"]["console"]["level"] = "WARNING"
 LOGGING["loggers"]["skuumate"]["level"] = "INFO"
 LOGGING["root"]["level"] = "WARNING"
+
+
+PAYMENT_GATEWAY = config("PAYMENT_GATEWAY", default="simulator")

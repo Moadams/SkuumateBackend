@@ -114,14 +114,7 @@ def evaluate_request_state(request, user, subscription):
     if subscription is None or is_always_reachable(request):
         return None
 
-    if subscription.is_locked:
+    if subscription.status == subscription.Status.LOCKED:
         return LOCKED_MESSAGE
-
-    if subscription.is_read_only and is_write_method(request):
-        return (
-            f"Your account is in the grace period "
-            f"({subscription.days_remaining} days remaining). "
-            f"Please renew to make changes."
-        )
 
     return None

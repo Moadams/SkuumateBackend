@@ -24,3 +24,6 @@ def custom_exception_handler(exc, context):
         response.data = error_payload
 
     return response
+
+class PaymentGatewayError(Exception):
+    """Raised when a payment gateway rejects or fails a purchase."""

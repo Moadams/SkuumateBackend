@@ -24,16 +24,9 @@ def check_feature(school, feature_code: str):
     if not subscription:
         raise PermissionDenied("No active subscription found.")
 
-    if subscription.is_locked:
+    if subscription.status__in [subscription.Status.LOCKED, subscription.Status.EXPIRED]:
         raise PermissionDenied(
             "Your subscription has expired. Please renew to continue."
-        )
-
-    if subscription.is_read_only:
-        raise PermissionDenied(
-            f"Your account is in the grace period "
-            f"({subscription.days_remaining} days left). "
-            f"Please renew to make changes."
         )
 
     if not package_has_feature(subscription.plan, feature_code):
@@ -66,7 +59,7 @@ def check_limit(school, resource: str):
     if not subscription:
         raise PermissionDenied("No active subscription found.")
 
-    if subscription.is_locked:
+    if subscription.status__in [subscription.Status.LOCKED, subscription.Status.EXPIRED]:
         raise PermissionDenied(
             "Your subscription has expired. Please renew to continue."
         )

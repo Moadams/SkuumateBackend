@@ -154,8 +154,6 @@ def subscription_entitlements(subscription) -> dict:
     return {
         "has_subscription": True,
         "status": subscription.status,
-        "is_locked": subscription.is_locked,
-        "is_read_only": subscription.is_read_only,
         "days_remaining": subscription.days_remaining,
         "end_date": subscription.end_date,
         "package": (

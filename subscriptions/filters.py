@@ -85,10 +85,8 @@ class MySubscriptionFilter(django_filters.FilterSet):
     is_paid = django_filters.BooleanFilter()
     is_current = django_filters.BooleanFilter()
     term = django_filters.UUIDFilter(field_name="term__id")
-    start_date_from = django_filters.DateTimeFilter(field_name="start_date", lookup_expr="gte")
-    start_date_to = django_filters.DateTimeFilter(field_name="start_date", lookup_expr="lte")
-    end_date_from = django_filters.DateTimeFilter(field_name="end_date", lookup_expr="gte")
-    end_date_to = django_filters.DateTimeFilter(field_name="end_date", lookup_expr="lte")
+    start_date = django_filters.DateFromToRangeFilter(field_name="start_date", lookup_expr="gte")
+    end_date = django_filters.DateFromToRangeFilter(field_name="end_date", lookup_expr="gte")
 
     class Meta:
         model = Subscription

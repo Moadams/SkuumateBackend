@@ -1,10 +1,12 @@
 """School-facing subscription views."""
 import json
 
+from django.db import transaction
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
+from core.exceptions import PaymentGatewayError
 from core.models import AuditLog
 from core.permissions import IsAdmin, is_platform_superadmin
 from core.responses import ApiResponse
@@ -16,6 +18,7 @@ from subscriptions.models import Subscription, SubscriptionPayment
 from subscriptions.serializers import (
     InitiatePaymentSerializer,
     SchoolSubscribeSerializer,
+    SubscriptionListSerializer,
     SubscriptionSerializer,
 )
 from subscriptions.services.packages import subscription_entitlements
@@ -28,16 +31,14 @@ class MySubscriptionListView(generics.ListAPIView):
     """
     School user — list the school's subscriptions.
 
-    Filters: ``plan``, ``plan_code``, ``status``, ``is_paid``, ``is_current``,
-    ``term``, ``start_date_from/to``, ``end_date_from/to``. Paginated.
     """
 
-    permission_classes = [IsAuthenticated]
-    serializer_class = SubscriptionSerializer
+    permission_classes = (IsAuthenticated,)
+    serializer_class = SubscriptionListSerializer
     filterset_class = MySubscriptionFilter
-    search_fields = ["plan__name", "plan__code"]
-    ordering_fields = ["start_date", "end_date", "created_at", "plan__name"]
-    ordering = ["-start_date"]
+    search_fields = ("plan__name", "plan__code")
+    ordering_fields = ("start_date", "end_date", "created_at", "plan__name")
+    ordering = ("-start_date",)
 
     def get_queryset(self):
         school = self.request.user.school
@@ -53,7 +54,7 @@ class MySubscriptionListView(generics.ListAPIView):
 class CurrentSubscriptionView(APIView):
     """School user — returns the school's current subscription status."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         school = request.user.school
@@ -67,34 +68,6 @@ class CurrentSubscriptionView(APIView):
         return ApiResponse.success(data=SubscriptionSerializer(subscription).data)
 
 
-class CurrentEntitlementsView(APIView):
-    """School user — returns the entitlement map for the school's current plan.
-
-    Lets the frontend decide which nav items and actions to render without
-    duplicating tier logic or making one request per feature. Every declared
-    feature code is present, so the client can branch on a known key and rely
-    on its absence meaning ``False`` rather than "unknown".
-    """
-
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        school = request.user.school
-        if school is None:
-            if is_platform_superadmin(request.user):
-                # A platform operator has no school and therefore no plan to
-                # report, but the flags must still be well formed.
-                return ApiResponse.success(
-                    data=subscription_entitlements(None)
-                )
-            return ApiResponse.error(
-                message="No school associated with this account.", status_code=404
-            )
-
-        subscription = get_active_subscription(school)
-        return ApiResponse.success(data=subscription_entitlements(subscription))
-
-
 class InitiatePaymentView(APIView):
     """
     School admin — start a payment with a gateway.
@@ -104,7 +77,7 @@ class InitiatePaymentView(APIView):
     to complete via :class:`SchoolSubscribeView`.
     """
 
-    permission_classes = [IsAdmin]
+    permission_classes = (IsAdmin,)
 
     def post(self, request):
         school = request.user.school
@@ -163,8 +136,8 @@ class SchoolSubscribeView(APIView):
       from :class:`InitiatePaymentView` (verified against the gateway).
     """
 
-    permission_classes = [IsAdmin]
-
+    permission_classes = (IsAdmin,)
+    @transaction.atomic
     def post(self, request):
         school = request.user.school
         if school is None:
@@ -174,52 +147,40 @@ class SchoolSubscribeView(APIView):
             )
 
         serializer = SchoolSubscribeSerializer(
-            data=request.data, context={"school": school}
+            data=request.data, context={"school": school, "request": request}
         )
         serializer.is_valid(raise_exception=True)
 
-        plan = serializer.validated_data["plan"]
-        term = serializer.validated_data.get("term")
+        try:
+            school_subscription = SubscriptionService.subscribe_school(data=serializer, school=school)
+        except ValueError as e:
+            return ApiResponse.error(
+                message=str(e),
+                status_code=400,
+            )
+        except PaymentGatewayError as e:
+            return ApiResponse.error(
+                message=str(e),
+                status_code=400,
+            )
+        except Exception as e:
+            return ApiResponse.error(
+                message=str(e),
+                status_code=500,
+            )
 
-        if SubscriptionService.is_eligible_for_trial(school):
-            subscription = SubscriptionService.start_trial(
-                school=school,
-                plan=plan,
-                term=term,
-                activated_by=request.user,
-            )
-            message = (
-                f"Trial subscription started on the {plan.name} package. "
-                f"You have {subscription.days_remaining} days remaining."
-            )
+        if school_subscription.created:
+            message = f"Successfully subscribed to the {school_subscription.subscription.plan.name} package."
         else:
-            payment_reference = serializer.validated_data.get("payment_reference")
-            if not payment_reference:
-                return ApiResponse.error(
-                    message=(
-                        "A payment reference is required to subscribe or switch "
-                        "packages. Please complete payment first."
-                    ),
-                    status_code=400,
-                )
-            payment_provider = serializer.validated_data.get("payment_provider") or "simulate"
-            subscription = self._complete_paid_subscription(
-                school=school,
-                plan=plan,
-                term=term,
-                payment_reference=payment_reference,
-                payment_provider=payment_provider,
-                user=request.user,
-            )
-            message = f"Successfully subscribed to the {plan.name} package."
+            message = f"Failed to subscribe to the {school_subscription.subscription.plan.name} package."
 
         log_action(
             action=AuditLog.Action.CREATE,
             resource="Subscription",
-            resource_id=str(subscription.pk),
+            resource_id=str(school_subscription.subscription.pk),
             description=(
-                f"{school.name} subscribed to {plan.name} "
-                f"({subscription.status})"
+                f"{school.name} subscribed to {school_subscription.subscription.plan.name} "
+                f"({school_subscription.subscription.status})"
             ),
             request=request,
         )
@@ -227,7 +188,7 @@ class SchoolSubscribeView(APIView):
         check_and_complete_onboarding(school)
 
         return ApiResponse.created(
-            data=SubscriptionSerializer(subscription).data,
+            data=SubscriptionSerializer(school_subscription.subscription).data,
             message=message,
         )
 
@@ -289,7 +250,7 @@ class PaymentWebhookView(APIView):
     activated automatically; otherwise the callback is acknowledged only.
     """
 
-    permission_classes = [AllowAny]  # webhooks come from providers, not users
+    permission_classes = (AllowAny,)  # webhooks come from providers, not users
 
     def post(self, request, provider):
         raw_body = getattr(request, "body", b"") or b"{}"

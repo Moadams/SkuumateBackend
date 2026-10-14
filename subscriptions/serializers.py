@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from academics.services import AcademicsService
 from schools.models import School
 
 from .models import (
@@ -10,7 +11,6 @@ from .models import (
 )
 from .services.packages import PackageService
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Feature & Package serializers
 # ─────────────────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ from .services.packages import PackageService
 class FeatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feature
-        fields = [
+        fields = (
             "id",
             "name",
             "code",
@@ -27,7 +27,7 @@ class FeatureSerializer(serializers.ModelSerializer):
             "is_active",
             "created_at",
             "updated_at",
-        ]
+        )
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate_code(self, value):
@@ -74,7 +74,7 @@ class PackageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Package
-        fields = [
+        fields = (
             "id",
             "name",
             "code",
@@ -94,8 +94,8 @@ class PackageSerializer(serializers.ModelSerializer):
             "limits",
             "created_at",
             "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
         extra_kwargs = {
             "code": {"required": True},
             "billing_period": {"required": True},
@@ -177,7 +177,7 @@ class PackageSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Package
-        fields = [
+        fields = (
             "id",
             "name",
             "code",
@@ -190,7 +190,7 @@ class PackageSummarySerializer(serializers.ModelSerializer):
             "currency",
             "minimum_students",
             "maximum_students",
-        ]
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ class SchoolSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = School
-        fields = [
+        fields = (
             "id",
             "name",
             "email",
@@ -210,7 +210,7 @@ class SchoolSummarySerializer(serializers.ModelSerializer):
             "school_code",
             "status",
             "city",
-        ]
+        )
 
 
 class SubscriptionPaymentSerializer(serializers.ModelSerializer):
@@ -223,7 +223,7 @@ class SubscriptionPaymentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubscriptionPayment
-        fields = [
+        fields = [  # noqa: RUF012
             "id",
             "amount",
             "currency",
@@ -269,15 +269,11 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     term_name = serializers.CharField(source="term.get_name_display", read_only=True)
     days_remaining = serializers.IntegerField(read_only=True)
-    is_read_only = serializers.BooleanField(read_only=True)
-    is_locked = serializers.BooleanField(read_only=True)
-    is_accessible = serializers.BooleanField(read_only=True)
-    is_on_trial = serializers.BooleanField(read_only=True)
     payments = SubscriptionPaymentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Subscription
-        fields = [
+        fields = (
             "id",
             "plan",
             "plan_name",
@@ -289,17 +285,34 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "end_date",
             "grace_end_date",
             "days_remaining",
-            "is_paid",
+            "is_free_trial",
             "is_current",
-            "is_read_only",
-            "is_locked",
-            "is_accessible",
-            "is_on_trial",
             "payments",
             "notes",
             "created_at",
-        ]
+        )
         read_only_fields = fields
+
+
+class SubscriptionListSerializer(serializers.ModelSerializer):
+    school_name = serializers.CharField(source="school.name", read_only=True)
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    term_name = serializers.CharField(source="term.get_name_display", read_only=True, allow_null=True)
+
+    class Meta:
+        model = Subscription
+        fields = (
+                "id",
+                "school_name",
+                "plan_name",
+                "status_label",
+                "term_name",
+                "is_paid",
+                "start_date",
+                "end_date",
+                "is_current"
+            ,)
 
 
 class AdminSubscriptionSerializer(SubscriptionSerializer):
@@ -309,7 +322,7 @@ class AdminSubscriptionSerializer(SubscriptionSerializer):
     activated_by_name = serializers.SerializerMethodField()
 
     class Meta(SubscriptionSerializer.Meta):
-        fields = [
+        fields = (
             "id",
             "school",
             "plan",
@@ -332,7 +345,7 @@ class AdminSubscriptionSerializer(SubscriptionSerializer):
             "payments",
             "notes",
             "created_at",
-        ]
+        )
 
     def get_activated_by_name(self, instance):
         if instance.activated_by is None:
@@ -376,28 +389,25 @@ class InitiatePaymentSerializer(serializers.Serializer):
         attrs["plan"] = attrs.pop("plan_id")
         return attrs
 
-
 class SchoolSubscribeSerializer(serializers.Serializer):
-    """
-    School admin — complete a subscription.
-
-    Trial-eligible schools subscribe for free; everyone else must supply the
-    ``payment_reference`` returned by ``initiate-payment`` (or by the gateway
-    in simulate mode).
-    """
-
-    plan_id = serializers.UUIDField()
-    term_id = serializers.UUIDField(required=False, allow_null=True)
+    plan = serializers.UUIDField()
+    is_paid = serializers.BooleanField(required=False, default=True)
+    term = serializers.UUIDField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
     payment_reference = serializers.CharField(required=False, allow_blank=True)
+    payment_method = serializers.ChoiceField(
+        choices=SubscriptionPayment.PaymentMode.choices,
+        required=False
+    )
 
-    def validate_plan_id(self, value):
+    def validate_plan(self, value):
         package = Package.objects.filter(id=value, is_active=True).first()
         if package is None:
             raise serializers.ValidationError("Package not found or inactive.")
         self._validate_student_budget(package)
         return package
 
-    def validate_term_id(self, value):
+    def validate_term(self, value):
         if value is None:
             return None
         term = self.context["school"].terms.filter(id=value).first()
@@ -408,11 +418,21 @@ class SchoolSubscribeSerializer(serializers.Serializer):
         return term
 
     def validate(self, attrs):
-        attrs["plan"] = attrs.pop("plan_id")
-        if attrs.get("term_id") is not None:
-            attrs["term"] = attrs.pop("term_id")
-        else:
-            attrs["term"] = None
+        
+        plan = attrs.get("plan")
+        if plan and plan.billing_period == Package.BillingPeriod.TERM and not attrs.get("term"):
+            term = AcademicsService._current_term(self.context["school"])
+            if term:
+                attrs["term"] = term
+            else:
+                raise serializers.ValidationError(
+                    {"term": "A term must be specified for a term-based plan."}
+                )
+
+        if attrs.get("is_paid") and not (attrs.get("payment_method") and attrs.get("payment_reference")):
+            raise serializers.ValidationError(
+                {"payment_method": "A payment method and payment reference are required for paid subscriptions."}
+            )
         return attrs
 
     def _validate_student_budget(self, package):
@@ -423,7 +443,7 @@ class SchoolSubscribeSerializer(serializers.Serializer):
         if active_students > package.maximum_students:
             raise serializers.ValidationError(
                 {
-                    "plan_id": (
+                    "plan": (
                         f"Your school currently has {active_students} active students "
                         f"which exceeds the {package.name} package limit of "
                         f"{package.maximum_students} students. "

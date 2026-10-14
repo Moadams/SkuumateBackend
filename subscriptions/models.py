@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 from django.db import models
 from django.utils import timezone
@@ -132,13 +132,13 @@ class PackageLimit(TimestampedModel):
     description = models.TextField(blank=True)
 
     class Meta:
-        constraints = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["package", "key"],
                 name="uniq_package_limit_key",
             ),
-        ]
-        ordering = ["key"]
+        )
+        ordering = ("key",)
 
     def __str__(self):
         return f"{self.package.name} → {self.key}={self.value}"
@@ -183,7 +183,7 @@ class Subscription(TimestampedModel):
         help_text="The academic term this subscription covers",
     )
 
-    start_date = models.DateField(default=timezone.now)
+    start_date = models.DateField()
     end_date = models.DateField()
     grace_end_date = models.DateField(null=True, blank=True)
 
@@ -210,31 +210,21 @@ class Subscription(TimestampedModel):
     # ── Status helpers ────────────────────────────────────────────
 
     @property
-    def is_on_trial(self) -> bool:
-        return self.status == self.Status.ACTIVE
+    def is_free_trial(self) -> bool:
+        return not self.is_paid
 
     @property
     def is_accessible(self) -> bool:
         return self.status in (
             self.Status.ACTIVE,
-            self.Status.ACTIVE,
             self.Status.GRACE,
         )
 
     @property
-    def is_read_only(self) -> bool:
-        return self.status == self.Status.GRACE
-
-    @property
-    def is_locked(self) -> bool:
-        return self.status in (
-            self.Status.LOCKED,
-            self.Status.CANCELLED,
-        )
-
-    @property
     def days_remaining(self) -> int:
-        now = timezone.now()
+        if not self.start_date or not self.end_date:
+            return 0
+        now = date.today()
         target = self.end_date
         if self.status == self.Status.GRACE and self.grace_end_date:
             target = self.grace_end_date
@@ -242,7 +232,7 @@ class Subscription(TimestampedModel):
 
     def sync_status(self):
         """Roll a subscription forward as time passes (trial → grace → locked)."""
-        now = timezone.now()
+        now = date.today()
         changed = False
 
         if self.status in (self.Status.ACTIVE, self.Status.ACTIVE):
