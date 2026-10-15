@@ -448,19 +448,19 @@ class StudentExcelTemplateView(APIView):
         return response
 
 class StudentListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="students.view", create="students.create")]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    permission_classes = (school_permission(read="students.view", create="students.create"),)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter,)
     filterset_class = StudentFilter
-    search_fields = [
+    search_fields = (
         "first_name", "last_name",
         "other_names", "student_id",
-    ]
-    ordering_fields = [
+    )
+    ordering_fields = (
         "first_name", "last_name",
         "admission_date", "created_at",
-    ]
-    ordering = ["last_name", "first_name"]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    )
+    ordering = ("last_name", "first_name")
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     audit_resource = "Student"
 
 
@@ -741,7 +741,7 @@ class StudentEnrollmentHistoryView(TeacherScopedQuerysetMixin, generics.ListAPIV
 
 class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     '''List of students currently enrolled in a specific class.'''
-    permission_classes = [school_permission(read="students.view")]
+    permission_classes = (school_permission(read="students.view"),)
     serializer_class = StudentMinimalSerializer
 
     def get_queryset(self):
@@ -751,11 +751,21 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
             enrollments__is_active=True,
         ).distinct().prefetch_related("guardians","enrollments__klass", "enrollments__academic_year")
 
+    
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+
+        # Skip pagination when no_pagination=true
+        if request.query_params.get("no_pagination", "").lower() == "true":
+            serializer = self.get_serializer(queryset, many=True)
+            return ApiResponse.success(data=serializer.data)
+
         page = self.paginate_queryset(queryset)
+
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
+

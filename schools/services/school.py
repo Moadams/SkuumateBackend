@@ -1,5 +1,6 @@
 import secrets
 from django.db import transaction
+from academics.services import GradingSystemService
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
@@ -33,6 +34,7 @@ class SchoolService:
     @transaction.atomic
     def activate_school_with_admin(school: School, user_data: dict):
         SchoolService._seed_system_positions(school)
+        GradingSystemService.seed_ges_bece(school)
         temporary_password = secrets.token_urlsafe(16)
         user_data["password"] = temporary_password
         user = StaffService.create_staff(school, user_data, "Administrator")

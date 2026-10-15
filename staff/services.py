@@ -1,8 +1,9 @@
 from django.db.utils import IntegrityError
-
 from django.utils import timezone
 
 from accounts.models import User
+from accounts.utils.password_reset import generate_password_setup_link
+from core.email import send_staff_welcome_mail
 from staff.enums.employment_type import EmploymentType
 from staff.models import StaffPosition, StaffProfile
 
@@ -27,7 +28,17 @@ class StaffService:
         except IntegrityError as e:
             message = "A user with this email already exists." if "email" in str(e).lower() else f"Failed to create user: {str(e)}"
             raise ValueError(message)
-        
+
+        if position_name is None:
+            if user_data.get("role") == User.Role.TEACHER:
+                position_name = "Teacher"
+            elif user_data.get("role") == User.Role.ADMIN:
+                position_name = "Administrator"
+            elif user_data.get("role") == User.Role.STAFF:
+                position_name = "Staff"
+            elif user_data.get("role") == User.Role.FINANCE_MANAGER:
+                position_name = "Accountant"
+
         position = StaffPosition.objects.filter(school=school, name=position_name).first() if position_name else None
         
         # Assign the user to the school
@@ -47,7 +58,13 @@ class StaffService:
         }
         staff_profile = StaffProfile.objects.create(**staff_data)
         staff_profile.positions.add(position) if position else None
-        
+
+        send_staff_welcome_mail(
+            staff_name=staff_profile.first_name,
+            staff_email=staff_profile.email,
+            reset_link=generate_password_setup_link(user),
+            school_name=school.name
+        )
         return user
 
     @staticmethod

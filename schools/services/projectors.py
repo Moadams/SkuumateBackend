@@ -99,7 +99,7 @@ class SubscriptionProjector:
         return SubscriptionDTO(
             status=subscription.status if subscription else None,
             is_paid=subscription.is_paid if subscription else None,
-            is_trial=subscription.is_on_trial if subscription else None,
+            is_trial=not subscription.is_paid,
             is_accessible=subscription.is_accessible if subscription else None,
             is_locked=subscription.status == subscription.Status.LOCKED if subscription else None,
             days_remaining=subscription.days_remaining if subscription else None,

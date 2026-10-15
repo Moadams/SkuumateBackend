@@ -339,7 +339,6 @@ class AdminSubscriptionSerializer(SubscriptionSerializer):
             "is_current",
             "is_locked",
             "is_accessible",
-            "is_on_trial",
             "activated_by_name",
             "payments",
             "notes",

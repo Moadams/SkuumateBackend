@@ -15,14 +15,16 @@ SYSTEM_POSITIONS = [
             "and score entry for assigned classes."
         ),
         "keys": [
+            "school.manage",
             "students.view",
-            "attendance.view", "attendance.mark",
+            "attendance.view", "attendance.mark", "attendance.edit",
             "exams.view", "exams.enter_scores",
             "reports.view",
             "announcements.view",
             "academics.view",
             "class.teach",
             "dashboard.teacher",
+            "settings.view",
         ],
     },
     {
@@ -32,12 +34,14 @@ SYSTEM_POSITIONS = [
             "payments, and financial reports."
         ),
         "keys": [
+            "school.manage",
             "students.view",
             "finance.view", "finance.manage_fees",
             "finance.record_payments", "finance.export",
             "reports.view", "reports.export",
             "announcements.view",
             "dashboard.finance",
+            "settings.view",
         ],
     },
 ]
@@ -53,7 +57,6 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         from schools.models import School
         from staff.models import PermissionKey
-        from staff.models import StaffPosition
         from staff.permission_registry import PERMISSION_DEFS, PERMISSION_KEYS
 
         registry_created = 0

@@ -57,7 +57,7 @@ class StudentListSerializer(serializers.ModelSerializer):
     profile_photo = serializers.SerializerMethodField()
     class Meta:
         model = Student
-        fields = [
+        fields = (
             "id",
             "student_id",
             "full_name",
@@ -66,7 +66,7 @@ class StudentListSerializer(serializers.ModelSerializer):
             "profile_photo",
             "status",
             "student_class"
-        ]
+        )
 
     def get_profile_photo(self, obj):
         request = self.context.get("request")
@@ -91,7 +91,7 @@ class StudentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Student
-        fields = [
+        fields = (
             "id",
             "student_id",
             "first_name",
@@ -112,8 +112,8 @@ class StudentSerializer(serializers.ModelSerializer):
             "current_enrollment",
             "created_at",
             "updated_at",
-        ]
-        read_only_fields = ["id", "student_id", "created_at", "updated_at"]
+        )
+        read_only_fields = ("id", "student_id", "created_at", "updated_at")
 
     def get_age(self, obj):
         import datetime
@@ -136,18 +136,26 @@ class StudentSerializer(serializers.ModelSerializer):
 
 class StudentMinimalSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
+    profile_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
-        fields = [
+        fields = (
             "id",
             "student_id",
             "first_name",
             "last_name",
             "other_names",
             "full_name",
-        ]
-        read_only_fields = ["id", "student_id"]
+            "profile_photo",
+        )
+        read_only_fields = ("id", "student_id")
+
+    def get_profile_photo(self, obj):
+        request = self.context.get("request")
+        if obj.profile_photo and request:
+            return request.build_absolute_uri(obj.profile_photo.url)
+        return None
 
 class StudentUpdateSerializer(serializers.ModelSerializer):
     class Meta:

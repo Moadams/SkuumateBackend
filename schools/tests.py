@@ -1,14 +1,17 @@
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from academics.models import AcademicYear, Term
+from academics.models import AcademicYear, GradeScale, GradingSystem, Term
+from academics.services import GradingSystemService
 from exams.models import AssessmentType, ReportScheme
 from schools.models import School
 from schools.services.onboarding import OnboardingService
+from schools.services.school import SchoolService
 from schools.services.school_details import SchoolDetailsService
 from schools.services.term_progress import TermProgressService
 from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
@@ -366,3 +369,86 @@ class SchoolCreateSystemPositionsTests(TestCase):
             set(admin_position.permissions.values_list("key", flat=True)),
             seeded_keys,
         )
+
+        teacher_position = StaffPosition.objects.get(
+            school=school, name="Teacher"
+        )
+        self.assertTrue(
+            {
+                "attendance.edit",
+                "settings.view",
+            }.issubset(teacher_position.permission_keys())
+        )
+
+        accountant_position = StaffPosition.objects.get(
+            school=school, name="Accountant"
+        )
+        self.assertTrue(
+            {"settings.view"}.issubset(accountant_position.permission_keys())
+        )
+
+
+class SchoolDefaultGradingSystemTests(TestCase):
+    """Creating a school seeds the GES BECE grading system as its default."""
+
+    def _make_school(self, name="BECE School", code="BECE-2026"):
+        return School.objects.create(
+            name=name, school_code=code, email=f"{code.lower()}@bece.edu"
+        )
+
+    def _activate(self, school, email="admin@bece.edu"):
+        SchoolService.activate_school_with_admin(
+            school,
+            {
+                "email": email,
+                "phone": "",
+                "first_name": "Kwame",
+                "last_name": "Mensah",
+                "role": User.Role.ADMIN,
+                "must_change_password": True,
+                "school": school,
+                "is_root_admin": True,
+            },
+        )
+
+    def test_activate_school_seeds_ges_bece_grading_system(self):
+        school = self._make_school()
+        self._activate(school)
+
+        system = GradingSystem.objects.get(school=school, name="GES BECE")
+        self.assertEqual(system.max_score, 100)
+        self.assertEqual(system.pass_mark, 50)
+
+        scales = system.grade_scales.all()
+        self.assertEqual(scales.count(), 9)
+        grades = {scale.grade: scale for scale in scales}
+        self.assertEqual(grades["1"].min_score, Decimal("90.00"))
+        self.assertEqual(grades["1"].max_score, Decimal("100.00"))
+        self.assertEqual(grades["9"].min_score, Decimal("0.00"))
+        self.assertEqual(grades["9"].max_score, Decimal("39.00"))
+        self.assertEqual(
+            [scale.position for scale in scales.order_by("position")],
+            list(range(1, 10)),
+        )
+        self.assertTrue(grades["6"].is_passing)
+        self.assertFalse(grades["7"].is_passing)
+
+    def test_seeding_is_idempotent(self):
+        school = self._make_school(name="Idempotent School", code="IDEM-2026")
+        GradingSystemService.seed_ges_bece(school)
+        GradingSystemService.seed_ges_bece(school)
+
+        self.assertEqual(
+            GradingSystem.objects.filter(school=school, name="GES BECE").count(), 1
+        )
+        self.assertEqual(
+            GradeScale.objects.filter(grading_system__school=school).count(), 9
+        )
+
+    def test_grading_system_is_scoped_to_the_school(self):
+        first = self._make_school(name="First School", code="FIRST")
+        second = self._make_school(name="Second School", code="SECOND")
+        GradingSystemService.seed_ges_bece(first)
+
+        self.assertTrue(GradingSystem.objects.filter(school=first).exists())
+        self.assertFalse(GradingSystem.objects.filter(school=second).exists())

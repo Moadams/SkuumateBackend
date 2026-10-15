@@ -1,11 +1,10 @@
-from django.template.loader import render_to_string
-from django.conf import settings
-from integrations.registry import get_email_provider
 import datetime
-
 import logging
 
+from django.conf import settings
+from django.template.loader import render_to_string
 
+from integrations.registry import get_email_provider
 
 logger = logging.getLogger(__name__)
 
