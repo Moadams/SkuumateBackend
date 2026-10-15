@@ -7,7 +7,8 @@ from rest_framework import serializers
 from accounts.utils.password_reset import generate_password_setup_link
 from core.email import send_welcome_school_email
 from schools.models import School
-from staff.management.commands.seed_permissions import SYSTEM_POSITIONS
+
+from schools.services.school import SchoolService
 from staff.services import StaffService
 from subscriptions.services.subscriptions import SubscriptionService
 
@@ -187,13 +188,8 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
         # 1. Create the school
         school = School.objects.create(**validated_data)
 
-        temporary_password = secrets.token_urlsafe(16)
-
-        # Seed system positions for this new school
-        self._seed_system_positions(school)
         user_data = {
             "email": admin_email,
-            "password": temporary_password,
             "first_name": admin_first_name,
             "last_name": admin_last_name,
             "role": User.Role.ADMIN,
@@ -201,39 +197,8 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             "school": school
         }
 
-        user = StaffService.create_staff(school, user_data, "Administrator")
-
-        # SubscriptionService.free_trial_subscription(school, user)
-
-        reset_link = generate_password_setup_link(user)
-
-        send_welcome_school_email(
-            admin_name=f"{admin_first_name} {admin_last_name}",
-            admin_email=admin_email,
-            reset_link=reset_link,
-            school_name=school.name
-        )
-
+        school = SchoolService.activate_school_with_admin(school, user_data)
+        
         return school
 
-    @staticmethod
-    def _seed_system_positions(school):
-
-        from staff.models import PermissionKey, StaffPosition
-        all_keys = list(PermissionKey.objects.values_list("key", flat=True))
-        for pos_data in SYSTEM_POSITIONS:
-            keys = pos_data["keys"] if pos_data["keys"] is not None else all_keys
-            position, created = StaffPosition.objects.get_or_create(
-                school=school,
-                name=pos_data["name"],
-                defaults={
-                    "description": pos_data["description"],
-                    "is_system": True,
-                },
-            )
-            if created:
-                position.is_system = True
-            # permissions is a ManyToManyField — assign via .set()
-            position.permissions.set(
-                PermissionKey.objects.filter(key__in=keys)
-            )
+    

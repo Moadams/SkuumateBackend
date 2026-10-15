@@ -2,8 +2,14 @@ import re
 
 from rest_framework import serializers
 
-from ..models import School
+from ..models import ProspectiveSchool, School
 
+
+class PublicSchoolRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProspectiveSchool
+        fields = "__all__"
+        read_only_fields = ("status", "created_at", "updated_at")
 
 class SchoolListSerializer(serializers.ModelSerializer):
     

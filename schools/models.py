@@ -1,4 +1,5 @@
 from django.db import models
+
 from core.models import TimestampedModel
 
 
@@ -49,3 +50,27 @@ class School(TimestampedModel):
 
         # Now delete the school itself
         super().delete(*args, **kwargs)
+
+
+
+class ProspectiveSchool(TimestampedModel):
+    class ProspectiveSchoolStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20)
+    admin_first_name = models.CharField(max_length=100)
+    admin_last_name = models.CharField(max_length=100)
+    admin_email = models.EmailField()
+    admin_phone = models.CharField(max_length=20)
+    status = models.CharField(
+        max_length=20,
+        choices=ProspectiveSchoolStatus.choices,
+        default=ProspectiveSchoolStatus.PENDING,
+    )
+
+    def __str__(self):
+        return f"{self.name} ({self.email})"

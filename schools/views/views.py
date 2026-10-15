@@ -1,15 +1,3 @@
-"""
-Schools HTTP layer — views only handle transport concerns:
-
-  1. authorization (permission classes)
-  2. parsing/serializing request bodies
-  3. invoking the application layer
-  4. wrapping results in the API envelope
-
-Business rules and read-model assembly live in schools.services.
-Presentation (DTO → JSON payload) lives in schools.serializers.presenters.
-"""
-from core.school_permissions import school_permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -19,21 +7,74 @@ from rest_framework.views import APIView
 from core.cache import CacheKeys, cache_response, invalidate_school_cache
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsAdminOrReadOnly
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
 from schools.serializers.presenters import SchoolDetailsPresenter
 from schools.services import SchoolDetailsService
 from schools.services.onboarding import OnboardingService
+from schools.services.prospective_school import ProspectiveSchoolService
+from subscriptions.permissions import IsPlatformSuperAdmin
 
 from ..filters import SchoolFilter
-from ..models import School
+from ..models import ProspectiveSchool, School
 from ..serializers.serializers import (
     MySchoolUpdateSerializer,
+    PublicSchoolRegistrationSerializer,
     SchoolListSerializer,
     SchoolProfileSerializer,
     SchoolSerializer,
 )
 
+
+class PublicSchoolRegistrationView(generics.CreateAPIView):
+    serializer_class = PublicSchoolRegistrationSerializer
+    permission_classes = []  # Allow public access
+
+class ProspectiveSchoolListView(generics.ListAPIView):
+    serializer_class = PublicSchoolRegistrationSerializer
+    permission_classes = (IsPlatformSuperAdmin,)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)   
+    filterset_fields = ("status", "created_at")
+    search_fields = ("name", "email", "admin_first_name", "admin_last_name", "admin_email","admin_phone")
+
+    def get_queryset(self):
+        return ProspectiveSchool.objects.all().order_by("-created_at")
+
+
+class ProspectiveSchoolApprovalView(APIView):
+    permission_classes = (IsPlatformSuperAdmin,)
+
+    def post(self, request, pk):
+        try:
+            prospective_school = ProspectiveSchool.objects.get(pk=pk)
+        except ProspectiveSchool.DoesNotExist:
+            return ApiResponse.error(
+                message="Prospective school not found.",
+                status_code=404,
+            )
+
+        action = request.data.get("action", None)
+        if action not in ProspectiveSchool.ProspectiveSchoolStatus.values:
+            return ApiResponse.error(
+                message="Invalid action.",
+                status_code=400,
+            )
+        try:
+            if action == ProspectiveSchool.ProspectiveSchoolStatus.APPROVED:
+                # Activate the school and create the admin user
+                ProspectiveSchoolService().approve_prospective_school(prospective_school)
+            elif action == ProspectiveSchool.ProspectiveSchoolStatus.REJECTED:
+                ProspectiveSchoolService().reject_prospective_school(prospective_school)
+        except ValueError as e:
+            return ApiResponse.error(
+                message=str(e),
+                status_code=400,
+            )
+
+        return ApiResponse.success(
+            message=f"Prospective school has been {prospective_school.status}.",
+            data={"id": prospective_school.id, "status": prospective_school.status},
+        )
 
 class SchoolListExportView(ExportMixin, generics.ListAPIView):
     """Export all schools — full unpaginated list. Superadmin only."""

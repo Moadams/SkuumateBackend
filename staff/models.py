@@ -163,6 +163,10 @@ class StaffProfile(TimestampedModel):
                 school=self.school,
                 date_joined__year=year
             ).count() + 1
+        employee_id = f"{school_code}-EMP-{year}-{count:04d}"
+        while StaffProfile.objects.filter(employee_id=employee_id).exists():
+            count += 1
+            employee_id = f"{school_code}-EMP-{year}-{count:04d}"
         return f"{school_code}-EMP-{year}-{count:04d}"
 
     @property
