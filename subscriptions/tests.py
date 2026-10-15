@@ -1410,7 +1410,7 @@ class SubscriptionMiddlewareUnitTests(SimpleTestCase):
         self.assertIsNone(
             evaluate_request_state(
                 self._request(), user=self._request().user, subscription=SimpleNamespace(
-                    is_locked=False, is_read_only=False, days_remaining=10
+                    is_locked=False, days_remaining=10
                 )
             )
         )
@@ -1420,7 +1420,7 @@ class SubscriptionMiddlewareUnitTests(SimpleTestCase):
             self._request(),
             user=self._request().user,
             subscription=SimpleNamespace(
-                is_locked=True, is_read_only=False, days_remaining=0
+                is_locked=True, days_remaining=0
             ),
         )
         self.assertIn("expired", denial)

@@ -1,10 +1,17 @@
 from django.urls import path
+
 from .views import (
-    ClassStudentsListView, StudentBulkCreateView, StudentExcelTemplateView,
-    StudentListCreateView, StudentDetailView, StudentExportView,
-    GuardianListCreateView, GuardianDetailView,
-    StudentEnrollView, StudentEnrollmentHistoryView,
     ClassBulkStudentsView,
+    ClassStudentsListView,
+    GuardianDetailView,
+    GuardianListCreateView,
+    StudentBulkCreateView,
+    StudentDetailView,
+    StudentEnrollmentHistoryView,
+    StudentEnrollView,
+    StudentExcelTemplateView,
+    StudentExportView,
+    StudentListCreateView,
 )
 
 urlpatterns = [

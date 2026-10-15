@@ -28,7 +28,8 @@ class ProspectiveSchoolService:
             "last_name": prospective_school.admin_last_name,
             "role": User.Role.ADMIN,
             "must_change_password": True,
-            "school": new_school
+            "school": new_school,
+            "is_root_admin": True
         }
 
         school = SchoolService.activate_school_with_admin(new_school, user_data)

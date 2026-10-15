@@ -27,3 +27,6 @@ def custom_exception_handler(exc, context):
 
 class PaymentGatewayError(Exception):
     """Raised when a payment gateway rejects or fails a purchase."""
+
+class UniqueConstraintError(Exception):
+    """Raised when a unique constraint is violated in the database."""

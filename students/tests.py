@@ -1,12 +1,22 @@
-from django.test import TestCase
+import io
+import shutil
+import tempfile
+import zipfile
+from datetime import date
+
+import openpyxl
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
+from academics.models import AcademicYear, Class, Term
 from accounts.models import User
+from core.models import AuditLog
 from schools.models import School
-from students.models import Student
+from students.models import Enrollment, Guardian, Student
 from subscriptions.models import (
     Feature,
     Package,
@@ -237,3 +247,244 @@ class StudentExportGateTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("expired", response.data["message"])
+
+
+class ClassBulkStudentsViewTests(APITestCase):
+    """Bulk import into one class: parsing, persistence, photos and errors."""
+
+    BASE_HEADERS = ["first_name", "last_name", "date_of_birth", "gender"]
+
+    def setUp(self):
+        self.temp_media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.temp_media, True)
+        override = override_settings(MEDIA_ROOT=self.temp_media)
+        override.enable()
+        self.addCleanup(override.disable)
+
+        self.school = create_school(name="Bulk School", code="BULK")
+        self.admin = create_admin_user(self.school, email="bulk-admin@example.com")
+        self.client.force_authenticate(self.admin)
+
+        self.year = AcademicYear.objects.create(
+            school=self.school, name="2026",
+            start_date=date(2026, 1, 1), end_date=date(2026, 12, 31),
+        )
+        self.term = Term.objects.create(
+            school=self.school, academic_year=self.year, name="term_1",
+            start_date=date(2026, 1, 1), end_date=date(2026, 4, 1),
+            is_current=True,
+        )
+        self.klass = Class.objects.create(school=self.school, name="Primary 1")
+        self.url = reverse("student-class-bulk")
+
+    # ── helpers ────────────────────────────────────────────────────
+
+    def _xlsx(self, rows, headers=None):
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.append(headers or self.BASE_HEADERS)
+        for row in rows:
+            sheet.append(row)
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            "students.xlsx",
+            buffer.getvalue(),
+            content_type=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+        )
+
+    def _zip(self, files, name="photos.zip"):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            for filename, content in files.items():
+                archive.writestr(filename, content)
+        buffer.seek(0)
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="application/zip")
+
+    def _post(self, xlsx=None, class_id=None, photos=None):
+        data = {"class_id": str(class_id or self.klass.id)}
+        if xlsx is not None:
+            data["file"] = xlsx
+        if photos is not None:
+            data["photos"] = photos
+        return self.client.post(self.url, data, format="multipart")
+
+    # ── happy path ─────────────────────────────────────────────────
+
+    def test_successful_import_creates_students_guardians_and_enrollments(self):
+        headers = self.BASE_HEADERS + [
+            "guardian_first_name",
+            "guardian_last_name",
+            "guardian_relationship",
+            "guardian_phone",
+        ]
+        rows = [
+            ["Ekow", "Mensah", "2010-05-14", "male", "Kwame", "Mensah", "father", "0244000002"],
+            ["Ama", "Boakye", "2011-03-02", "female"],
+        ]
+
+        response = self._post(xlsx=self._xlsx(rows, headers))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        summary = response.data["data"]["summary"]
+        self.assertEqual(summary["class_name"], "Primary 1")
+        self.assertEqual(summary["academic_year"], "2026")
+        self.assertEqual(summary["total_submitted"], 2)
+        self.assertEqual(summary["created"], 2)
+        self.assertEqual(summary["failed"], 0)
+        self.assertEqual(summary["success_rate"], "100%")
+
+        self.assertEqual(Student.objects.filter(school=self.school).count(), 2)
+        self.assertEqual(Guardian.objects.filter(school=self.school).count(), 1)
+        self.assertEqual(Enrollment.objects.filter(klass=self.klass).count(), 2)
+        self.assertTrue(
+            all(e.academic_year_id == self.year.id for e in Enrollment.objects.all())
+        )
+
+        log = AuditLog.objects.get(resource="Student")
+        self.assertEqual(log.metadata["created_count"], 2)
+        self.assertEqual(log.metadata["class_id"], str(self.klass.id))
+
+    def test_photo_in_zip_is_attached_to_the_student(self):
+        headers = self.BASE_HEADERS + ["photo_filename"]
+        rows = [["Ada", "Lovelace", "2015-01-01", "female", "ada.jpg"]]
+
+        response = self._post(
+            xlsx=self._xlsx(rows, headers),
+            photos=self._zip({"ada.jpg": b"fake-image-bytes"}),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        student = Student.objects.get(first_name="Ada")
+        self.assertTrue(student.profile_photo)
+        self.assertTrue(student.profile_photo.name.endswith("ada.jpg"))
+
+    # ── partial / complete failures ────────────────────────────────
+
+    def test_partial_failure_reports_valid_and_invalid_rows(self):
+        rows = [
+            ["Ekow", "Mensah", "2010-05-14", "male"],
+            ["Bad", "Row", "not-a-date", "alien"],
+        ]
+
+        response = self._post(xlsx=self._xlsx(rows))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data["data"]
+        self.assertEqual(data["summary"]["created"], 1)
+        self.assertEqual(data["summary"]["failed"], 1)
+        self.assertEqual(data["summary"]["total_submitted"], 2)
+        self.assertEqual(len(data["created"]), 1)
+        self.assertEqual(len(data["failed"]), 1)
+        self.assertIn("errors", data["failed"][0])
+
+    def test_all_rows_invalid_returns_400_with_parse_errors(self):
+        rows = [["", "", "", "alien"]]
+
+        response = self._post(xlsx=self._xlsx(rows))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["message"], "All rows failed validation.")
+        summary = response.data["errors"]["summary"]
+        self.assertEqual(summary["created"], 0)
+        self.assertEqual(summary["failed"], 1)
+        self.assertEqual(len(summary["parse_errors"]), 1)
+
+    # ── request validation ─────────────────────────────────────────
+
+    def test_missing_current_term_returns_400(self):
+        Term.objects.filter(pk=self.term.pk).update(is_current=False)
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("No active academic year", response.data["message"])
+
+    def test_missing_file_returns_400(self):
+        response = self._post()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("No file uploaded", response.data["message"])
+
+    def test_non_xlsx_file_returns_400(self):
+        bad_file = SimpleUploadedFile("students.csv", b"a,b,c", content_type="text/csv")
+
+        response = self._post(xlsx=bad_file)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid file type", response.data["message"])
+
+    def test_unknown_class_returns_400(self):
+        import uuid
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]]),
+            class_id=uuid.uuid4(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("class_id", response.data["errors"])
+
+    def test_foreign_school_class_is_rejected(self):
+        other_school = create_school(name="Other School", code="OTHER")
+        foreign_class = Class.objects.create(school=other_school, name="Foreign")
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]]),
+            class_id=foreign_class.id,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("class_id", response.data["errors"])
+
+    # ── photo archive validation ───────────────────────────────────
+
+    def test_non_zip_photos_returns_400(self):
+        photos = SimpleUploadedFile("notes.txt", b"nope", content_type="text/plain")
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]]),
+            photos=photos,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(".zip", response.data["message"])
+
+    def test_corrupt_zip_returns_400(self):
+        photos = SimpleUploadedFile(
+            "photos.zip", b"definitely-not-a-zip", content_type="application/zip"
+        )
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]]),
+            photos=photos,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid ZIP file", response.data["message"])
+
+    def test_zip_slip_member_is_rejected(self):
+        photos = self._zip({"../evil.txt": b"escape"})
+
+        response = self._post(
+            xlsx=self._xlsx([["Ekow", "Mensah", "2010-05-14", "male"]]),
+            photos=photos,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid ZIP file", response.data["message"])
+        self.assertEqual(Student.objects.filter(school=self.school).count(), 0)
+
+    # ── template download ──────────────────────────────────────────
+
+    def test_get_downloads_the_excel_template(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertIn("spreadsheetml.sheet", response["Content-Type"])

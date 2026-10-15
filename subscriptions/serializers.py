@@ -337,7 +337,6 @@ class AdminSubscriptionSerializer(SubscriptionSerializer):
             "days_remaining",
             "is_paid",
             "is_current",
-            "is_read_only",
             "is_locked",
             "is_accessible",
             "is_on_trial",

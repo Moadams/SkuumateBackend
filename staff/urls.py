@@ -1,14 +1,15 @@
 from django.urls import path
+
 from .access_views import StaffAccessView
 from .views import (
     ActivateStaffUserAccountView,
+    MyStaffProfileView,
     PermissionListView,
-    StaffPositionListCreateView,
-    StaffPositionDetailView,
-    StaffListCreateView,
     StaffDetailView,
     StaffExportView,
-    MyStaffProfileView,
+    StaffListCreateView,
+    StaffPositionDetailView,
+    StaffPositionListCreateView,
     UpdateStaffStatusView,
 )
 

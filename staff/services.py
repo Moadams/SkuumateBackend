@@ -1,6 +1,9 @@
+from django.db.utils import IntegrityError
+
 from django.utils import timezone
 
 from accounts.models import User
+from staff.enums.employment_type import EmploymentType
 from staff.models import StaffPosition, StaffProfile
 
 
@@ -11,7 +14,20 @@ class StaffService:
         Create a new staff member for the given school.
         """
         # Create the user
-        user = User.objects.create_user(**user_data)
+        try:
+            user = User.objects.create_user(
+                email=user_data.get("email"),
+                phone=user_data.get("phone"),
+                first_name=user_data.get("first_name"),
+                last_name=user_data.get("last_name"),
+                role=user_data.get("role", User.Role.STAFF),
+                must_change_password=user_data.get("must_change_password", True),
+                school=school,
+            )
+        except IntegrityError as e:
+            message = "A user with this email already exists." if "email" in str(e).lower() else f"Failed to create user: {str(e)}"
+            raise ValueError(message)
+        
         position = StaffPosition.objects.filter(school=school, name=position_name).first() if position_name else None
         
         # Assign the user to the school
@@ -22,8 +38,23 @@ class StaffService:
             "school": school,
             "role": user_data.get("role", User.Role.STAFF),
             "date_joined": user_data.get("date_joined", timezone.now().date()),
+            "employee_id": user_data.get("employee_id",None),
+            "employment_type": user_data.get("employment_type", EmploymentType.FULL_TIME),
+            "email": user_data.get("email",None),
+            "phone": user_data.get("phone",None),
+            "address": user_data.get("address",None),
+            "profile_photo": user_data.get("profile_photo",None),
         }
         staff_profile = StaffProfile.objects.create(**staff_data)
         staff_profile.positions.add(position) if position else None
         
         return user
+
+    @staticmethod
+    def delete_staff(staff):
+        if staff.user and staff.user.is_root_admin:
+            raise ValueError("Cannot delete a root administrator account.")
+        if staff.user:
+            staff.user.delete()
+        staff.delete()
+        return True

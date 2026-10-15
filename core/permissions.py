@@ -209,3 +209,11 @@ class IsAdminOrSuperAdmin(OrPermission):
         IsAdmin,
         IsSuperAdmin,
     ]
+
+
+class IsSuperAdminOrReadOnly(BasePermission):
+    """Super admins can access, others can only read."""
+    def has_permission(self, request, view):
+        if is_platform_superadmin(request.user):
+            return True
+        return request.method in ("GET", "HEAD", "OPTIONS")

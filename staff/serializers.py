@@ -1,19 +1,19 @@
-from django.db import transaction
-from accounts.models import User
-from core.email import send_staff_welcome_mail
+from django.contrib.auth.password_validation import validate_password
+from django.core import exceptions
 from rest_framework import serializers
+
 from core.validations import validate_date, validate_name, validate_phone_number
 from staff.enums.staff_status import StaffStatus
 from students.utils import generate_user_email
+
 from .models import (
+    PERMISSION_CHOICES,
+    PERMISSION_KEYS,
     PermissionKey,
     StaffPosition,
     StaffProfile,
-    PERMISSION_CHOICES,
-    PERMISSION_KEYS
 )
-from django.core import exceptions
-from django.contrib.auth.password_validation import validate_password
+
 
 class PermissionChoiceSerializer(serializers.Serializer):
     """Returns all available permission keys grouped by module."""
@@ -57,7 +57,7 @@ class StaffPositionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StaffPosition
-        fields = [
+        fields = (
             "id",
             "name",
             "description",
@@ -67,10 +67,10 @@ class StaffPositionSerializer(serializers.ModelSerializer):
             "staff_count",
             "created_at",
             "updated_at",
-        ]
-        read_only_fields = [
-            "id", "is_system", "created_at", "updated_at"
-        ]
+        )
+        read_only_fields = (
+            "id", "is_system", "permission_labels", "created_at", "updated_at"
+        )
 
     def get_staff_count(self, obj):
         return obj.staff_members.filter(
@@ -126,7 +126,7 @@ class StaffListSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source="user.id", allow_null=True, required=False)
     class Meta:
         model = StaffProfile
-        fields = [
+        fields = (
             "id",
             "user_id",
             "employee_id",
@@ -137,16 +137,17 @@ class StaffListSerializer(serializers.ModelSerializer):
             "profile_photo",
             "status",
             "employment_type"
-        ]
+        )
 
-        read_only_fields = ["id", "user_id"]
+        read_only_fields = ("id", "user_id")
 
 class StaffProfileSerializer(serializers.ModelSerializer):
     profile_photo_url = serializers.SerializerMethodField()
+    positions = StaffPositionSerializer(many=True, read_only=True)
 
     class Meta:
         model = StaffProfile
-        fields = [
+        fields = (
             "id",
             "employee_id",
             "first_name",
@@ -161,11 +162,12 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             "address",
             "profile_photo_url",
             "role",
-            "user"
-        ]
-        read_only_fields = [
+            "user",
+            "positions",
+        )
+        read_only_fields = (
             "id", "employee_id", "created_at", "updated_at"
-        ]
+        )
 
     def get_profile_photo_url(self, obj):
         request = self.context.get("request")
@@ -175,6 +177,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
 
 class StaffCreationSerializer(serializers.ModelSerializer):
+    phone = serializers.CharField(required=True)
     def validate_role(self, value):
         if value not in ("admin", "teacher", "finance_manager"):
             raise serializers.ValidationError("Select a school staff role.")
@@ -187,7 +190,7 @@ class StaffCreationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StaffProfile
-        fields = [
+        fields = (
             "first_name",
             "last_name",
             "employee_id",
@@ -198,7 +201,7 @@ class StaffCreationSerializer(serializers.ModelSerializer):
             "address",
             "profile_photo",
             "role"
-        ]
+        )
 
     def validate(self, attrs):
         if not attrs.get("email"):
@@ -226,7 +229,7 @@ class UpdateStaffSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = StaffProfile
-        fields = [
+        fields = (
             "first_name",
             "last_name",
             "employee_id",
@@ -237,7 +240,7 @@ class UpdateStaffSerializer(serializers.ModelSerializer):
             "phone",
             "address",
             "profile_photo",
-        ]
+        )
 
 
 class ResetPasswordSerializer(serializers.Serializer):

@@ -77,7 +77,6 @@ class SubscriptionDTO:
     is_paid: Optional[bool]
     is_trial: Optional[bool]
     is_accessible: Optional[bool]
-    is_read_only: Optional[bool]
     is_locked: Optional[bool]
     days_remaining: Optional[int]
     start_date: Optional[datetime]

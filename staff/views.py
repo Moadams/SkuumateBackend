@@ -1,29 +1,25 @@
-from core.school_permissions import school_permission
 import logging
-from django.db import IntegrityError, transaction
-from accounts.models import User
-from rest_framework import generics
-from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
 
-from core.permissions import IsAdmin, IsTeacher
-from core.permissions import effective_keys
+from django.db import IntegrityError, transaction
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
-from core.responses import ApiResponse
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.views import APIView
+
+from accounts.models import User
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
+from core.permissions import IsTeacher, effective_keys
+from core.responses import ApiResponse
+from core.school_permissions import school_permission
 from core.utils import log_action
 from staff.enums.staff_status import StaffStatus
 from subscriptions.permissions import HasExportAccess
 
-from .models import (
-    PermissionKey,
-    StaffPosition,
-    StaffProfile,
-    PERMISSION_CHOICES
-)
+from .filters import StaffProfileFilter
+from .models import PERMISSION_CHOICES, PermissionKey, StaffPosition, StaffProfile
 from .serializers import (
     StaffCreationSerializer,
     StaffListSerializer,
@@ -32,7 +28,7 @@ from .serializers import (
     StaffProfileSerializer,
     UpdateStaffSerializer,
 )
-from .filters import StaffProfileFilter
+from .services import StaffService
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +47,7 @@ class PermissionListView(APIView):
     constants before the registry is seeded).
     Used by the frontend when building the position create/edit form.
     """
-    permission_classes = [school_permission(read="school.manage", write="school.manage")]
+    permission_classes = (school_permission(read="school.manage", write="school.manage"),)
 
     def get(self, request):
         registry = PermissionKey.objects.all()
@@ -83,11 +79,11 @@ class PermissionListView(APIView):
 class StaffPositionListCreateView(
     AuditLogMixin, ExportMixin, generics.ListCreateAPIView
 ):
-    permission_classes = [school_permission(read="school.manage", write="school.manage")]
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ["name", "description"]
-    ordering_fields = ["name", "created_at", "is_system"]
-    ordering = ["-is_system", "name"]
+    permission_classes = (school_permission(read="school.manage", write="school.manage"),)
+    filter_backends = (SearchFilter, OrderingFilter)
+    search_fields = ("name", "description")
+    ordering_fields = ("name", "created_at", "is_system")
+    ordering = ("-is_system", "name")
     audit_resource = "StaffPosition"
 
     def get_serializer_class(self):
@@ -136,7 +132,7 @@ class StaffPositionListCreateView(
 class StaffPositionDetailView(
     AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 ):
-    permission_classes = [school_permission(read="school.manage", write="school.manage")]
+    permission_classes = (school_permission(read="school.manage", write="school.manage"),)
     audit_resource = "StaffPosition"
 
     def get_serializer_class(self):
@@ -228,21 +224,21 @@ class StaffPositionDetailView(
 class StaffListCreateView(
     AuditLogMixin, ExportMixin, generics.ListCreateAPIView
 ):
-    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    permission_classes = (school_permission(read="staff.view", write="staff.manage"),)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = StaffProfileFilter
-    search_fields = [
+    search_fields = (
         "user__first_name",
         "user__last_name",
         "user__email",
         "employee_id",
-    ]
-    ordering_fields = [
+    )
+    ordering_fields = (
         "user__last_name", "date_joined",
         "status", "employment_type",
-    ]
-    ordering = ["user__last_name"]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    )
+    ordering = ("user__last_name",)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     audit_resource = "StaffProfile"
 
     def get_serializer_class(self):
@@ -275,27 +271,33 @@ class StaffListCreateView(
         )
         return ApiResponse.success(data=serializer.data)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+
+        try:
+            StaffService.create_staff(
+                school=request.user.school,
+                user_data=serializer.validated_data,
+                position_name=request.data.get("position_name")
+            )
+        except ValueError as e:
+            return ApiResponse.error(message=str(e))
 
         return ApiResponse.created(
-            message = f"Staff profile for {serializer.instance.full_name} created successfully. "
+            message = "Staff profile created successfully. "
         )
 
 
 class StaffDetailView(
     AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
 ):
-    permission_classes = [school_permission(read="staff.view", write="staff.manage")]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = (school_permission(read="staff.view", write="staff.manage"),)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     audit_resource = "StaffProfile"
     serializer_class = StaffProfileSerializer
-
-    def perform_destroy(self, instance):
-        check_staff_management(self.request.user, instance)
-        return super().perform_destroy(instance)
 
     def get_queryset(self):
         return (
@@ -329,6 +331,16 @@ class StaffDetailView(
             message="Staff profile updated successfully.",
         )
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        check_staff_management(request.user, instance)
+        try:
+            StaffService.delete_staff(instance)
+        except ValueError as e:
+            return ApiResponse.error(message=str(e))
+        return ApiResponse.success(
+            message="Staff profile deleted successfully."
+        )
 
 class UpdateStaffStatusView(APIView):
     permission_classes = [school_permission(read="staff.view", write="staff.manage")]

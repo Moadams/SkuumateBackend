@@ -7,7 +7,7 @@ from core.permissions import effective_keys
 def school_permission(*, read=None, write=None, create=None, edit=None, delete=None):
     """Explicit action keys; an omitted action is denied, never inferred."""
     class SchoolActionPermission(BasePermission):
-        action_keys = {"GET": read, "HEAD": read, "OPTIONS": read,
+        action_keys = {"GET": read, "HEAD": read, "OPTIONS": read,  # noqa: RUF012
                        "POST": create or write, "PUT": edit or write,
                        "PATCH": edit or write, "DELETE": delete or write}
 
@@ -25,13 +25,18 @@ def school_permission(*, read=None, write=None, create=None, edit=None, delete=N
             return allowed
 
         def check_teacher_scope(self, request, view, key):
-            from core.teacher_scope import needs_teacher_scope, ensure_teacher_assignment, assigned_class_ids
+            from core.teacher_scope import (
+                assigned_class_ids,
+                ensure_teacher_assignment,
+                needs_teacher_scope,
+            )
             if not needs_teacher_scope(request.user) or not key.startswith(("students.", "attendance.", "exams.", "reports.")):
                 return
-            from academics.models import Class, Term
-            from students.models import Student
             from rest_framework import serializers
             from rest_framework.exceptions import NotFound
+
+            from academics.models import Class, Term
+            from students.models import Student
             term_id = view.kwargs.get("term_id") or request.query_params.get("term_id")
             if not term_id and isinstance(request.data, dict):
                 term_id = request.data.get("term_id")

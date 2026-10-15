@@ -194,7 +194,8 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
             "last_name": admin_last_name,
             "role": User.Role.ADMIN,
             "must_change_password": True,
-            "school": school
+            "school": school,
+            "is_root_admin": True
         }
 
         school = SchoolService.activate_school_with_admin(school, user_data)

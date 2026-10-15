@@ -59,7 +59,7 @@ def check_limit(school, resource: str):
     if not subscription:
         raise PermissionDenied("No active subscription found.")
 
-    if subscription.status__in [subscription.Status.LOCKED, subscription.Status.EXPIRED]:
+    if subscription.status in [subscription.Status.LOCKED, subscription.Status.EXPIRED]:
         raise PermissionDenied(
             "Your subscription has expired. Please renew to continue."
         )

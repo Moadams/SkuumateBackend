@@ -384,7 +384,7 @@ class Coupon(TimestampedModel):
 
     @property
     def effective_status(self):
-        if ((self.expiry_date and self.expiry_date < timezone.localdate())
+        if ((self.expiry_date and self.expiry_date < timezone.now())
                 or (self.max_usage is not None and self.usage_count >= self.max_usage)):
             return self.Status.EXPIRED
         return self.status

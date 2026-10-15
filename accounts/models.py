@@ -37,7 +37,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.TEACHER)
-
+    is_root_admin = models.BooleanField(default=False)
+    
     # school is nullable to allow superusers with no school
     school = models.ForeignKey(
         "schools.School",

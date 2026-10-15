@@ -134,7 +134,7 @@ class StaffProfile(TimestampedModel):
     )
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
-    address = models.TextField(blank=True)
+    address = models.TextField(blank=True, null=True)
     profile_photo = models.ImageField(
         upload_to="staff/photos/",
         null=True,

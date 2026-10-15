@@ -1,14 +1,21 @@
 """Platform coupon management and authenticated checkout validation."""
 from django.db import transaction
 from django.db.models import Q
+from django_filters import OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.filters import SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from platform_rbac.permissions import require_platform_permission
-from subscriptions.coupon_serializers import CouponSerializer, CouponValidationSerializer
+
+from core.permissions import IsSuperAdminOrReadOnly
+from subscriptions.coupon_serializers import (
+    CouponSerializer,
+    CouponValidationSerializer,
+)
 from subscriptions.models import Coupon
 from subscriptions.services.coupons import CouponService
 
@@ -25,24 +32,13 @@ class CouponPagination(PageNumberPagination):
 class CouponViewSet(viewsets.ModelViewSet):
     serializer_class = CouponSerializer
     pagination_class = CouponPagination
-    filter_backends = []
-    permission_classes = [IsAuthenticated, require_platform_permission('billing.view'), require_platform_permission('billing.manage')]
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ('code', 'description')
+    permission_classes = (IsSuperAdminOrReadOnly,)
 
     def get_queryset(self):
         queryset = Coupon.objects.select_related('target_plan')
-        search = self.request.query_params.get('search')
-        if search:
-            queryset = queryset.filter(Q(code__icontains=search) | Q(description__icontains=search))
-        for field, choices in [('status', Coupon.Status.values), ('discount_type', Coupon.DiscountType.values), ('target', Coupon.Target.values)]:
-            value = self.request.query_params.get(field)
-            if value:
-                if value not in choices:
-                    raise ValidationError({field: 'Invalid filter value.'})
-                queryset = CouponService.with_status(queryset, value) if field == 'status' else queryset.filter(**{field: value})
         return queryset
-
-    def retrieve(self, request, *args, **kwargs):
-        return Response({'success': True, 'data': self.get_serializer(self.get_object()).data})
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

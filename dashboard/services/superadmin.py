@@ -116,6 +116,26 @@ class SuperAdminDashboardService:
 
         return result
 
+    def _get_pending_prospective_schools(self):
+        from schools.models import ProspectiveSchool
+
+        pending_schools = (
+            ProspectiveSchool.objects
+            .filter(status=ProspectiveSchool.ProspectiveSchoolStatus.PENDING)
+            .order_by("-created_at")[:10]
+        )
+
+        return [
+            {
+                "id": str(school.id),
+                "name": school.name,
+                "email": school.email,
+                "phone": school.phone,
+                "registered": school.created_at,
+            }
+            for school in pending_schools
+        ]
+
     def _get_subscription_distribution(self):
         from subscriptions.models import Subscription
 

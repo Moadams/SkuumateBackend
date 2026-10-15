@@ -1,9 +1,9 @@
-from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import BasePermission
+
 from .services.packages import package_has_feature
 from .state import LOCKED_MESSAGE
 from .utils import get_active_subscription
-
 
 NO_SUBSCRIPTION_MESSAGE = (
     "No active subscription found. "

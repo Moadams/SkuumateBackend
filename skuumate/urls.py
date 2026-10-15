@@ -6,8 +6,6 @@ from django.urls import include, path, re_path
 from core.media import PublicLogoView
 
 urlpatterns = [
-    path("api/", include("subscriptions.coupon_urls")),
-    path("api/v1/", include("subscriptions.coupon_urls")),
     path("admin/", admin.site.urls),
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("schools.urls")),
@@ -15,6 +13,7 @@ urlpatterns = [
     path("api/v1/", include("academics.urls")), 
     path("api/v1/", include("students.urls")),
     path("api/v1/", include("subscriptions.urls")), 
+    path("api/v1/", include("subscriptions.coupon_urls")),
     path("api/v1/", include("attendance.urls")),  
     path("api/v1/", include("staff.urls")), 
     path("api/v1/communications/", include("communications.urls")),

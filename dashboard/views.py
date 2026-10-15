@@ -1,19 +1,16 @@
 from datetime import timedelta
 
 from django.core.cache import cache
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 from rest_framework.views import APIView
 
 from core.cache import CacheKeys
 from core.logging import get_logger
-from core.permissions import (
-    IsSuperAdmin,
-)
 from core.responses import ApiResponse
 from core.school_permissions import school_permission
-from subscriptions.permissions import HasAdvancedFinance
 from dashboard.services import SuperAdminDashboardService
+from subscriptions.permissions import HasAdvancedFinance, IsPlatformSuperAdmin
 
 logger = get_logger("dashboard.views")
 
@@ -23,7 +20,7 @@ class SuperadminDashboardView(APIView):
     Superadmin-only platform overview dashboard.
     Returns all metrics needed for the platform overview page.
     """
-    permission_classes = (IsSuperAdmin,)
+    permission_classes = (IsPlatformSuperAdmin,)
 
     def get(self, request):
         cached = cache.get(CacheKeys.SUPERADMIN_DASHBOARD)
@@ -34,6 +31,7 @@ class SuperadminDashboardView(APIView):
         data = {
             "stats": superadmin_dashboard_service._get_stats(),
             "recent_onboarding": superadmin_dashboard_service._get_recent_onboarding(),
+            "prospective_schools": superadmin_dashboard_service._get_pending_prospective_schools(),
             "subscription_distribution": superadmin_dashboard_service._get_subscription_distribution(),
         }
         cache.set(CacheKeys.SUPERADMIN_DASHBOARD, data, timeout=60 * 5)

@@ -119,7 +119,7 @@ class SubscriptionService:
             start_date = subscription.term.start_date
             end_date = subscription.term.end_date + timedelta(days=1) 
         else:
-            start_date = datetime.date.today()
+            start_date = datetime.now().date()
             end_date = start_date + timedelta(days=SUBSCRIPTION_DAYS.get(subscription.plan.billing_period, 30))
         grace_period = end_date + timedelta(days=Subscription.GRACE_DAYS)   
         subscription.start_date = start_date
@@ -200,7 +200,7 @@ class SubscriptionService:
             start_date = term.start_date
             end_date = term.end_date + timedelta(days=1)  # Include the last day of the term
         else:
-            today = datetime.date.today()
+            today = datetime.now().date()
             start_date = today
             end_date = today + timedelta(days=Subscription.ACTIVE_DAYS)
         return start_date, end_date

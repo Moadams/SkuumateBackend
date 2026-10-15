@@ -1,11 +1,13 @@
 import re
 import secrets
+
 from django.db import transaction
 from rest_framework import serializers
 
 from accounts.models import User
 from students.utils import generate_user_email
-from .models import Student, Guardian, Enrollment
+
+from .models import Enrollment, Guardian, Student
 
 
 class GuardianSerializer(serializers.ModelSerializer):
@@ -423,3 +425,16 @@ class EnrollStudentSerializer(serializers.Serializer):
         attrs["klass"] = klass
         attrs["academic_year"] = academic_year
         return attrs
+
+
+class BulkStudentUploadSerializer(serializers.Serializer):
+    class_id = serializers.UUIDField(required=True)
+
+    def validate_class_id(self, value):
+        from academics.models import Class
+        school = self.context["school"]
+        try:
+            klass = Class.objects.get(id=value, school=school, is_active=True)
+        except Class.DoesNotExist:
+            raise serializers.ValidationError("Class not found or inactive.")
+        return value
