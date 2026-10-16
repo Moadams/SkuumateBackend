@@ -1,22 +1,28 @@
-from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.teacher_scope import (
+    TeacherScopedQuerysetMixin,
+    assigned_class_ids,
+    needs_teacher_scope,
+)
 from core.school_permissions import school_permission
 from django.db import transaction
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, serializers
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from academics.models import AcademicYear
+from academics.models import AcademicYear, Term
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher
 from core.responses import ApiResponse
 from core.utils import log_action
 from students.utils import parse_students_from_excel
-from subscriptions.permissions import HasExportAccess
+from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
 from .filters import StudentFilter
@@ -26,14 +32,21 @@ from .serializers import (
     EnrollmentSerializer,
     EnrollStudentSerializer,
     GuardianSerializer,
+    IDCardRequestSerializer,
     StudentCreateSerializer,
     StudentListSerializer,
     StudentMinimalSerializer,
     StudentSerializer,
     StudentUpdateSerializer,
+    StudentVerificationSerializer,
 )
 from .services import ClassBulkImportService
 from .services.excel import build_class_bulk_template_workbook
+from .services.id_cards import build_student_card_pdf, build_students_cards_pdf
+
+# Cap on a single bulk card run. Larger sets must be narrowed by class or an
+# explicit student selection so one request cannot build an unbounded PDF.
+MAX_ID_CARD_BATCH = 300
 
 # ─── Students ────────────────────────────────────────────────────
 
@@ -768,4 +781,170 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
 
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
+
+
+# ─── Student ID cards ─────────────────────────────────────────────
+
+def _resolve_term(school, term_id):
+    if not term_id:
+        return None
+    return Term.objects.filter(pk=term_id, school=school).first()
+
+
+def _scoped_students(request):
+    """Base queryset for card generation, honouring the teacher class scope."""
+    qs = (
+        Student.objects.filter(school=request.user.school)
+        .select_related("school")
+        .prefetch_related(
+            "guardians", "enrollments__klass", "enrollments__academic_year"
+        )
+    )
+    if needs_teacher_scope(request.user):
+        qs = qs.filter(
+            enrollments__klass_id__in=assigned_class_ids(request.user),
+            enrollments__is_active=True,
+        )
+    return qs.distinct()
+
+
+def _pdf_response(buffer, filename):
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+class StudentIDCardView(APIView):
+    """GET — one student's ID card as a print-ready PDF (front + back pages)."""
+
+    permission_classes = (school_permission(read="students.view"), HasIdCardAccess)
+
+    def get(self, request, pk):
+        school = request.user.school
+        student = get_object_or_404(Student, pk=pk, school=school)
+
+        term_id = request.query_params.get("term_id")
+        term = _resolve_term(school, term_id) if term_id else None
+        if term_id and term is None:
+            return ApiResponse.error(message="Term not found.", status_code=404)
+
+        if needs_teacher_scope(request.user) and not student.enrollments.filter(
+            klass_id__in=assigned_class_ids(request.user, term), is_active=True
+        ).exists():
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound()
+
+        buffer = build_student_card_pdf(student, school, term)
+        log_action(
+            action=AuditLog.Action.OTHER,
+            resource="StudentIDCard",
+            resource_id=str(student.pk),
+            description=(
+                f"Generated ID card for {student.full_name} ({student.student_id})"
+            ),
+            request=request,
+        )
+        return _pdf_response(buffer, f"id_card_{student.student_id}.pdf")
+
+
+class StudentIDCardsBulkView(APIView):
+    """POST — bulk ID cards (class / explicit selection / all active) as one PDF.
+
+    Body (all optional):
+        student_ids: [uuid, ...]   explicit selection
+        class_id: uuid             every active student in a class
+        term_id: uuid              term whose year/class the cards should show
+    A student cap keeps a single request from building an unbounded document.
+    """
+
+    permission_classes = (school_permission(create="students.view"), HasIdCardAccess)
+
+    def post(self, request):
+        school = request.user.school
+        serializer = IDCardRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        term_id = data.get("term_id")
+        term = _resolve_term(school, str(term_id)) if term_id else None
+        if term_id and term is None:
+            return ApiResponse.error(message="Term not found.", status_code=404)
+
+        students = _scoped_students(request)
+
+        student_ids = data.get("student_ids") or []
+        class_id = data.get("class_id")
+
+        if student_ids:
+            students = students.filter(pk__in=student_ids)
+        if class_id:
+            students = students.filter(
+                enrollments__klass_id=class_id, enrollments__is_active=True
+            )
+            if term is not None:
+                students = students.filter(
+                    enrollments__academic_year_id=term.academic_year_id
+                )
+            else:
+                students = students.filter(enrollments__academic_year__is_current=True)
+
+        students = students.order_by("last_name", "first_name").distinct()
+        count = students.count()
+
+        if count == 0:
+            return ApiResponse.error(
+                message="No students matched the request.", status_code=400
+            )
+        if count > MAX_ID_CARD_BATCH:
+            return ApiResponse.error(
+                message=(
+                    f"{count} students matched; the maximum per request is "
+                    f"{MAX_ID_CARD_BATCH}. Filter by class or select students."
+                ),
+                status_code=400,
+            )
+
+        buffer = build_students_cards_pdf(list(students), school, term)
+        log_action(
+            action=AuditLog.Action.OTHER,
+            resource="StudentIDCard",
+            resource_id=str(school.pk),
+            description=f"Generated {count} ID card(s) for {school.name}",
+            metadata={
+                "student_count": count,
+                "class_id": str(class_id) if class_id else None,
+            },
+            request=request,
+        )
+        return _pdf_response(buffer, "student_id_cards.pdf")
+
+
+class StudentVerifyView(APIView):
+    """Public — verify a ``student_id`` (the payload encoded in a card QR code).
+
+    No authentication: anyone scanning a card can confirm the holder. The
+    response is a minimal, non-sensitive projection of the student.
+    """
+
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "student_verify"
+
+    def get(self, request, student_id):
+        student = (
+            Student.objects.select_related("school")
+            .filter(student_id__iexact=str(student_id).strip())
+            .first()
+        )
+        if student is None:
+            return ApiResponse.error(
+                message="No student found for this ID.", status_code=404
+            )
+        serializer = StudentVerificationSerializer(
+            student, context={"request": request}
+        )
+        return ApiResponse.success(
+            data=serializer.data, message="Student ID verified."
+        )
 

@@ -11,7 +11,10 @@ from .views import (
     StudentEnrollView,
     StudentExcelTemplateView,
     StudentExportView,
+    StudentIDCardView,
+    StudentIDCardsBulkView,
     StudentListCreateView,
+    StudentVerifyView,
 )
 
 urlpatterns = [
@@ -21,6 +24,12 @@ urlpatterns = [
     path("students/bulk/template/", StudentExcelTemplateView.as_view(), name="student-bulk-template"),
     path("students/class-bulk/", ClassBulkStudentsView.as_view(), name="student-class-bulk"),
     path("students/export/", StudentExportView.as_view(), name="student-export"),
+
+    # Student ID cards
+    path("students/id-cards/", StudentIDCardsBulkView.as_view(), name="student-id-cards"),
+    path("students/verify/<str:student_id>/", StudentVerifyView.as_view(), name="student-verify"),
+    path("students/<uuid:pk>/id-card/", StudentIDCardView.as_view(), name="student-id-card"),
+
     path("students/<uuid:pk>/", StudentDetailView.as_view(), name="student-detail"),
 
     # Guardians

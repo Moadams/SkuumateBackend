@@ -10,11 +10,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from django.db import transaction
-from django.utils import timezone
 
 from academics.services import AcademicsService
 from core.exceptions import PaymentGatewayError
-from core.payments.factory import get_payment_gateway
 from subscriptions.models import Subscription, SubscriptionPayment
 from subscriptions.serializers import SchoolSubscribeSerializer
 
@@ -36,36 +34,27 @@ class SubscriptionService:
     # ── Read-side helpers ─────────────────────────────────────────
 
     @staticmethod
+    @transaction.atomic
     def subscribe_school(data: SchoolSubscribeSerializer, school):
-        """Subscribe a school to a plan, starting a trial or paid subscription."""
+        """Subscribe a school to a plan, starting a trial or paid subscription.
+
+        Paid subscriptions assume the frontend has already collected the
+        charge (e.g. Paystack Inline) and submits the resulting
+        ``payment_reference``. The backend verifies the reference and amount
+        against the gateway before activating anything.
+        """
         plan = data.validated_data["plan"]
         term = data.validated_data.get("term")
         is_paid = data.validated_data.get("is_paid", False)
         payment_method = data.validated_data.get("payment_method")
         payment_reference = data.validated_data.get("payment_reference")
+        payment_provider = data.validated_data.get("payment_provider") or "paystack"
         activated_by = data.context["request"].user
 
-        if is_paid:
-            subscription, payment = SubscriptionService._create_pending_subscription_payment(school, data)
-            
-            payment_gateway = get_payment_gateway()
-            verification_result = payment_gateway.verify_purchase(
-                gateway_reference=payment_method,
-                payload={"reference": payment_reference, "amount": plan.price, "currency": plan.currency},
-            )
-            if not verification_result.success:
-                raise PaymentGatewayError(f"Payment verification failed: {verification_result.error}")
-            
-            subscription = SubscriptionService._activate_subscription(
-                subscription=subscription,
-                payment=payment,
-                activated_by=activated_by
-            )
-            return ActivationResult(subscription=subscription, created=True)
-        else:
+        if not is_paid:
             if not SubscriptionService.is_eligible_for_trial(school):
                 raise ValueError("School is not eligible for a trial subscription.")
-            
+
             subscription = SubscriptionService.start_trial(
                 school=school,
                 plan=plan,
@@ -74,39 +63,96 @@ class SubscriptionService:
             )
             return ActivationResult(subscription=subscription, created=True)
 
+        from subscriptions.services.payments import PaymentService
+
+        verification = PaymentService.verify(
+            reference=payment_reference,
+            provider=payment_provider,
+            amount=plan.price,
+        )
+        if not verification.success:
+            raise PaymentGatewayError(
+                f"Payment verification failed: {verification.message}"
+            )
+
+        payment = SubscriptionPayment.objects.create(
+            school=school,
+            plan=plan,
+            term=term,
+            amount=plan.price,
+            currency=plan.currency,
+            payment_reference=payment_reference,
+            provider=payment_provider,
+            payment_mode=payment_method or SubscriptionPayment.PaymentMode.VIRTUAL,
+            status=SubscriptionPayment.PaymentStatus.PENDING,
+            recorded_by=activated_by,
+        )
+
+        activation = SubscriptionService.complete_payment(
+            school=school,
+            plan=plan,
+            term=term,
+            payment=payment,
+            activated_by=activated_by,
+        )
+        return ActivationResult(subscription=activation.subscription, created=True)
+
     @staticmethod
     @transaction.atomic
-    def _create_pending_subscription_payment(school, data: SchoolSubscribeSerializer) -> tuple[Subscription, SubscriptionPayment]:
-        """Create a pending subscription payment record for a school."""
-        plan = data.validated_data["plan"]
-        payment_method = data.validated_data.get("payment_method")
-        payment_reference = data.validated_data.get("payment_reference")
-        start_date, end_date = SubscriptionService._get_start_and_end_dates(data.validated_data.get("term"))
+    def complete_payment(school, plan, term, payment, activated_by=None) -> ActivationResult:
+        """Activate the subscription for a payment that has been verified.
 
+        Idempotent: when the payment is already linked to a subscription the
+        existing activation is returned with ``created=False``. Any coupon
+        attached to the payment is revalidated and redeemed atomically, so a
+        coupon that was disabled or expired after the intent was created
+        rolls back the whole activation.
+        """
+        if payment.subscription_id:
+            return ActivationResult(subscription=payment.subscription, created=False)
+
+        start_date, end_date = SubscriptionService._get_start_and_end_dates(term)
         subscription = Subscription.objects.create(
             school=school,
             plan=plan,
+            term=term,
             status=Subscription.Status.PENDING_PAYMENT,
             is_paid=True,
             start_date=start_date,
             end_date=end_date,
-            term = getattr(data.validated_data, "term", None),
-            is_current=False,
-            
         )
 
-        subscription_payment =  SubscriptionPayment.objects.create(
+        if payment.coupon_id:
+            from subscriptions.services.coupons import CouponService
+            CouponService.redeem(payment.coupon_id, subscription, payment.discount_applied)
+
+        subscription = SubscriptionService._activate_subscription(
             subscription=subscription,
+            payment=payment,
+            activated_by=activated_by,
+        )
+        return ActivationResult(subscription=subscription, created=True)
+
+    @staticmethod
+    @transaction.atomic
+    def activate(school, plan, term=None, activated_by=None, is_paid=True, notes="") -> Subscription:
+        """Create and activate a subscription directly (no gateway charge)."""
+        start_date, end_date = SubscriptionService._get_start_and_end_dates(term)
+        subscription = Subscription.objects.create(
             school=school,
             plan=plan,
-            term = getattr(data.validated_data, "term", None),
-            amount=plan.price,
-            payment_mode=payment_method,
-            payment_reference=payment_reference,
-            status=SubscriptionPayment.PaymentStatus.PENDING,
-            recorded_by=data.context["request"].user,
+            term=term,
+            status=Subscription.Status.PENDING_PAYMENT,
+            is_paid=is_paid,
+            notes=notes,
+            start_date=start_date,
+            end_date=end_date,
         )
-        return subscription, subscription_payment
+        return SubscriptionService._activate_subscription(
+            subscription=subscription,
+            payment=None,
+            activated_by=activated_by,
+        )
 
     @staticmethod
     @transaction.atomic

@@ -54,7 +54,7 @@ PACKAGE_CONFIG = {
             "income_expense_tracking", "financial_reports",
             "full_broadsheet", "term_comparison", "export",
             "activity_logs", "announcements", "extended_sms",
-            "student_portal",
+            "student_portal", "id_cards",
         ],
         "limits": [
             ("max_students", "Maximum Students", 500),
@@ -85,7 +85,7 @@ PACKAGE_CONFIG = {
             "advanced_analytics", "multi_year_tracking",
             "department_access_control", "custom_report_cards",
             "custom_academic_reports", "custom_financial_reports",
-            "school_branding",
+            "school_branding", "id_cards",
             "onboarding_support", "priority_support",
         ],
         "limits": [

@@ -6,6 +6,30 @@ from django.utils import timezone
 from core.models import TimestampedModel
 
 
+def _as_date(value):
+    """Normalise a date/datetime/ISO-string into a ``date``.
+
+    ``DateField`` values assigned as strings or datetimes stay in memory in
+    their original form until a DB round-trip, which breaks date comparisons in
+    ``sync_status``/``days_remaining``. Coercing here keeps callers that pass
+    ``"2020-01-01"``, ``"2020-01-01T00:00:00Z"`` or a ``datetime`` working.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            return timezone.localtime(value).date()
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+        except ValueError:
+            return date.fromisoformat(value[:10])
+    return value
+
+
 class Feature(TimestampedModel):
     """A platform-level capability that may be granted to packages."""
     name = models.CharField(max_length=120)
@@ -225,24 +249,28 @@ class Subscription(TimestampedModel):
         if not self.start_date or not self.end_date:
             return 0
         now = date.today()
-        target = self.end_date
+        target = _as_date(self.end_date)
         if self.status == self.Status.GRACE and self.grace_end_date:
-            target = self.grace_end_date
+            target = _as_date(self.grace_end_date)
+        if target is None:
+            return 0
         return max(0, (target - now).days)
 
     def sync_status(self):
         """Roll a subscription forward as time passes (trial → grace → locked)."""
         now = date.today()
         changed = False
+        end_date = _as_date(self.end_date)
+        grace_end_date = _as_date(self.grace_end_date)
 
-        if self.status in (self.Status.ACTIVE, self.Status.ACTIVE):
-            if now > self.end_date:
+        if self.status == self.Status.ACTIVE:
+            if end_date and now > end_date:
                 self.status = self.Status.GRACE
-                self.grace_end_date = self.end_date + timedelta(days=self.GRACE_DAYS)
+                self.grace_end_date = end_date + timedelta(days=self.GRACE_DAYS)
                 changed = True
 
         elif self.status == self.Status.GRACE:
-            if self.grace_end_date and now > self.grace_end_date:
+            if grace_end_date and now > grace_end_date:
                 self.status = self.Status.EXPIRED
                 changed = True
 
@@ -252,6 +280,9 @@ class Subscription(TimestampedModel):
         return self
 
     def save(self, *args, **kwargs):
+        self.start_date = _as_date(self.start_date)
+        self.end_date = _as_date(self.end_date)
+        self.grace_end_date = _as_date(self.grace_end_date)
         self.sync_status()
         super().save(*args, **kwargs)
 

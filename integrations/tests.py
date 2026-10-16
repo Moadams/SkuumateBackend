@@ -13,7 +13,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from schools.models import School
-from subscriptions.models import Package
+from subscriptions.models import Package, Subscription, SubscriptionPayment
 
 from integrations.email import (
     NullEmailProvider,
@@ -240,7 +240,10 @@ class StripeProviderTests(TestCase):
         self.assertIn("verification failed", result.message.lower())
 
 
-class InitiatePaymentWiringTests(APITestCase):
+class SubscribePaymentVerificationTests(APITestCase):
+    """The frontend collects the charge (Paystack Inline); the backend only
+    verifies the submitted reference + amount against the gateway."""
+
     def setUp(self):
         user_model = get_user_model()
         self.school = School.objects.create(name="Test School")
@@ -252,44 +255,62 @@ class InitiatePaymentWiringTests(APITestCase):
         )
         # NOTE: code="advantage" collides with the package seeded in
         # subscriptions.0006_seed_packages, so use a unique fixture code.
+        # MONTH billing avoids the term requirement in the serializer.
         self.package = Package.objects.create(
             name="Advantage",
             code="wiring-test",
             price="250.00",
+            billing_period=Package.BillingPeriod.MONTH,
             is_active=True,
             is_public=True,
         )
         self.client.force_authenticate(self.admin)
 
-    def test_initiate_simulated_returns_payment_url_and_reference(self):
-        response = self.client.post(
-            reverse("initiate-payment"),
-            {"plan_id": self.package.pk, "provider": "paystack"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()["data"]
-        self.assertEqual(data["provider"], "simulate")
-        self.assertTrue(data["reference"].startswith("SIM-"))
-        self.assertEqual(float(data["amount"]), 250.0)
-        self.assertEqual(data["plan"], "Advantage")
+    def _subscribe(self, **extra):
+        payload = {
+            "plan": str(self.package.pk),
+            "is_paid": True,
+            "payment_method": "virtual",
+            "payment_reference": "SIM-TESTREF",
+        }
+        payload.update(extra)
+        return self.client.post(reverse("school-subscribe"), payload, format="json")
 
-    def test_initiate_momo_goes_through_same_path_in_dev(self):
-        response = self.client.post(
-            reverse("initiate-payment"),
-            {"plan_id": self.package.pk, "provider": "momo"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["data"]["provider"], "simulate")
+    def test_verified_reference_activates_subscription(self):
+        response = self._subscribe()
+        self.assertEqual(response.status_code, 201, response.data)
+        subscription = Subscription.objects.get(school=self.school)
+        self.assertEqual(subscription.status, Subscription.Status.ACTIVE)
+        self.assertTrue(subscription.is_current)
+        self.assertTrue(subscription.is_paid)
+        payment = SubscriptionPayment.objects.get(payment_reference="SIM-TESTREF")
+        self.assertEqual(payment.status, SubscriptionPayment.PaymentStatus.SUCCESSFUL)
+        self.assertEqual(float(payment.amount), 250.0)
+        self.assertEqual(payment.subscription_id, subscription.pk)
 
-    def test_webhook_accepts_simulated_callback(self):
+    def test_momo_provider_uses_same_verification_path(self):
+        response = self._subscribe(payment_provider="momo")
+        self.assertEqual(response.status_code, 201, response.data)
+        subscription = Subscription.objects.get(school=self.school)
+        self.assertEqual(subscription.status, Subscription.Status.ACTIVE)
+
+    def test_unverifiable_reference_is_rejected(self):
+        # live mode without a secret key: the real provider refuses to verify.
+        with override_settings(INTEGRATION_MODE="live", PAYSTACK_SECRET_KEY=""):
+            response = self._subscribe(payment_reference="bad-ref")
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Subscription.objects.filter(school=self.school).exists())
+        self.assertFalse(
+            SubscriptionPayment.objects.filter(payment_reference="bad-ref").exists()
+        )
+
+    def test_free_trial_still_works_without_payment(self):
         response = self.client.post(
-            reverse("payment-webhook", kwargs={"provider": "paystack"}),
-            {"reference": "SIM-X", "status": "success"},
+            reverse("school-subscribe"),
+            {"plan": str(self.package.pk), "is_paid": False},
             format="json",
         )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()["data"]
-        self.assertEqual(data["reference"], "SIM-X")
-        self.assertEqual(data["status"], "success")
+        self.assertEqual(response.status_code, 201, response.data)
+        subscription = Subscription.objects.get(school=self.school)
+        self.assertFalse(subscription.is_paid)
+        self.assertEqual(subscription.status, Subscription.Status.ACTIVE)

@@ -355,38 +355,6 @@ class AdminSubscriptionSerializer(SubscriptionSerializer):
 # Subscribe input serializers
 # ─────────────────────────────────────────────────────────────────────
 
-class InitiatePaymentSerializer(serializers.Serializer):
-    coupon_code = serializers.CharField(max_length=20, required=False, allow_blank=False)
-
-    """School admin — start a gateway payment before subscribing."""
-
-    plan_id = serializers.UUIDField()
-    term_id = serializers.UUIDField(required=False, allow_null=True)
-    provider = serializers.ChoiceField(
-        choices=["paystack", "stripe", "momo", "simulate"], required=False
-    )
-    include_setup_fee = serializers.BooleanField(default=False)
-
-    def validate_plan_id(self, value):
-        package = Package.objects.filter(id=value, is_active=True).first()
-        if package is None:
-            raise serializers.ValidationError("Package not found or inactive.")
-        return package
-
-    def validate_term_id(self, value):
-        if value is None:
-            return None
-        term = self.context["school"].terms.filter(id=value).first()
-        if term is None:
-            raise serializers.ValidationError(
-                "Term not found or does not belong to this school."
-            )
-        return term
-
-    def validate(self, attrs):
-        attrs["plan"] = attrs.pop("plan_id")
-        return attrs
-
 class SchoolSubscribeSerializer(serializers.Serializer):
     plan = serializers.UUIDField()
     is_paid = serializers.BooleanField(required=False, default=True)
@@ -396,6 +364,11 @@ class SchoolSubscribeSerializer(serializers.Serializer):
     payment_method = serializers.ChoiceField(
         choices=SubscriptionPayment.PaymentMode.choices,
         required=False
+    )
+    payment_provider = serializers.ChoiceField(
+        choices=["paystack", "momo", "simulate"],
+        required=False,
+        default="paystack",
     )
 
     def validate_plan(self, value):

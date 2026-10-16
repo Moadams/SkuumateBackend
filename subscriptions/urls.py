@@ -12,9 +12,7 @@ from subscriptions.views.packages import (
 )
 from subscriptions.views.subscriptions import (
     CurrentSubscriptionView,
-    InitiatePaymentView,
     MySubscriptionListView,
-    PaymentWebhookView,
     SchoolSubscribeView,
 )
 from subscriptions.views.superadmin import (
@@ -32,10 +30,6 @@ urlpatterns = [
     path("subscriptions/", MySubscriptionListView.as_view(), name="subscription-list"),
     path("subscriptions/current/", CurrentSubscriptionView.as_view(), name="subscription-current"),
     path("subscriptions/subscribe/", SchoolSubscribeView.as_view(), name="school-subscribe"),
-    path("subscriptions/payments/initiate/", InitiatePaymentView.as_view(), name="school-subscribe-initiate"),
-    path("subscription/pay/", InitiatePaymentView.as_view(), name="initiate-payment"),
-    path("subscriptions/webhook/<str:provider>/", PaymentWebhookView.as_view(), name="school-webhook"),
-    path("subscription/webhook/<str:provider>/", PaymentWebhookView.as_view(), name="payment-webhook"),
 
     # ── Super administrator — package & feature management ─────────
     path("packages/", PackageListCreateView.as_view(), name="package-list-create"),

@@ -35,6 +35,9 @@ ALWAYS_REACHABLE_URL_NAMES = frozenset({
     "health-check",
     "plan-list",
     "plan-features",
+    # Public QR verification of a student ID card — must work for anyone
+    # scanning a card, regardless of the school's subscription state.
+    "student-verify",
     # Billing. A locked or grace-period school must be able to renew.
     "subscription-list",
     "subscription-current",
@@ -43,10 +46,6 @@ ALWAYS_REACHABLE_URL_NAMES = frozenset({
     "current-entitlements",
     "school-subscribe",
     "subscribe",
-    "school-subscribe-initiate",
-    "initiate-payment",
-    "school-webhook",
-    "payment-webhook",
     # A school that has not finished registering cannot subscribe yet.
     "school-profile",
     "school-details",

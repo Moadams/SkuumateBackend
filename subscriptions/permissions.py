@@ -176,3 +176,8 @@ HasAttendanceModule = _make_feature_permission(
     "attendance",
     "Attendance features are not available on your current package.",
 )
+
+HasIdCardAccess = _make_feature_permission(
+    "id_cards",
+    "Student ID cards are not available on your current package. Upgrade to Advantage or higher.",
+)

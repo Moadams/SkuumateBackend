@@ -146,17 +146,14 @@ class CouponTests(APITestCase):
         self.assertEqual(CouponRedemption.objects.count(), 1)
 
     def test_fully_discounted_checkout_skips_gateway(self):
-        from subscriptions.views.subscriptions import SchoolSubscribeView
         Coupon.objects.filter(pk=self.coupon.pk).update(discount_value=100)
         with patch('subscriptions.services.payments.get_payment_provider') as gateway:
             result, payment = PaymentService.initiate(self.school, self.user, self.plan, None, provider='paystack', coupon_code='WELCOME20')
             self.assertEqual(payment.amount, 0)
             self.assertEqual(result.payment_url, '')
-            sub = SchoolSubscribeView()._complete_paid_subscription(
-                self.school, self.plan, None, result.reference, 'paystack', self.user,
-            )
+            activation = SubscriptionService.complete_payment(self.school, self.plan, None, payment)
             gateway.assert_not_called()
-        self.assertEqual(sub.coupon_redemption.discount_applied, Decimal('100.00'))
+        self.assertEqual(activation.subscription.coupon_redemption.discount_applied, Decimal('100.00'))
 
     def test_duration_renewal_and_once_reuse(self):
         _, payment = PaymentService.initiate(self.school, self.user, self.plan, None, coupon_code='welcome20')

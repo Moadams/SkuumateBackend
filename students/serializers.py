@@ -446,3 +446,64 @@ class BulkStudentUploadSerializer(serializers.Serializer):
         except Class.DoesNotExist:
             raise serializers.ValidationError("Class not found or inactive.")
         return value
+
+
+class IDCardRequestSerializer(serializers.Serializer):
+    """Body for a bulk ID-card generation request.
+
+    ``student_ids`` (explicit selection) or ``class_id`` (a whole class) narrow
+    the run; when neither is given, every active student in the school is used
+    (subject to the view's batch cap).
+    """
+
+    student_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=True
+    )
+    class_id = serializers.UUIDField(required=False)
+    term_id = serializers.UUIDField(required=False)
+
+
+class StudentVerificationSerializer(serializers.Serializer):
+    """Public projection returned by the QR verification endpoint.
+
+    Deliberately limited to what a card would carry: no date of birth, address,
+    guardians, email or phone. The photo is only exposed to authenticated staff
+    of the same school (or platform superusers).
+    """
+
+    def to_representation(self, obj):
+        from .services.id_cards import resolve_card_context
+
+        context = resolve_card_context(obj)
+        request = self.context.get("request")
+        school = obj.school
+
+        logo_url = None
+        if school.logo and request is not None:
+            logo_url = request.build_absolute_uri(school.logo.url)
+
+        photo_url = None
+        user = getattr(request, "user", None)
+        if (
+            request is not None
+            and obj.profile_photo
+            and getattr(user, "is_authenticated", False)
+            and (
+                getattr(user, "is_superuser", False)
+                or getattr(user, "school_id", None) == obj.school_id
+            )
+        ):
+            photo_url = request.build_absolute_uri(obj.profile_photo.url)
+
+        return {
+            "student_id": obj.student_id,
+            "full_name": obj.full_name,
+            "gender": obj.get_gender_display(),
+            "status": obj.status,
+            "is_active": obj.status == Student.Status.ACTIVE,
+            "class_name": context["class_name"],
+            "academic_year": context["academic_year"],
+            "term_name": context["term_name"],
+            "school": {"name": school.name, "logo_url": logo_url},
+            "photo_url": photo_url,
+        }

@@ -80,6 +80,8 @@ FEATURES = (
                 "finance", "Build custom financial reports."),
     FeatureSpec("school_branding", "School Branding Across the System",
                 "branding", "Apply the school's branding across the system."),
+    FeatureSpec("id_cards", "Student ID Cards", "students",
+                "Generate printable student ID cards with verification QR codes."),
     # ── Enterprise service deliverables ──────────────────────────
     # Display and entitlement only: these are delivered by a human, so nothing
     # in the codebase gates on them. They exist so the sales page and the

@@ -128,6 +128,7 @@ REST_FRAMEWORK = {
         "anon": "50/hour",
         "user": "200/hour",
         "private_media": "3000/hour",
+        "student_verify": "600/hour",
     },
 }
 
