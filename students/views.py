@@ -26,13 +26,15 @@ from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
 from .filters import StudentFilter
-from .models import Enrollment, Guardian, Student
+from .models import Enrollment, Guardian, Promotion, PromotionBatch, Student
 from .serializers import (
     BulkStudentUploadSerializer,
     EnrollmentSerializer,
     EnrollStudentSerializer,
     GuardianSerializer,
     IDCardRequestSerializer,
+    PromotionBatchSerializer,
+    PromotionRequestSerializer,
     StudentCreateSerializer,
     StudentListSerializer,
     StudentMinimalSerializer,
@@ -40,7 +42,7 @@ from .serializers import (
     StudentUpdateSerializer,
     StudentVerificationSerializer,
 )
-from .services import ClassBulkImportService
+from .services import ClassBulkImportService, PromotionService
 from .services.excel import build_class_bulk_template_workbook
 from .services.id_cards import build_student_card_pdf, build_students_cards_pdf
 
@@ -946,5 +948,196 @@ class StudentVerifyView(APIView):
         )
         return ApiResponse.success(
             data=serializer.data, message="Student ID verified."
+        )
+
+
+# ─── Promotion ────────────────────────────────────────────────────
+
+def _promotion_students(request, data):
+    """Scoped student set for a promotion (teacher scope + source filters)."""
+    school = request.user.school
+    students = Student.objects.filter(school=school)
+
+    if needs_teacher_scope(request.user):
+        allowed = assigned_class_ids(request.user)
+        source_class = data.get("from_class")
+        if source_class is not None and source_class.pk not in allowed:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("You are not assigned to this class.")
+        students = students.filter(
+            enrollments__klass_id__in=allowed,
+            enrollments__is_active=True,
+        )
+
+    source_class = data.get("from_class")
+    if source_class is not None:
+        students = students.filter(
+            enrollments__klass=source_class, enrollments__is_active=True
+        )
+        source_year = data.get("from_academic_year")
+        if source_year is not None:
+            students = students.filter(enrollments__academic_year=source_year)
+        else:
+            students = students.filter(enrollments__academic_year__is_current=True)
+
+    student_ids = data.get("student_ids") or []
+    if student_ids:
+        students = students.filter(pk__in=student_ids)
+
+    return list(students.distinct())
+
+
+class PromotionBatchListCreateView(
+    TeacherScopedQuerysetMixin, generics.ListCreateAPIView
+):
+    """List promotion history and create a single/bulk promotion run."""
+
+    permission_classes = (
+        school_permission(read="students.view", create="students.edit"),
+    )
+    serializer_class = PromotionBatchSerializer
+
+    def get_queryset(self):
+        return (
+            PromotionBatch.objects.filter(school=self.request.user.school)
+            .select_related(
+                "from_class",
+                "from_academic_year",
+                "to_class",
+                "to_academic_year",
+                "to_term",
+                "promoted_by",
+            )
+            .prefetch_related("items__student")
+        )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page or queryset, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return ApiResponse.success(data=serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        school = request.user.school
+        serializer = PromotionRequestSerializer(
+            data=request.data, context={"school": school, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        students = _promotion_students(request, data)
+        if not students:
+            return ApiResponse.error(
+                message="No students matched the request.", status_code=400
+            )
+
+        batch = PromotionService.promote(
+            school=school,
+            students=students,
+            to_class=data["to_class"],
+            to_academic_year=data["to_academic_year"],
+            to_term=data["to_term"],
+            from_class=data["from_class"],
+            from_academic_year=data["from_academic_year"],
+            promoted_by=request.user,
+            notes=data.get("notes", ""),
+        )
+
+        counts = batch.outcome_counts()
+        log_action(
+            action=AuditLog.Action.CREATE,
+            resource="PromotionBatch",
+            resource_id=str(batch.pk),
+            description=(
+                f"Promoted {counts['promoted']} student(s) to "
+                f"{batch.to_class.name} ({batch.to_academic_year.name}); "
+                f"{counts['skipped']} skipped."
+            ),
+            metadata={
+                "to_class_id": str(batch.to_class_id),
+                "to_academic_year_id": str(batch.to_academic_year_id),
+                "promoted": counts["promoted"],
+                "skipped": counts["skipped"],
+            },
+            request=request,
+        )
+
+        return ApiResponse.created(
+            data=PromotionBatchSerializer(batch, context={"request": request}).data,
+            message=(
+                f"{counts['promoted']} student(s) promoted; "
+                f"{counts['skipped']} skipped."
+            ),
+        )
+
+
+class PromotionBatchDetailView(
+    TeacherScopedQuerysetMixin, generics.RetrieveAPIView
+):
+    """Retrieve a single promotion batch with its per-student outcomes."""
+
+    permission_classes = (school_permission(read="students.view"),)
+    serializer_class = PromotionBatchSerializer
+
+    def get_queryset(self):
+        return (
+            PromotionBatch.objects.filter(school=self.request.user.school)
+            .select_related(
+                "from_class",
+                "from_academic_year",
+                "to_class",
+                "to_academic_year",
+                "to_term",
+                "promoted_by",
+            )
+            .prefetch_related("items__student")
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return ApiResponse.success(data=serializer.data)
+
+
+class PromotionBatchReverseView(APIView):
+    """Undo a promotion batch by removing the enrollments it created."""
+
+    permission_classes = (school_permission(create="students.edit"),)
+
+    def post(self, request, pk):
+        batch = get_object_or_404(
+            PromotionBatch, pk=pk, school=request.user.school
+        )
+
+        if needs_teacher_scope(request.user) and batch.promoted_by_id != request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("You can only reverse promotions you created.")
+
+        if batch.status == PromotionBatch.Status.REVERSED:
+            return ApiResponse.error(
+                message="This promotion has already been reversed.",
+                status_code=400,
+            )
+
+        PromotionService.reverse(batch)
+
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="PromotionBatch",
+            resource_id=str(batch.pk),
+            description=(
+                f"Reversed promotion to {batch.to_class.name} "
+                f"({batch.to_academic_year.name})."
+            ),
+            request=request,
+        )
+
+        return ApiResponse.success(
+            data=PromotionBatchSerializer(batch, context={"request": request}).data,
+            message="Promotion reversed; the enrollments it created were removed.",
         )
 

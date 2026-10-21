@@ -5,6 +5,9 @@ from .views import (
     ClassStudentsListView,
     GuardianDetailView,
     GuardianListCreateView,
+    PromotionBatchDetailView,
+    PromotionBatchListCreateView,
+    PromotionBatchReverseView,
     StudentBulkCreateView,
     StudentDetailView,
     StudentEnrollmentHistoryView,
@@ -29,6 +32,11 @@ urlpatterns = [
     path("students/id-cards/", StudentIDCardsBulkView.as_view(), name="student-id-cards"),
     path("students/verify/<str:student_id>/", StudentVerifyView.as_view(), name="student-verify"),
     path("students/<uuid:pk>/id-card/", StudentIDCardView.as_view(), name="student-id-card"),
+
+    # Promotion
+    path("students/promotions/", PromotionBatchListCreateView.as_view(), name="promotion-list"),
+    path("students/promotions/<uuid:pk>/", PromotionBatchDetailView.as_view(), name="promotion-detail"),
+    path("students/promotions/<uuid:pk>/reverse/", PromotionBatchReverseView.as_view(), name="promotion-reverse"),
 
     path("students/<uuid:pk>/", StudentDetailView.as_view(), name="student-detail"),
 

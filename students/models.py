@@ -153,3 +153,132 @@ class Enrollment(TimestampedModel):
             f"{self.student.full_name} → "
             f"{self.klass.name} ({self.academic_year.name})"
         )
+
+
+class PromotionBatch(TimestampedModel):
+    """A single promotion run — one target class/year for one or many students.
+
+    Enrollments are per academic year (see :class:`Enrollment`), so a promotion
+    simply creates a new enrollment in the target year. The term is recorded
+    for reporting only; it does not affect the duplicate check.
+    """
+
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "Completed"
+        REVERSED = "reversed", "Reversed"
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        related_name="promotion_batches",
+    )
+    from_academic_year = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotion_batches_from",
+    )
+    from_class = models.ForeignKey(
+        "academics.Class",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotion_batches_from",
+    )
+    to_academic_year = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        related_name="promotion_batches_to",
+    )
+    to_class = models.ForeignKey(
+        "academics.Class",
+        on_delete=models.PROTECT,
+        related_name="promotion_batches_to",
+    )
+    to_term = models.ForeignKey(
+        "academics.Term",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotion_batches",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.COMPLETED
+    )
+    notes = models.TextField(blank=True)
+    promoted_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotion_batches",
+    )
+    reversed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Promotion Batch"
+        verbose_name_plural = "Promotion Batches"
+
+    def __str__(self):
+        return f"Promotion → {self.to_class.name} ({self.to_academic_year.name})"
+
+    def outcome_counts(self):
+        counts = {"promoted": 0, "skipped": 0, "failed": 0}
+        for outcome in self.items.values_list("outcome", flat=True):
+            counts[outcome] = counts.get(outcome, 0) + 1
+        counts["total"] = sum(
+            counts[k] for k in ("promoted", "skipped", "failed")
+        )
+        return counts
+
+
+class Promotion(TimestampedModel):
+    """Per-student outcome within a :class:`PromotionBatch`."""
+
+    class Outcome(models.TextChoices):
+        PROMOTED = "promoted", "Promoted"
+        SKIPPED = "skipped", "Skipped"
+        FAILED = "failed", "Failed"
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        related_name="promotion_items",
+    )
+    batch = models.ForeignKey(
+        PromotionBatch,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="promotions",
+    )
+    from_enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotions_from",
+    )
+    resulting_enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotion_results",
+    )
+    outcome = models.CharField(
+        max_length=20, choices=Outcome.choices, default=Outcome.PROMOTED
+    )
+    message = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["student__last_name", "student__first_name"]
+        unique_together = ["batch", "student"]
+
+    def __str__(self):
+        return f"{self.student.full_name} → {self.batch.to_class.name}"

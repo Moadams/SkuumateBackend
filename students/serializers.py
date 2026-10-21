@@ -7,7 +7,7 @@ from rest_framework import serializers
 from accounts.models import User
 from students.utils import generate_user_email
 
-from .models import Enrollment, Guardian, Student
+from .models import Enrollment, Guardian, Promotion, PromotionBatch, Student
 
 
 class GuardianSerializer(serializers.ModelSerializer):
@@ -507,3 +507,167 @@ class StudentVerificationSerializer(serializers.Serializer):
             "school": {"name": school.name, "logo_url": logo_url},
             "photo_url": photo_url,
         }
+
+
+# ─── Promotion ────────────────────────────────────────────────────────
+
+
+class PromotionRequestSerializer(serializers.Serializer):
+    """Body for a single or bulk promotion.
+
+    Either ``student_ids`` (explicit selection) or ``from_class_id`` (a whole
+    class) is required. ``to_class_id`` and ``to_academic_year_id`` are the
+    target; ``to_term_id`` is informational only.
+    """
+
+    student_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=True
+    )
+    from_class_id = serializers.UUIDField(required=False)
+    from_academic_year_id = serializers.UUIDField(required=False)
+    to_class_id = serializers.UUIDField()
+    to_academic_year_id = serializers.UUIDField()
+    to_term_id = serializers.UUIDField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        from academics.models import AcademicYear, Class, Term
+
+        school = self.context["school"]
+
+        if not attrs.get("student_ids") and not attrs.get("from_class_id"):
+            raise serializers.ValidationError(
+                "Provide 'student_ids' or 'from_class_id'."
+            )
+
+        to_class = Class.objects.filter(
+            id=attrs["to_class_id"], school=school, is_active=True
+        ).first()
+        if to_class is None:
+            raise serializers.ValidationError(
+                {"to_class_id": "Class not found or inactive."}
+            )
+
+        to_year = AcademicYear.objects.filter(
+            id=attrs["to_academic_year_id"], school=school
+        ).first()
+        if to_year is None:
+            raise serializers.ValidationError(
+                {"to_academic_year_id": "Academic year not found."}
+            )
+
+        from_year = None
+        if attrs.get("from_academic_year_id"):
+            from_year = AcademicYear.objects.filter(
+                id=attrs["from_academic_year_id"], school=school
+            ).first()
+            if from_year is None:
+                raise serializers.ValidationError(
+                    {"from_academic_year_id": "Academic year not found."}
+                )
+
+        from_class = None
+        if attrs.get("from_class_id"):
+            from_class = Class.objects.filter(
+                id=attrs["from_class_id"], school=school
+            ).first()
+            if from_class is None:
+                raise serializers.ValidationError(
+                    {"from_class_id": "Class not found."}
+                )
+
+        to_term = None
+        if attrs.get("to_term_id"):
+            to_term = Term.objects.filter(
+                id=attrs["to_term_id"], school=school
+            ).first()
+            if to_term is None:
+                raise serializers.ValidationError({"to_term_id": "Term not found."})
+            if to_term.academic_year_id != to_year.id:
+                raise serializers.ValidationError(
+                    {
+                        "to_term_id": (
+                            "Term does not belong to the target academic year."
+                        )
+                    }
+                )
+
+        attrs["to_class"] = to_class
+        attrs["to_academic_year"] = to_year
+        attrs["to_term"] = to_term
+        attrs["from_class"] = from_class
+        attrs["from_academic_year"] = from_year
+        return attrs
+
+
+class PromotionItemSerializer(serializers.ModelSerializer):
+    student_code = serializers.CharField(source="student.student_id", read_only=True)
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+
+    class Meta:
+        model = Promotion
+        fields = (
+            "id",
+            "student",
+            "student_code",
+            "student_name",
+            "outcome",
+            "message",
+            "from_enrollment",
+            "resulting_enrollment",
+            "created_at",
+        )
+
+
+class PromotionBatchSerializer(serializers.ModelSerializer):
+    from_class_name = serializers.SerializerMethodField()
+    from_academic_year_name = serializers.SerializerMethodField()
+    to_class_name = serializers.CharField(source="to_class.name", read_only=True)
+    to_academic_year_name = serializers.CharField(
+        source="to_academic_year.name", read_only=True
+    )
+    to_term_name = serializers.SerializerMethodField()
+    promoted_by_name = serializers.SerializerMethodField()
+    counts = serializers.SerializerMethodField()
+    items = PromotionItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PromotionBatch
+        fields = (
+            "id",
+            "from_academic_year",
+            "from_academic_year_name",
+            "from_class",
+            "from_class_name",
+            "to_academic_year",
+            "to_academic_year_name",
+            "to_class",
+            "to_class_name",
+            "to_term",
+            "to_term_name",
+            "status",
+            "notes",
+            "promoted_by_name",
+            "counts",
+            "items",
+            "reversed_at",
+            "created_at",
+        )
+
+    def get_from_class_name(self, obj):
+        return obj.from_class.name if obj.from_class else None
+
+    def get_from_academic_year_name(self, obj):
+        return obj.from_academic_year.name if obj.from_academic_year else None
+
+    def get_to_term_name(self, obj):
+        return obj.to_term.get_name_display() if obj.to_term else None
+
+    def get_promoted_by_name(self, obj):
+        user = obj.promoted_by
+        if user is None:
+            return None
+        return f"{user.first_name} {user.last_name}".strip()
+
+    def get_counts(self, obj):
+        return obj.outcome_counts()
