@@ -176,19 +176,17 @@ class SchoolWorkflowSecurityTests(APITestCase):
         self.assertEqual(invoice.total_amount, Decimal("123.45"))
         self.assertEqual(invoice.line_items.count(), 1)
 
-    def test_bulk_invoice_rejects_foreign_component_without_writes(self):
-        payload = self.invoice_payload(line_items=[{"fee_component": str(self.foreign_component.pk), "amount": "100.00"}])
-        payload["students"] = [payload.pop("student")]
-        response = self.client.post(reverse("invoice-bulk-create"), payload, format="json")
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(SchoolFeeInvoice.objects.exists())
+    def test_bulk_invoice_rejects_foreign_records_without_writes(self):
+        foreign_component = self.invoice_payload(line_items=[{"fee_component": str(self.foreign_component.pk), "amount": "100.00"}])
+        foreign_component["students"] = [foreign_component.pop("student")]
+        mixed_students = self.invoice_payload()
+        mixed_students["students"] = [mixed_students.pop("student"), str(self.foreign_student.pk)]
 
-    def test_bulk_invoice_rejects_mixed_school_students_without_writes(self):
-        payload = self.invoice_payload()
-        payload["students"] = [payload.pop("student"), str(self.foreign_student.pk)]
-        response = self.client.post(reverse("invoice-bulk-create"), payload, format="json")
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(SchoolFeeInvoice.objects.exists())
+        for payload in [foreign_component, mixed_students]:
+            with self.subTest(students=payload["students"]):
+                response = self.client.post(reverse("invoice-bulk-create"), payload, format="json")
+                self.assertEqual(response.status_code, 400)
+                self.assertFalse(SchoolFeeInvoice.objects.exists())
 
     def test_bulk_invoice_sets_line_school_and_skips_existing(self):
         payload = self.invoice_payload()
@@ -207,21 +205,16 @@ class SchoolWorkflowSecurityTests(APITestCase):
     def test_allocations_must_match_invoice_and_amount(self):
         invoice = self.invoice()
         other = self.invoice(school=self.other, student=self.foreign_student)
+        second_student = Student.objects.create(school=self.school, first_name="Second", last_name="Student", gender="male")
+        same_school_other_invoice = self.invoice(student=second_student)
         for allocations in [
             [{"line_item": str(other.line_items.get().pk), "amount": "40.00"}],
+            [{"line_item": str(same_school_other_invoice.line_items.get().pk), "amount": "40.00"}],
             [{"line_item": str(invoice.line_items.get().pk), "amount": "39.99"}],
             [{"line_item": str(invoice.line_items.get().pk), "amount": "20.00"}] * 2,
         ]:
             with self.subTest(allocations=allocations):
                 self.assertEqual(self.pay(invoice, allocations=allocations).status_code, 400)
-        self.assertFalse(FeePayment.objects.exists())
-
-    def test_allocation_rejects_another_invoice_in_same_school(self):
-        invoice = self.invoice()
-        student = Student.objects.create(school=self.school, first_name="Second", last_name="Student", gender="male")
-        other = self.invoice(student=student)
-        response = self.pay(invoice, allocations=[{"line_item": str(other.line_items.get().pk), "amount": "40.00"}])
-        self.assertEqual(response.status_code, 400)
         self.assertFalse(FeePayment.objects.exists())
 
     def test_invoice_number_does_not_collide_after_deleting_earlier_invoice(self):
@@ -261,6 +254,15 @@ class SchoolWorkflowSecurityTests(APITestCase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, "issued")
 
+    def test_payment_and_audit_failure_roll_back_together(self):
+        invoice = self.invoice()
+        with patch("finance.views.log_action", side_effect=RuntimeError("Audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.pay(invoice)
+        invoice.refresh_from_db()
+        self.assertFalse(FeePayment.objects.exists())
+        self.assertEqual(invoice.status, "issued")
+
     def test_payment_financial_fields_cannot_be_changed(self):
         invoice = self.invoice()
         self.pay(invoice)
@@ -277,15 +279,6 @@ class SchoolWorkflowSecurityTests(APITestCase):
         self.assertEqual(self.client.patch(url, {"notes": "Checked"}, format="json").status_code, 200)
         self.assertEqual(self.client.patch(url, {"line_items": self.invoice_payload()["line_items"]}, format="json").status_code, 400)
         self.assertEqual(self.client.delete(url).status_code, 400)
-
-    def test_payment_and_audit_failure_roll_back_together(self):
-        invoice = self.invoice()
-        with patch("finance.views.log_action", side_effect=RuntimeError("Audit unavailable")):
-            with self.assertRaises(RuntimeError):
-                self.pay(invoice)
-        invoice.refresh_from_db()
-        self.assertFalse(FeePayment.objects.exists())
-        self.assertEqual(invoice.status, "issued")
 
     def test_expense_rejects_foreign_category(self):
         category = ExpenseType.objects.create(school=self.other, name="Utilities")
@@ -344,16 +337,14 @@ class SchoolWorkflowSecurityTests(APITestCase):
         self.term.refresh_from_db()
         self.assertEqual(self.term.academic_year_id, self.year.pk)
 
-    def test_partial_academic_year_update_preserves_date_validation(self):
-        url = reverse("academic-year-detail", args=[self.year.pk])
-        self.assertEqual(self.client.patch(url, {"name": "2026 Academic Year"}, format="json").status_code, 200)
-        self.assertEqual(self.client.patch(url, {"end_date": "2025-01-01"}, format="json").status_code, 400)
-
-    def test_partial_term_update_preserves_date_validation(self):
-        url = reverse("term-detail", args=[self.term.pk])
-        response = self.client.patch(url, {"next_reopening_date": "2026-04-15"}, format="json")
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(self.client.patch(url, {"end_date": "2025-01-01"}, format="json").status_code, 400)
+    def test_partial_academic_year_and_term_updates_preserve_date_validation(self):
+        for url, valid_patch in [
+            (reverse("academic-year-detail", args=[self.year.pk]), {"name": "2026 Academic Year"}),
+            (reverse("term-detail", args=[self.term.pk]), {"next_reopening_date": "2026-04-15"}),
+        ]:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.patch(url, valid_patch, format="json").status_code, 200)
+                self.assertEqual(self.client.patch(url, {"end_date": "2025-01-01"}, format="json").status_code, 400)
 
     def test_attendance_rejects_foreign_student_and_duplicates(self):
         from students.models import Enrollment

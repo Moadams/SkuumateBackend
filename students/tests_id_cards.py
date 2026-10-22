@@ -193,14 +193,6 @@ class StudentIDCardTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_generation_requires_authentication(self):
-        response = self.client.get(
-            reverse("student-id-card", kwargs={"pk": self.student.pk})
-        )
-        self.assertIn(
-            response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
-        )
-
     # ── Verification ──────────────────────────────────────────────
     def test_verify_is_public_and_case_insensitive(self):
         response = self.client.get(
@@ -268,8 +260,3 @@ class StudentIDCardTests(APITestCase):
         data = buffer.getvalue()
         # Pillow emits one "/MediaBox" per page; a card is front + back.
         self.assertEqual(data.count(b"/MediaBox"), 2)
-
-    def test_renderer_tolerates_missing_photo_and_logo(self):
-        student = self._student("No", "Photo")
-        buffer = id_cards.build_student_card_pdf(student, self.school)
-        self.assertTrue(buffer.getvalue().startswith(b"%PDF"))

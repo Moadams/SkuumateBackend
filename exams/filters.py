@@ -1,6 +1,6 @@
 import django_filters
 
-from exams.models import AssessmentType
+from exams.models import AssessmentType, StudentReport
 
 
 class AssessmentTypeFilter(django_filters.FilterSet):
@@ -8,4 +8,11 @@ class AssessmentTypeFilter(django_filters.FilterSet):
 
     class Meta:
         model = AssessmentType
-        fields = ['is_active']
+        fields = ('is_active',)
+
+class StudentReportFilter(django_filters.FilterSet):
+    status = django_filters.CharFilter()
+
+    class Meta:
+        model = StudentReport 
+        fields = ('status',)

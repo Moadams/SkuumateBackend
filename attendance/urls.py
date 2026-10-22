@@ -1,14 +1,15 @@
 from django.urls import path
+
 from .views import (
-    BulkMarkAttendanceView,
-    AttendanceListView,
-    AttendanceExportView,
     AttendanceDetailView,
-    ClassAttendanceSheetView,
-    AttendanceSummaryListView,
+    AttendanceExportView,
+    AttendanceListView,
     AttendanceSummaryExportView,
-    StudentAttendanceReportView,
+    AttendanceSummaryListView,
+    BulkMarkAttendanceView,
     ClassAttendanceReportView,
+    ClassAttendanceSheetView,
+    StudentAttendanceReportView,
 )
 
 urlpatterns = [

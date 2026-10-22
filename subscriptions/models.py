@@ -234,8 +234,19 @@ class Subscription(TimestampedModel):
     # ── Status helpers ────────────────────────────────────────────
 
     @property
-    def is_free_trial(self) -> bool:
+    def is_on_trial(self) -> bool:
         return not self.is_paid
+
+    @property
+    def is_free_trial(self) -> bool:
+        """Backwards-compatible alias for :attr:`is_on_trial`."""
+        return self.is_on_trial
+
+    @property
+    def is_locked(self) -> bool:
+        return self.status == self.Status.LOCKED
+
+    
 
     @property
     def is_accessible(self) -> bool:
@@ -274,7 +285,10 @@ class Subscription(TimestampedModel):
                 self.status = self.Status.EXPIRED
                 changed = True
 
-        if changed:
+        if changed and not self._state.adding:
+            # Only persist from a saved instance. ``save()`` calls this method,
+            # so persisting here for a brand new row re-enters ``save()`` and
+            # inserts the same primary key twice.
             self.save(update_fields=["status", "grace_end_date"])
 
         return self
@@ -414,8 +428,28 @@ class Coupon(TimestampedModel):
         super().save(*args, **kwargs)
 
     @property
+    def expiry_day(self):
+        """The calendar day this coupon expires on, or ``None``.
+
+        ``expiry_date`` is a ``DateTimeField`` but a coupon stays valid for
+        the whole of its expiry day, so expiry is compared at day granularity
+        to match ``CouponService.expired_query``. Callers may assign a plain
+        ``date`` before the value has been through the database, so the value
+        is normalised here.
+        """
+        value = self.expiry_date
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            if timezone.is_aware(value):
+                return timezone.localtime(value).date()
+            return value.date()
+        return value
+
+    @property
     def effective_status(self):
-        if ((self.expiry_date and self.expiry_date < timezone.now())
+        expiry_day = self.expiry_day
+        if ((expiry_day is not None and expiry_day < timezone.localdate())
                 or (self.max_usage is not None and self.usage_count >= self.max_usage)):
             return self.Status.EXPIRED
         return self.status

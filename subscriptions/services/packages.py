@@ -49,7 +49,6 @@ def package_has_feature(package, feature_code: str) -> bool:
         .filter(package=package, feature__code=feature_code)
         .first()
     )
-    print(row)
     return bool(row is not None and row.is_enabled)
 
 

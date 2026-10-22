@@ -133,7 +133,6 @@ class NotificationSender:
                     failed_count += 1
 
             except Exception as e:
-                print("Delivery failed for %s: %s", contact, e)
                 logger.exception("Delivery failed for %s: %s", contact, e)
                 recipient.status = NotificationRecipient.DeliveryStatus.FAILED
                 recipient.error_message = str(e)

@@ -1,17 +1,26 @@
 from django.urls import path
 
 from .views import (
-    FeeComponentListCreateView, FeeComponentDetailView,
-    IncomeTypeListCreateView, IncomeTypeDetailView,
-    ExpenseTypeListCreateView, ExpenseTypeDetailView,
-    SchoolFeeInvoiceListCreateView, SchoolFeeInvoiceDetailView,
     BulkInvoiceCreateView,
-    FeePaymentListCreateView, FeePaymentDetailView,
-    InvoicePaymentsListView,
-    OtherIncomeListCreateView, OtherIncomeDetailView,
-    ExpenseListCreateView, ExpenseDetailView,
+    ExpenseByTypeReportView,
+    ExpenseDetailView,
+    ExpenseListCreateView,
+    ExpenseTypeDetailView,
+    ExpenseTypeListCreateView,
+    FeeComponentDetailView,
+    FeeComponentListCreateView,
+    FeePaymentDetailView,
+    FeePaymentListCreateView,
     FinancialOverviewView,
-    IncomeStatementView, IncomeByTypeReportView, ExpenseByTypeReportView,
+    IncomeByTypeReportView,
+    IncomeStatementView,
+    IncomeTypeDetailView,
+    IncomeTypeListCreateView,
+    InvoicePaymentsListView,
+    OtherIncomeDetailView,
+    OtherIncomeListCreateView,
+    SchoolFeeInvoiceDetailView,
+    SchoolFeeInvoiceListCreateView,
 )
 
 urlpatterns = [

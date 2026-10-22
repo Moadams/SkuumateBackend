@@ -18,7 +18,7 @@ class StaffService:
         try:
             user = User.objects.create_user(
                 email=user_data.get("email"),
-                phone=user_data.get("phone"),
+                phone=user_data.get("phone") or "",
                 first_name=user_data.get("first_name"),
                 last_name=user_data.get("last_name"),
                 role=user_data.get("role", User.Role.STAFF),
@@ -52,7 +52,7 @@ class StaffService:
             "employee_id": user_data.get("employee_id",None),
             "employment_type": user_data.get("employment_type", EmploymentType.FULL_TIME),
             "email": user_data.get("email",None),
-            "phone": user_data.get("phone",None),
+            "phone": user_data.get("phone") or "",
             "address": user_data.get("address",None),
             "profile_photo": user_data.get("profile_photo",None),
         }

@@ -195,7 +195,7 @@ class ForgotPasswordView(APIView):
         return ApiResponse.success(message="If an account with that email exists, a password reset link has been sent.")
 
 class ResetPasswordConfirmView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
     def post(self, request):
         serializer = ResetPasswordConfirmSerializer(data=request.data)
@@ -205,12 +205,12 @@ class ResetPasswordConfirmView(APIView):
 
 
 class ResetUserPassword(APIView):
-    permission_classes = [IsAdminOrSuperAdmin]
+    permission_classes = (IsAdminOrSuperAdmin,)
     def put(self, request, user_id):
         school = request.user.school
         try:
             if is_platform_superadmin(request.user):
-                user = User.objects.get(id=user_id, deleted_at__isnull=True)
+                user = User.objects.get(id=user_id)
             else:
                 user = User.objects.filter(is_superuser=False).exclude(role="superadmin", deleted_at__isnull=True).get(school=school, id=user_id)
             data = request.data.copy()
@@ -234,7 +234,7 @@ class ResetUserPassword(APIView):
 
 
 class ChangePasswordView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
 
     def put(self, request):
         user = request.user
@@ -254,7 +254,7 @@ class ChangePasswordView(APIView):
 
 
 class ChangeUserPasswordView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = (IsAdmin,)
 
     def put(self, request):
 

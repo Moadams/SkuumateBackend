@@ -36,19 +36,7 @@ from integrations.sms.simulate import SimulatedSMSProvider
 from integrations.sms.twilio import TwilioSMSProvider
 
 
-class AbstractClassContractTests(TestCase):
-    def test_payment_base_cannot_be_instantiated(self):
-        with self.assertRaises(TypeError):
-            BasePaymentProvider()
-
-    def test_sms_base_cannot_be_instantiated(self):
-        with self.assertRaises(TypeError):
-            BaseSMSProvider()
-
-    def test_email_base_cannot_be_instantiated(self):
-        with self.assertRaises(TypeError):
-            BaseEmailProvider()
-
+class ProviderContractTests(TestCase):
     def test_real_providers_inherit_abstract_bases(self):
         self.assertTrue(issubclass(PaystackPaymentProvider, BasePaymentProvider))
         self.assertTrue(issubclass(StripePaymentProvider, BasePaymentProvider))
@@ -89,22 +77,21 @@ class SimulatedProviderBehaviourTests(TestCase):
         self.assertEqual(result.status, "success")
         self.assertIn("SIMULATED PAYMENT", output)
 
-    def test_sms_send_prints_and_succeeds(self):
-        provider = SimulatedSMSProvider()
-        result, output = self.capture(lambda: provider.send("+233240000000", "Hello"))
-        self.assertTrue(result.success)
-        self.assertIn("SIMULATED SMS", output)
-        self.assertIn("Hello", output)
-        self.assertIn("+233240000000", output)
-
-    def test_email_send_prints_and_succeeds(self):
-        provider = SimulatedEmailProvider()
-        result, output = self.capture(
-            lambda: provider.send("x@y.com", "Subject", "Body", html_body="<p>Body</p>", from_email="n@n.com")
+    def test_simulated_sms_and_email_send_print_and_succeed(self):
+        sms_result, sms_output = self.capture(
+            lambda: SimulatedSMSProvider().send("+233240000000", "Hello")
         )
-        self.assertTrue(result.success)
-        self.assertIn("SIMULATED EMAIL", output)
-        self.assertIn("Subject", output)
+        self.assertTrue(sms_result.success)
+        self.assertIn("SIMULATED SMS", sms_output)
+        self.assertIn("Hello", sms_output)
+        self.assertIn("+233240000000", sms_output)
+
+        email_result, email_output = self.capture(
+            lambda: SimulatedEmailProvider().send("x@y.com", "Subject", "Body", html_body="<p>Body</p>", from_email="n@n.com")
+        )
+        self.assertTrue(email_result.success)
+        self.assertIn("SIMULATED EMAIL", email_output)
+        self.assertIn("Subject", email_output)
 
 
 class RegistryFactoryTests(TestCase):

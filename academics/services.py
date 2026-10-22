@@ -1,3 +1,8 @@
+from django.db import transaction
+
+from academics.models import ClassTeacher, SubjectTeacher
+
+
 class AcademicsService:
 
     @staticmethod
@@ -65,3 +70,160 @@ class GradingSystemService:
                     },
                 )
         return grading_system
+
+
+class ClassTeacherService:
+    @staticmethod
+    @transaction.atomic
+    def assign_teacher_to_class(klass, teacher, assign_subjects=False):
+        from academics.models import ClassTeacher
+        school = klass.school
+
+        # check whether the teacher is already assigned to this class
+        if ClassTeacher.objects.filter(
+            klass=klass,
+            teacher=teacher
+        ).exists():
+            raise ValueError("This teacher is already assigned to this class.")
+
+        # Get all the class subjects and assign to the teacher if that is confirmed by the user
+        if assign_subjects:
+            subject_ids = list (
+                klass.class_subjects.values_list("subject_id", flat=True)
+            )
+            if subject_ids:
+                already_assigned_subjects = set(
+                    klass.class_subjects.filter(
+                        subject_id__in=subject_ids
+                    ).values_list("subject_id", flat=True)
+                )
+                to_assign_subjects = [s for s in klass.class_subjects.filter(subject_id__in=subject_ids) if s.subject_id not in already_assigned_subjects]
+                SubjectTeacher.objects.bulk_create([
+                    SubjectTeacher(
+                        klass=klass,
+                        subject=class_subject.subject,
+                        teacher=teacher,
+                        school=school
+                    ) for class_subject in to_assign_subjects
+                ])
+
+        # Create a new assignment
+        return ClassTeacher.objects.create(
+            klass=klass,
+            teacher=teacher,
+            school = klass.school
+        )
+    
+
+class ClassSubjectService:
+    @staticmethod
+    @transaction.atomic
+    def assign_teacher_to_class_subject(class_subject, teacher):
+        from academics.models import SubjectTeacher
+
+        if SubjectTeacher.objects.filter(
+            klass=class_subject.klass,
+            subject=class_subject.subject,
+            teacher=teacher,
+            school=class_subject.klass.school
+        ).exists():
+            raise ValueError("This teacher is already assigned to this class subject.")
+
+        return SubjectTeacher.objects.create(
+            klass=class_subject.klass,
+            subject=class_subject.subject,
+            teacher=teacher,
+            school=class_subject.klass.school
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def assign_subjects_to_class(klass, subjects, assign_teacher=None):
+        from academics.models import ClassSubject
+        school = klass.school
+
+        subjects_by_id = {subject.id: subject for subject in subjects}
+        unique_subject_ids = list(subjects_by_id.values())
+        if not unique_subject_ids:
+            return {
+                "class": str(klass.id),
+                "created": 0,
+                "skipped": 0,
+                "assigned_subjects": [],
+            }, "0 subject(s) assigned successfully."
+
+        
+        already_assigned = set(
+            ClassSubject.objects.filter(
+                school=klass.school,
+                klass=klass,
+                subject__in=subjects,
+            ).values_list("subject_id", flat=True)
+        )
+
+        to_create = [s for s in subjects if s.id not in already_assigned]
+
+        created = []
+        if to_create:
+            objs = [
+                ClassSubject(school=klass.school, klass=klass, subject=subject)
+                for subject in to_create
+            ]
+            created = ClassSubject.objects.bulk_create(objs)
+        
+
+        if assign_teacher and created:
+            class_teacher_ids = list(
+                ClassTeacher.objects.filter(
+                    klass=klass,
+                    school=school
+                ).values_list("teacher_id", flat=True).distinct()
+            )
+            if class_teacher_ids:
+                subject_ids = [cs.subject_id for cs in created]
+                SubjectTeacher.objects.bulk_create([
+                    SubjectTeacher(
+                        klass=klass,
+                        subject_id = subject_id,
+                        teacher_id = teacher_id,
+                        school = school
+                    )
+                    for subject_id in subject_ids
+                    for teacher_id in class_teacher_ids
+                ])
+            
+        data = {
+            "class": str(klass.id),
+            "created": len(created),
+            "skipped": len(already_assigned),
+            "assigned_subjects": [
+                {
+                    "id": str(cs.subject_id),
+                    "name": cs.subject.name,
+                }
+                for cs in created
+            ],
+        }
+
+        message = f"{len(created)} subject(s) assigned successfully."
+
+        if already_assigned:
+            message += f" {len(already_assigned)} already assigned."
+
+        return data, message
+
+
+    @staticmethod
+    @transaction.atomic
+    def delete_class_subject(class_subject):
+        from academics.models import SubjectTeacher
+
+        # Delete all subject teacher assignments for this class subject
+        SubjectTeacher.objects.filter(
+            klass=class_subject.klass,
+            subject=class_subject.subject
+        ).delete()
+
+        # Delete the class subject itself
+        class_subject.delete()
+        return True

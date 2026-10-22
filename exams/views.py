@@ -11,7 +11,7 @@ from academics.models import Class, GradingSystem, Term
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
-from exams.filters import AssessmentTypeFilter
+from exams.filters import AssessmentTypeFilter, StudentReportFilter
 from exams.models import (
     AssessmentType,
     ReportScheme,
@@ -23,6 +23,7 @@ from exams.serializers import (
     AssessmentTypeSerializer,
     GenerateReportResponseSerializer,
     HeadTeacherRemarksSerializer,
+    PublishReportsSerializer,
     ReportSchemeSerializer,
     ReportTeacherRemarksSerializer,
     StudentMarkCreationSerializer,
@@ -342,8 +343,9 @@ class GenerateClassReportView(APIView):
         return ApiResponse.success(message = "Reports generated", data=result)
 
 class StudentReportListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="reports.view")]
+    permission_classes = (school_permission(read="reports.view"),)
     serializer_class = StudentReportSerializer
+    filterset_class = StudentReportFilter
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["student__first_name", "student__last_name", "student__student_id"]
     ordering_fields = ["created_at"]
@@ -365,8 +367,20 @@ class StudentReportListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
 
-class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveAPIView):
-    permission_classes = [school_permission(read="reports.view")]
+class PublishStudentReport(APIView):
+    permission_classes = (school_permission(write="reports.view"),)
+    @transaction.atomic
+    def patch(self, request):
+        serializer = PublishReportsSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            ReportGenerationService.publish_reports(serializer.validated_data['reports'], request.user.school)
+        except ValueError as e:
+            return ApiResponse.error(message=str(e))
+
+        return ApiResponse.success(message="Reports published successfully")
+class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateAPIView):
+    permission_classes = [school_permission(read="reports.view",write="reports.view")]
     serializer_class = StudentReportDetailSerializer
 
     def get_queryset(self):

@@ -108,7 +108,6 @@ class TeacherDasbhoardView(APIView):
         today = timezone.localdate()
         weekday = today.weekday()
         today_weekday = today.strftime("%A")
-        print(today_weekday)
         teacher_profile = StaffProfile.objects.filter(user = user).first()
         timetable_slots = TimeTableSlot.objects.filter(
             teacher = teacher_profile,

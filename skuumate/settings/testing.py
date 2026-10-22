@@ -14,6 +14,11 @@ DATABASES = {
     }
 }
 
+# ─── Integrations — always simulated, never live ──────────────────
+# The developer .env file may set INTEGRATION_MODE=live, which would make
+# the suite call real payment gateways. Pin it so tests are deterministic.
+INTEGRATION_MODE = "simulate"
+
 # ─── Email — prevent accidental sends ──────────────────────────────
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 

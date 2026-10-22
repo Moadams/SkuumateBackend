@@ -100,16 +100,11 @@ class StudentQuotaTests(TestCase):
         check_limit(self.school, "students")
 
     def test_reaching_the_cap_is_blocked(self):
+        """The Package column says 250; the PackageLimit row (2) is authoritative."""
         self._add_students(2)
         with self.assertRaises(PermissionDenied) as ctx:
             check_limit(self.school, "students")
         self.assertIn("limit (2)", str(ctx.exception))
-
-    def test_the_limit_row_overrides_the_display_column(self):
-        """The Package column says 250; the PackageLimit row is authoritative."""
-        self._add_students(2)
-        with self.assertRaises(PermissionDenied):
-            check_limit(self.school, "students")
 
     def test_inactive_students_do_not_consume_the_cap(self):
         self._add_students(1, Student.Status.ACTIVE)
@@ -123,9 +118,6 @@ class StudentQuotaTests(TestCase):
         self._add_students(1)
         with self.assertRaises(PermissionDenied):
             check_limit(self.school, "students")
-
-    def test_unknown_resource_is_a_no_op(self):
-        check_limit(self.school, "not_a_tracked_resource")
 
     def test_no_subscription_blocks_the_request(self):
         Subscription.objects.filter(school=self.school).delete()

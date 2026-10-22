@@ -260,29 +260,14 @@ class SubjectTeacher(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="subject_assignments",
     )
-    academic_year = models.ForeignKey(
-        AcademicYear,
-        on_delete=models.CASCADE,
-        related_name="subject_teachers",
-        blank=True, 
-        null=True
-    )
-    term = models.ForeignKey(
-        Term,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="subject_teachers",
-        help_text="Optional — if not set applies to the entire year.",
-    )
+    
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["klass", "subject"]
-        unique_together = [
-            "school", "klass", "subject",
-            "academic_year", "term",
-        ]
+        ordering = ("klass", "subject")
+        unique_together = (
+            "school", "klass", "subject"
+        )
 
     def __str__(self):
         return (

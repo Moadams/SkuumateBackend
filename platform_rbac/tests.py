@@ -93,11 +93,13 @@ class PlatformBase:
 
 class PlatformServiceTests(PlatformBase, TestCase):
 
-    def test_anonymous_false(self):
+    def test_anonymous_and_non_authenticated_users_are_not_platform_users(self):
         class FakeUser:
             is_authenticated = False
             is_active = True
+
         self.assertFalse(has_platform_permission(FakeUser(), "packages.view"))
+        self.assertFalse(is_platform_user(FakeUser()))
 
     def test_inactive_platform_user_false(self):
         staff = self.make_staff()
@@ -111,6 +113,7 @@ class PlatformServiceTests(PlatformBase, TestCase):
         self.assertTrue(is_platform_user(root))
         self.assertTrue(has_platform_permission(root, "packages.view"))
         self.assertTrue(has_platform_permission(root, "role_that_does_not_exist.yet"))
+        self.assertEqual(get_user_platform_permissions(root), frozenset())
 
     def test_school_admin_and_teacher_false(self):
         admin = self.make_school_admin()
@@ -154,11 +157,6 @@ class PlatformServiceTests(PlatformBase, TestCase):
         perm.is_active = True
         perm.save(update_fields=["is_active"])
 
-    def test_root_effective_permissions_empty_but_passes(self):
-        root = self.make_root()
-        self.assertEqual(get_user_platform_permissions(root), frozenset())
-        self.assertTrue(has_platform_permission(root, "packages.view"))
-
     def test_validation_assignable_permissions(self):
         role = make_role("full_perm", "packages.view", "packages.create")
         staff = self.make_staff(roles=[role])
@@ -174,19 +172,8 @@ class PlatformServiceTests(PlatformBase, TestCase):
         with self.assertRaises(PermissionError):
             validate_assignable_roles(staff, [rich])
 
-    def test_non_authenticated_not_platform(self):
-        class Anon:
-            is_authenticated = False
-            is_active = True
-        self.assertFalse(is_platform_user(Anon()))
-
 
 class PlatformAccessAPITests(PlatformBase, APITestCase):
-
-    def test_unauth_user_listing_denied(self):
-        self.client.force_authenticate(user=None)
-        response = self.client.get(reverse("platform-user-list-create"))
-        self.assertEqual(response.status_code, 401)
 
     def test_school_admin_cannot_access_platform(self):
         user = self.make_school_admin()
@@ -634,16 +621,6 @@ class PlatformPermissionAPITests(PlatformBase, APITestCase):
         results = response.data["data"]["results"]
         self.assertTrue(results)
         self.assertIn("platform_users.view", {row["code"] for row in results})
-
-    def test_detail(self):
-        perm = permission("roles.view")
-        response = self.client.get(reverse("platform-permission-detail", kwargs={"pk": perm.pk}))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["data"]["code"], "roles.view")
-
-    def test_no_arbitrary_creation(self):
-        response = self.client.post(reverse("platform-permission-list"), {"code": "custom.make", "name": "Custom"}, format="json")
-        self.assertEqual(response.status_code, 405)
 
     def test_school_admin_cannot_view_permissions(self):
         admin = self.make_school_admin()

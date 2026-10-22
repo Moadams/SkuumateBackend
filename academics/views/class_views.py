@@ -1,8 +1,3 @@
-from core.teacher_scope import TeacherScopedQuerysetMixin
-from core.school_permissions import school_permission
-
-from this import d
-
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
@@ -17,20 +12,27 @@ from academics.serializers import (
     ClassSubjectSerializer,
     ClassTeacherSerializer,
 )
+from academics.services import ClassSubjectService, ClassTeacherService
 from core.mixins import AuditLogMixin, ExportMixin
-from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
+from core.permissions import IsAdmin, IsAdminOrReadOnly
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
+from core.teacher_scope import TeacherScopedQuerysetMixin
 from subscriptions.permissions import HasExportAccess
 
 
-class ClassListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+class ClassListCreateView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin, generics.ListCreateAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = ClassFilter
-    search_fields = ["name"]
-    ordering_fields = ["name", "capacity", "created_at"]
-    ordering = ["name"]
+    search_fields = ("name",)
+    ordering_fields = ("name", "capacity", "created_at")
+    ordering = ("name",)
     audit_resource = "Class"
 
     def get_queryset(self):
@@ -38,8 +40,8 @@ class ClassListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin
 
     def get_permissions(self):
         if self.request.method == "POST":
-            return [IsAdmin()]
-        return [IsAdminOrReadOnly()]
+            return (IsAdmin(),)
+        return (IsAdminOrReadOnly(),)
 
     def get_audit_description(self, instance):
         return f"Class '{instance.name}' created by {self.request.user.full_name}"
@@ -63,8 +65,12 @@ class ClassListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMixin
         )
 
 
-class ClassDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+class ClassDetailView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassSerializer
     audit_resource = "Class"
 
@@ -97,10 +103,10 @@ class ClassExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIV
         HasExportAccess,
     ]
     serializer_class = ClassSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = ClassFilter
-    search_fields = ["name"]
-    ordering = ["name"]
+    search_fields = ("name",)
+    ordering = ("name",)
 
     def get_queryset(self):
         return Class.objects.filter(school=self.request.user.school)
@@ -111,14 +117,21 @@ class ClassExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIV
 
 # ─── Class Subjects ───────────────────────────────────────────────
 
-class ClassSubjectsListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+
+class ClassSubjectsListCreateView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassSubjectSerializer
     audit_resource = "ClassSubject"
 
     def get_queryset(self):
         class_id = self.kwargs.get("class_id")
-        return ClassSubject.objects.filter(klass_id=class_id, school=self.request.user.school)
+        return ClassSubject.objects.filter(
+            klass_id=class_id, school=self.request.user.school
+        )
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -131,8 +144,10 @@ class ClassSubjectsListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, gen
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         class_id = self.kwargs.get("class_id")
-        request.data['klass'] = str(class_id)
-        serializer = self.get_serializer(data=request.data, context={"request": request})
+        request.data["klass"] = str(class_id)
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return ApiResponse.created(
@@ -140,8 +155,13 @@ class ClassSubjectsListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, gen
             message="Subject assigned to class successfully.",
         )
 
-class ClassSubjectDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveDestroyAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+
+class ClassSubjectDetailView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveDestroyAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassSubjectSerializer
     audit_resource = "ClassSubject"
 
@@ -155,8 +175,10 @@ class ClassSubjectDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance)
-        return ApiResponse.success(message="Subject unassigned from class successfully.")
+        ClassSubjectService.delete_class_subject(instance)
+        return ApiResponse.success(
+            message="Subject unassigned from class successfully."
+        )
 
 
 class BulkAssignClassSubjectsView(APIView):
@@ -165,7 +187,10 @@ class BulkAssignClassSubjectsView(APIView):
     Payload: {"subjects": ["uuid1", "uuid2", ...]}
     Skips subjects already assigned to the class.
     """
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
 
     @transaction.atomic
     def post(self, request, class_id):
@@ -184,51 +209,37 @@ class BulkAssignClassSubjectsView(APIView):
             context={"school": school},
         )
         serializer.is_valid(raise_exception=True)
-        subjects = serializer.validated_data["subjects"]
-
-        already_assigned = set(
-            ClassSubject.objects.filter(
-                school=school,
-                klass=klass,
-                subject__in=subjects,
-            ).values_list("subject_id", flat=True)
-        )
-
-        to_create = [s for s in subjects if s.id not in already_assigned]
-
-        created = []
-        if to_create:
-            objs = [
-                ClassSubject(school=school, klass=klass, subject=subject)
-                for subject in to_create
-            ]
-            created = ClassSubject.objects.bulk_create(objs)
+        try:
+            data, message = ClassSubjectService.assign_subjects_to_class(
+                klass,
+                serializer.validated_data["subjects"],
+                assign_teacher=serializer.validated_data.get("assign_teacher", False),
+            )
+        except ValueError as e:
+            return ApiResponse.error(message=str(e), status_code=400)
+        
 
         return ApiResponse.created(
-            data={
-                "class": str(klass.id),
-                "created": len(created),
-                "skipped": len(already_assigned),
-                "assigned_subjects": [
-                    {"id": str(cs.subject.id), "name": cs.subject.name}
-                    for cs in created
-                ],
-            },
-            message=f"{len(created)} subject(s) assigned successfully."
-            + (f" {len(already_assigned)} already assigned." if already_assigned else ""),
+            data=data,
+            message=message,
         )
-
 
 
 # CLASS TEACHER ASSIGNMENT
-class ClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+class ClassTeacherView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListCreateAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassTeacherSerializer
     audit_resource = "ClassTeacher"
 
     def get_queryset(self):
         class_id = self.kwargs.get("class_id")
-        return ClassTeacher.objects.filter(klass_id=class_id, school=self.request.user.school)
+        return ClassTeacher.objects.filter(
+            klass_id=class_id, school=self.request.user.school
+        )
 
     def get_audit_description(self, instance):
         teacher_name = instance.teacher.full_name if instance.teacher else "None"
@@ -242,17 +253,34 @@ class ClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.ListC
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         class_id = self.kwargs.get("class_id")
-        request.data['klass'] = str(class_id)
-        serializer = self.get_serializer(data=request.data, context={"request": request, 'school': self.request.user.school})
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return ApiResponse.created(
-            data=serializer.data,
-            message="Teacher assigned to class successfully.",
+        request.data["klass"] = str(class_id)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "school": self.request.user.school},
         )
+        serializer.is_valid(raise_exception=True)
+        try:
+            class_teacher = ClassTeacherService.assign_teacher_to_class(
+                serializer.validated_data["klass"],
+                serializer.validated_data["teacher"],
+                assign_subjects=serializer.validated_data["assign_subjects"],
+            )
 
-class UnassignClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.DestroyAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+            return ApiResponse.created(
+                data=ClassTeacherSerializer(class_teacher).data,
+                message="Teacher assigned to class successfully.",
+            )
+        except ValueError as e:
+            return ApiResponse.error(message=str(e), status_code=400)
+
+
+
+class UnassignClassTeacherView(
+    TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveDestroyAPIView
+):
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = ClassTeacherSerializer
     audit_resource = "ClassTeacher"
 
@@ -268,18 +296,22 @@ class UnassignClassTeacherView(TeacherScopedQuerysetMixin, AuditLogMixin, generi
         teacher_name = instance.teacher.full_name if instance.teacher else "None"
         class_name = instance.klass.name if instance.klass else "None"
         self.perform_destroy(instance)
-        return ApiResponse.success(message=f"Teacher '{teacher_name}' unassigned from class '{class_name}' successfully.")
+        return ApiResponse.success(
+            message=f"Teacher '{teacher_name}' unassigned from class '{class_name}' successfully."
+        )
 
 
 class TeacherClassesView(TeacherScopedQuerysetMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="class.teach")]
+    permission_classes = (school_permission(read="class.teach"),)
     serializer_class = ClassTeacherSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = ClassTeacherFilter
-    search_fields = ["klass__name"]
-    ordering_fields = ["klass__name", "created_at"]
-    ordering = ["klass__name"]
+    search_fields = ("klass__name",)
+    ordering_fields = ("klass__name", "created_at")
+    ordering = ("klass__name",)
 
     def get_queryset(self):
         staff_account = self.request.user.staff_profile
-        return ClassTeacher.objects.filter(teacher=staff_account, school=self.request.user.school)
+        return ClassTeacher.objects.filter(
+            teacher=staff_account, school=self.request.user.school
+        )

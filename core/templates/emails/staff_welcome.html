@@ -390,10 +390,6 @@
           <span class="label">Email Address</span>
           <span class="value">{{ staff_email }}</span>
         </div>
-        <div class="credential-row">
-          <span class="label">Temporary Password</span>
-          <span class="value">{{ staff_password }}</span>
-        </div>
 
         <div class="security-note">
           <span class="icon">⚠️</span>
@@ -410,15 +406,15 @@
         <li>
           <div class="step-number">1</div>
           <div class="step-content">
-            <div class="step-name">Log In to Your Dashboard</div>
-            <div class="step-desc">Use the credentials above to sign in to the SkuuMate staff portal.</div>
+            <div class="step-name">Use the forgot password feature</div>
+            <div class="step-desc">Use the forgot password option to reset your password</div>
           </div>
         </li>
         <li>
           <div class="step-number">2</div>
           <div class="step-content">
-            <div class="step-name">Change Your Password</div>
-            <div class="step-desc">Head to your profile settings and set a strong, personal password right away.</div>
+            <div class="step-name">Log In to Your Dashboard</div>
+            <div class="step-desc">Use your new password to log in to your dashboard.</div>
           </div>
         </li>
         <li>
@@ -469,7 +465,6 @@
         This email was sent to <strong>{{ staff_email }}</strong> because you were added
         as a staff member of <strong>{{ school_name }}</strong> on SkuuMate.<br/>
         © {{ current_year }} SkuuMate by HubTek Primex Enterprise. All rights reserved.<br/>
-        Achimota, Accra, Ghana
       </p>
       <div class="footer-links">
         <a href="{{ frontend_url }}/privacy">Privacy Policy</a>

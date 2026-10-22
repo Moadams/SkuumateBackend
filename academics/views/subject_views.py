@@ -43,12 +43,18 @@ class SubjectListCreateView(AuditLogMixin, ExportMixin, generics.ListCreateAPIVi
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data=serializer.data)
 
-    @transaction.atomic
     def create(self, request, *args, **kwargs):
+        # Validate before opening the transaction. ``validate_name`` and
+        # ``validate_code`` read the subjects table, and on SQLite a
+        # transaction that reads before it writes cannot upgrade its lock —
+        # it fails with "database is locked" as soon as another request is
+        # writing, without ever waiting for the busy timeout.
+        school = request.user.school
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        check_and_complete_onboarding(self.request.user.school)
+        with transaction.atomic():
+            self.perform_create(serializer)
+            check_and_complete_onboarding(school)
         return ApiResponse.created(
             data=serializer.data,
             message="Subject created successfully.",
@@ -103,13 +109,13 @@ class SubjectExportView(ExportMixin, generics.ListAPIView):
         return self.export(request, *args, **kwargs)
 
 class SubjectTeacherListCreateView(AuditLogMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
-    
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    permission_classes = (school_permission(read="academics.view", write="academics.manage"),)
+
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = SubjectTeacherFilter
-    search_fields = ["teacher__first_name", "teacher__last_name", "teacher__email", "subject__name", "subject__code"]
-    ordering_fields = ["teacher__first_name", "teacher__last_name", "teacher__email", "subject__name", "subject__code"]
-    ordering = ["teacher__last_name", "teacher__first_name"]
+    search_fields = ("teacher__first_name", "teacher__last_name", "teacher__email", "subject__name", "subject__code")
+    ordering_fields = ("teacher__first_name", "teacher__last_name", "teacher__email", "subject__name", "subject__code")
+    ordering = ("teacher__last_name", "teacher__first_name")
 
     
     audit_resource = "SubjectTeacher"
@@ -145,7 +151,7 @@ class SubjectTeacherListCreateView(AuditLogMixin, generics.ListCreateAPIView):
         )
     
 class UnassignSubjectTeacherView(AuditLogMixin, generics.DestroyAPIView):
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (school_permission(read="academics.view", write="academics.manage"),)
     serializer_class = SubjectTeacherListSerializer
     audit_resource = "SubjectTeacher"
 

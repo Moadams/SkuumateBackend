@@ -42,17 +42,12 @@ class SubjectTeacherFilter(django_filters.FilterSet):
     class_id = django_filters.UUIDFilter(field_name="klass__id")
     subject_id = django_filters.UUIDFilter(field_name="subject__id")
     teacher_id = django_filters.UUIDFilter(field_name="teacher__id")
-    academic_year_id = django_filters.UUIDFilter(
-        field_name="academic_year__id"
-    )
-    term_id = django_filters.UUIDFilter(field_name="term__id")
-    is_active = django_filters.BooleanFilter()
+    
 
     class Meta:
         model = SubjectTeacher
         fields = [
-            "class_id", "subject_id", "teacher_id",
-            "academic_year_id", "term_id", "is_active",
+            "class_id", "subject_id", "teacher_id"
         ]
 
 

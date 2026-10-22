@@ -1,5 +1,3 @@
-from core.teacher_scope import TeacherScopedQuerysetMixin
-from core.school_permissions import school_permission
 import datetime
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -9,8 +7,9 @@ from rest_framework.views import APIView
 
 from core.mixins import ExportMixin
 from core.models import AuditLog
-from core.permissions import IsAdminOrTeacher
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
+from core.teacher_scope import TeacherScopedQuerysetMixin, ensure_teacher_assignment
 from core.utils import log_action
 from subscriptions.permissions import HasAttendanceModule, HasExportAccess
 
@@ -23,7 +22,6 @@ from .serializers import (
     UpdateAttendanceSerializer,
 )
 from .utils import mark_bulk_attendance
-from core.teacher_scope import ensure_teacher_assignment
 
 # ─── Bulk Mark Attendance ─────────────────────────────────────────
 
@@ -33,10 +31,10 @@ class BulkMarkAttendanceView(APIView):
     Creates new records or updates existing ones for the given date.
     Accessible by both admins and teachers.
     """
-    permission_classes = [
+    permission_classes = (
         school_permission(create="attendance.mark"),
         HasAttendanceModule,
-    ]
+    )
 
     def post(self, request):
         school = request.user.school

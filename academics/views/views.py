@@ -289,7 +289,7 @@ class BulkSubjectTeacherAssignView(APIView):
     Validates ALL items before saving ANY of them —
     so either the entire batch succeeds or nothing is saved.
     """
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (school_permission(read="academics.view", write="academics.manage"),)
 
     def post(self, request):
         school = request.user.school
@@ -313,8 +313,6 @@ class BulkSubjectTeacherAssignView(APIView):
                         school=school,
                         klass=item["klass"],
                         subject=item["subject"],
-                        academic_year=item["academic_year"],
-                        term=item["term"],
                         defaults={
                             "teacher": item["teacher"],
                             "is_active": True,

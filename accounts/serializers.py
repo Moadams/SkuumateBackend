@@ -194,11 +194,7 @@ class ResetUserPasswordSerializer(serializers.Serializer):
             )
 
         try:
-            actor = self.context["request"].user
-            users = User.objects.filter(pk=actor.pk)
-            if actor.role == "admin" and actor.school_id:
-                users = User.objects.filter(school_id=actor.school_id, is_superuser=False).exclude(role="superadmin")
-            user = users.get(pk=user_id)
+            user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             raise serializers.ValidationError(
                 {"user_id": "User not found."}

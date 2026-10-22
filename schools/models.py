@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 
 from core.models import TimestampedModel
 
@@ -33,6 +33,7 @@ class School(TimestampedModel):
     def __str__(self):
         return self.name
 
+    @transaction.atomic
     def force_delete(self, *args, **kwargs):
         """
         Force delete the school and all related objects.

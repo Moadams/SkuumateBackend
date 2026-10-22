@@ -227,7 +227,8 @@ class OnboardingServiceTests(TestCase):
             school=self.school,
             plan=package,
             status=Subscription.Status.ACTIVE,
-            end_date=timezone.now() + timedelta(days=90),
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date() + timedelta(days=90),
         )
 
 

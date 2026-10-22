@@ -31,6 +31,29 @@ class IsPlatformSuperAdmin(BasePermission):
         )
 
 
+class HasBillingPermissions(BasePermission):
+    """Platform billing management gate.
+
+    Coupon administration requires **both** ``billing.view`` and
+    ``billing.manage`` platform permissions — including read-only requests
+    and the stats endpoint — because coupon codes are commercially sensitive
+    and every code is redeemable against a school's invoice.
+    """
+
+    required_permissions = ("billing.view", "billing.manage")
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+
+        from platform_rbac.permissions import has_platform_permission
+
+        return all(
+            has_platform_permission(user, code) for code in self.required_permissions
+        )
+
+
 class SubscriptionPermission(BasePermission):
     """
     Base subscription-aware permission.

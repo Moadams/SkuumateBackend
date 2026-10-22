@@ -258,7 +258,7 @@ class StudentReportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudentReport
-        fields = [
+        fields = (
             "id",
             "student_name",
             "student_id",
@@ -272,7 +272,8 @@ class StudentReportSerializer(serializers.ModelSerializer):
             "status",
             "overall_position",
             "rank",
-        ]
+            "promoted_to"
+        )
 
 class StudentReportDetailSerializer(serializers.ModelSerializer):
     school = SchoolInfoSerializer()
@@ -287,7 +288,7 @@ class StudentReportDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudentReport
-        fields = [
+        fields = (
             "id",
             "school",
             "student_name",
@@ -307,7 +308,8 @@ class StudentReportDetailSerializer(serializers.ModelSerializer):
             "overall_position",
             "subject_scores",
             "rank",
-        ]
+            "promoted_to"
+        )
 
 
 class StudentReportGeneratorSerializer(serializers.Serializer):
@@ -336,3 +338,7 @@ class HeadTeacherRemarksSerializer(serializers.ModelSerializer):
             "headteacher_remarks",
             "headteacher"
         ]
+
+
+class PublishReportsSerializer(serializers.Serializer):
+    reports = serializers.ListField(required = True)

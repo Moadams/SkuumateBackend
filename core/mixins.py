@@ -53,20 +53,26 @@ class AuditLogMixin:
     def get_audit_description(self, instance):
         return f"{self.audit_action.capitalize()} {self.audit_resource}"
 
-    @transaction.atomic
     def perform_create(self, serializer, **kwargs):
+        # Resolve the tenant FK *before* opening the transaction.
+        # On SQLite a transaction that reads first and writes second cannot
+        # upgrade its shared lock to a write lock: the upgrade fails with
+        # "database is locked" immediately (the busy timeout is never used),
+        # so a concurrent writer turns this request into a 500. Resolving the
+        # school here keeps the INSERT the first statement in the transaction.
         school = self.request.user.school
         if school:
             kwargs["school"] = school
-        instance = serializer.save(**kwargs)
-        log_action(
-            action=AuditLog.Action.CREATE,
-            resource=self.audit_resource,
-            resource_id=str(instance.pk),
-            description=self.get_audit_description(instance),
-            request=self.request,
-            metadata=self.get_audit_metadata(instance),
-        )
+        with transaction.atomic():
+            instance = serializer.save(**kwargs)
+            log_action(
+                action=AuditLog.Action.CREATE,
+                resource=self.audit_resource,
+                resource_id=str(instance.pk),
+                description=self.get_audit_description(instance),
+                request=self.request,
+                metadata=self.get_audit_metadata(instance),
+            )
         return instance
 
     @transaction.atomic

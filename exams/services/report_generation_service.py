@@ -67,3 +67,30 @@ class ReportGenerationService:
             "generated": reports['created'],
             "updated": reports['updated']
         }
+
+
+    @staticmethod
+    @transaction.atomic
+    def publish_reports(reports:list, school):
+        # Reject duplicate IDs to avoid misleading counts.
+        if len(reports) != len(set(reports)):
+            raise ValueError("Duplicate report IDs were submitted.")
+        
+        ready_reports = StudentReport.objects.filter(
+            school=school,
+            id__in=reports,
+            status=StudentReport.ReportStatus.READY,
+        )
+
+        if ready_reports.count() != len(reports):
+            raise ValueError(
+                "Some reports were not found for this school "
+                "or are not ready for publishing."
+            )
+
+        ready_reports.update(
+            status=StudentReport.ReportStatus.PUBLISHED
+        )
+
+        return True
+

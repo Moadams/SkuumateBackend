@@ -86,6 +86,7 @@ class StudentReport(TimestampedModel):
     headteacher_remarks = models.TextField(blank=True)
     headteacher = models.CharField(max_length = 100,blank=True, null=True)
     teacher = models.CharField(max_length = 100, blank=True, null=True)
+    promoted_to = models.CharField(max_length=50, blank=True, null=True)
     status = models.CharField(max_length = 20, choices = ReportStatus.choices, default = ReportStatus.DRAFT)
 
     class Meta:
@@ -98,10 +99,8 @@ class StudentReport(TimestampedModel):
         return f"{self.student.full_name} - {self.term.name} Report"
 
     def save(self, *args, **kwargs):
-        if self.teacher_remarks and self.headteacher_remarks:
+        if self.status != self.ReportStatus.PUBLISHED and self.teacher_remarks and self.headteacher_remarks:
             self.status = self.ReportStatus.READY
-        if self.teacher_remarks is None or self.headteacher_remarks is None:
-            self.status = self.ReportStatus.PENDING_REMARKS
         super().save(*args, **kwargs)
 
 class StudentReportSubjectScore(TimestampedModel):

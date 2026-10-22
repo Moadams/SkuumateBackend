@@ -188,12 +188,12 @@ class PromotionBatch(TimestampedModel):
     )
     to_academic_year = models.ForeignKey(
         "academics.AcademicYear",
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="promotion_batches_to",
     )
     to_class = models.ForeignKey(
         "academics.Class",
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="promotion_batches_to",
     )
     to_term = models.ForeignKey(

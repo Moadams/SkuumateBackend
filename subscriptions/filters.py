@@ -1,7 +1,28 @@
 """django-filter FilterSets for every subscription list endpoint."""
 import django_filters
 
-from subscriptions.models import Feature, Package, Subscription, SubscriptionPayment
+from subscriptions.models import Coupon, Feature, Package, Subscription, SubscriptionPayment
+from subscriptions.services.coupons import CouponService
+
+
+class CouponFilter(django_filters.FilterSet):
+    """Filters for the platform coupon list.
+
+    ``status`` filters on the *effective* status, so a coupon whose expiry
+    date has passed or whose usage limit is exhausted shows up as expired even
+    when the stored status still says active or disabled.
+    """
+
+    status = django_filters.CharFilter(method="filter_effective_status")
+    discount_type = django_filters.ChoiceFilter(choices=Coupon.DiscountType.choices)
+    target = django_filters.ChoiceFilter(choices=Coupon.Target.choices)
+
+    class Meta:
+        model = Coupon
+        fields = ("status", "discount_type", "target")
+
+    def filter_effective_status(self, queryset, name, value):
+        return CouponService.with_status(queryset, value)
 
 
 class PackageFilter(django_filters.FilterSet):
