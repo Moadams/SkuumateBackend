@@ -131,6 +131,7 @@ REST_FRAMEWORK = {
         "user": "200/hour",
         "private_media": "3000/hour",
         "student_verify": "600/hour",
+        "guardian_students": "600/hour",
     },
 }
 

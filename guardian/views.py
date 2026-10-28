@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 from core.permissions import IsGuardian
 from core.responses import ApiResponse
@@ -135,6 +136,8 @@ class GuardianStudentView(generics.ListAPIView):
     """The logged-in guardian's linked students. Not paginated."""
     serializer_class = GuardianChildSerializer
     permission_classes = (IsAuthenticated, IsGuardian)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "guardian_students"
     pagination_class = None
     filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ('first_name', 'last_name', 'other_names', 'student_id')
