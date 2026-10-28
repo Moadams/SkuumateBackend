@@ -14,8 +14,8 @@ from .views import (
     StudentEnrollView,
     StudentExcelTemplateView,
     StudentExportView,
-    StudentIDCardView,
     StudentIDCardsBulkView,
+    StudentIDCardView,
     StudentListCreateView,
     StudentVerifyView,
 )
@@ -42,7 +42,7 @@ urlpatterns = [
 
     # Guardians
     path("students/<uuid:pk>/guardians/", GuardianListCreateView.as_view(), name="guardian-list"),
-    path("guardians/<uuid:pk>/", GuardianDetailView.as_view(), name="guardian-detail"),
+    path("students/guardians/<uuid:pk>/", GuardianDetailView.as_view(), name="guardian-detail"),
 
     # Enrollment
     path("students/<uuid:pk>/enroll/", StudentEnrollView.as_view(), name="student-enroll"),

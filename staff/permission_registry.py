@@ -39,6 +39,32 @@ PERMISSION_DEFS = [
         "description": "Export student records.",
     },
 
+    # ── Guardians ─────────────────────────────────────────────────
+    {
+        "key": "guardians.list",
+        "module": "Guardians",
+        "label": "View Guardians",
+        "description": "View guardian records and their linked students.",
+    },
+    {
+        "key": "guardians.create",
+        "module": "Guardians",
+        "label": "Create Guardians",
+        "description": "Register new guardians.",
+    },
+    {
+        "key": "guardians.edit",
+        "module": "Guardians",
+        "label": "Edit Guardians",
+        "description": "Update guardian details and link or unlink students.",
+    },
+    {
+        "key": "guardians.delete",
+        "module": "Guardians",
+        "label": "Delete Guardians",
+        "description": "Delete guardians and their login accounts.",
+    },
+
     # ── Attendance ────────────────────────────────────────────────
     {
         "key": "attendance.view",
