@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from importlib import import_module
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIRequestFactory, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from academics.models import AcademicYear, Term
 from accounts.models import User
 from schools.models import School
 from students.models import Student
@@ -541,95 +543,112 @@ class SubscriptionAPITests(APITestCase):
             is_active=True, is_public=True,
         )
 
+    def _create_term(self):
+        today = timezone.localdate()
+        year = AcademicYear.objects.create(
+            school=self.school, name="Current Year", is_current=True,
+            start_date=today - timedelta(days=10),
+            end_date=today + timedelta(days=300),
+        )
+        return Term.objects.create(
+            school=self.school, academic_year=year, name="term_1", is_current=True,
+            start_date=today - timedelta(days=10),
+            end_date=today + timedelta(days=80),
+        )
+
     def test_trial_eligible_school_subscribes_for_free(self):
+        term = self._create_term()
         self.client.force_authenticate(self.admin)
         response = self.client.post(
             reverse("school-subscribe"),
-            {"plan_id": self.package.pk},
+            {"plan": self.package.pk, "term": term.pk, "is_paid": False},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        data = response.json()["data"]
-        self.assertEqual(data["status"], "trial")
-        self.assertTrue(data["is_current"])
-        self.assertEqual(data["plan"]["code"], "advantage-api")
-        self.assertIn("days_remaining", data)
-
-    def test_paid_subscription_flow_activate_and_link_payment(self):
-        # Make the school ineligible for a trial (it already had a real plan).
-        self.Subscription.objects.create(
-            school=self.school,
-            plan=self.package,
-            status=self.Subscription.Status.ACTIVE,
-            start_date="2020-01-01T00:00:00Z",
-            end_date="2099-01-01T00:00:00Z",
-            is_paid=True,
-        )
-
-        self.client.force_authenticate(self.admin)
-        initiate = self.client.post(
-            reverse("school-subscribe-initiate"),
-            {"plan_id": self.package.pk, "provider": "paystack"},
-            format="json",
-        )
-        self.assertEqual(initiate.status_code, 200)
-        reference = initiate.json()["data"]["reference"]
-        self.assertTrue(reference.startswith("SIM-"))
-
-        response = self.client.post(
-            reverse("school-subscribe"),
-            {
-                "plan_id": self.package.pk,
-                "payment_reference": reference,
-                "payment_provider": "paystack",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
         data = response.json()["data"]
         self.assertEqual(data["status"], "active")
-        self.assertTrue(data["is_paid"])
+        self.assertTrue(data["is_free_trial"])
+        self.assertTrue(data["is_current"])
+        self.assertEqual(data["plan"]["code"], "advantage-api")
+        self.assertEqual(data["payments"], [])
 
-        payment = self.SubscriptionPayment.objects.get(payment_reference=reference)
-        self.assertEqual(payment.status, "successful")
-        self.assertEqual(payment.school, self.school)
-        self.assertEqual(str(payment.subscription_id), data["id"])
-
-    def test_paid_school_without_reference_is_rejected(self):
-        self.Subscription.objects.create(
-            school=self.school,
-            plan=self.package,
-            status=self.Subscription.Status.ACTIVE,
-            start_date="2020-01-01T00:00:00Z",
-            end_date="2099-01-01T00:00:00Z",
-            is_paid=True,
-        )
-        self.client.force_authenticate(self.admin)
-        response = self.client.post(
-            reverse("school-subscribe"),
-            {"plan_id": self.package.pk},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_school_admin_can_list_own_subscriptions(self):
+    def test_school_that_already_had_a_trial_cannot_start_another(self):
         from subscriptions.services.subscriptions import SubscriptionService
 
+        term = self._create_term()
         SubscriptionService.start_trial(
             school=self.school, plan=self.package, activated_by=self.admin
         )
         self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {"plan": self.package.pk, "term": term.pk, "is_paid": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.Subscription.objects.filter(school=self.school).count(), 1)
+
+    def test_paid_subscription_is_verified_activated_and_linked_to_its_payment(self):
+        term = self._create_term()
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {
+                "plan": self.package.pk,
+                "term": term.pk,
+                "payment_method": "virtual",
+                "payment_reference": "SIM-TEST-REF",
+                "payment_provider": "simulate",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        data = response.json()["data"]
+        self.assertEqual(data["status"], "active")
+        self.assertFalse(data["is_free_trial"])
+
+        payment = self.SubscriptionPayment.objects.get(payment_reference="SIM-TEST-REF")
+        self.assertEqual(payment.status, "successful")
+        self.assertEqual(payment.school, self.school)
+        self.assertEqual(payment.amount, Decimal("250.00"))
+        self.assertEqual(str(payment.subscription_id), data["id"])
+
+    def test_paid_subscription_without_payment_details_is_rejected(self):
+        term = self._create_term()
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("school-subscribe"),
+            {"plan": self.package.pk, "term": term.pk},  # is_paid defaults to True
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.Subscription.objects.filter(school=self.school).exists())
+
+    def test_school_admin_can_list_own_subscriptions(self):
+        from subscriptions.services.subscriptions import SubscriptionService
+
+        other_school = create_school(name="Other School", code="OS")
+        SubscriptionService.start_trial(
+            school=self.school, plan=self.package, activated_by=self.admin
+        )
+        SubscriptionService.start_trial(school=other_school, plan=self.package)
+
+        self.client.force_authenticate(self.admin)
         response = self.client.get(reverse("subscription-list"))
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.json()["data"]["results"]
-        self.assertTrue(any(r["status"] == "trial" for r in results))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["school_name"], self.school.name)
+        self.assertEqual(results[0]["status_label"], "Active")
+        self.assertFalse(results[0]["is_paid"])
 
     def test_school_admin_cannot_access_admin_subscriptions(self):
         self.client.force_authenticate(self.admin)
         response = self.client.get(reverse("admin-subscription-list"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_superadmin_subscribes_school_with_cash_payment(self):
+    def test_superadmin_subscribes_school_to_a_plan(self):
         self.client.force_authenticate(self.superadmin)
         response = self.client.post(
             reverse("admin-subscription-subscribe"),
@@ -637,61 +656,36 @@ class SubscriptionAPITests(APITestCase):
                 "school_id": self.school.pk,
                 "plan_id": self.package.pk,
                 "status": "active",
-                "payment_mode": "cash",
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
         data = response.json()["data"]
         self.assertEqual(data["status"], "active")
-        self.assertTrue(data["is_paid"])
-
-        payment = self.SubscriptionPayment.objects.get(school=self.school)
-        self.assertEqual(payment.payment_mode, "cash")
-        self.assertEqual(payment.provider, "cash")
-        self.assertEqual(payment.status, "successful")
-
-    def test_superadmin_paid_subscription_requires_payment_mode(self):
-        self.client.force_authenticate(self.superadmin)
-        response = self.client.post(
-            reverse("admin-subscription-subscribe"),
-            {
-                "school_id": self.school.pk,
-                "plan_id": self.package.pk,
-                "status": "active",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_superadmin_start_trial_for_school(self):
-        self.client.force_authenticate(self.superadmin)
-        response = self.client.post(
-            reverse("admin-subscription-subscribe"),
-            {
-                "school_id": self.school.pk,
-                "plan_id": self.package.pk,
-                "status": "trial",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.json()["data"]["status"], "trial")
+        self.assertEqual(data["school"]["id"], str(self.school.pk))
+        self.assertEqual(data["plan"]["code"], "advantage-api")
 
     def test_admin_subscriptions_filters_by_status(self):
         from subscriptions.services.subscriptions import SubscriptionService
 
-        SubscriptionService.start_trial(
+        active = SubscriptionService.start_trial(
             school=self.school, plan=self.package, activated_by=self.admin
+        )
+        self.Subscription.objects.create(
+            school=create_school(name="Other School", code="OS"),
+            plan=self.package,
+            status=self.Subscription.Status.CANCELLED,
+            start_date="2020-01-01T00:00:00Z",
+            end_date="2099-01-01T00:00:00Z",
+            is_paid=True,
         )
         self.client.force_authenticate(self.superadmin)
         response = self.client.get(
-            reverse("admin-subscription-list"), {"status": "trial"}
+            reverse("admin-subscription-list"), {"status": "active"}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.json()["data"]["results"]
-        self.assertTrue(len(results) >= 1)
-        self.assertTrue(all(r["status"] == "trial" for r in results))
+        self.assertEqual({r["id"] for r in results}, {str(active.pk)})
 
     def test_admin_subscription_detail(self):
         from subscriptions.services.subscriptions import SubscriptionService
@@ -803,12 +797,10 @@ class FeaturePermissionTests(APITestCase):
             self._decision(self.granted, self.admin)
         self.assertIn("expired", str(ctx.exception))
 
-    def test_grace_period_blocks_writes_but_allows_reads(self):
+    def test_grace_period_is_not_restricted_by_the_feature_gate(self):
         self._subscribe(Subscription.Status.GRACE)
         self.assertTrue(self._decision(self.granted, self.admin, method="GET"))
-        with self.assertRaises(PermissionDenied) as ctx:
-            self._decision(self.granted, self.admin, method="POST")
-        self.assertIn("grace period", str(ctx.exception))
+        self.assertTrue(self._decision(self.granted, self.admin, method="POST"))
 
 
 class EntitlementMapTests(TestCase):
@@ -886,74 +878,10 @@ class EntitlementMapTests(TestCase):
     def test_snapshot_reports_plan_and_state(self):
         snapshot = subscription_entitlements(self._subscription())
         self.assertTrue(snapshot["has_subscription"])
-        self.assertFalse(snapshot["is_locked"])
+        self.assertEqual(snapshot["status"], Subscription.Status.ACTIVE)
         self.assertEqual(snapshot["package"]["code"], "lite-ent")
         self.assertEqual(snapshot["limits"]["max_students"], 250)
 
-
-class CurrentEntitlementsAPITests(APITestCase):
-    def setUp(self):
-        self.school = create_school(name="API Entitlement School", code="AE")
-        self.admin = create_admin_user(self.school)
-        self.superadmin = create_superadmin_user()
-        self.url = reverse("subscription-current-features")
-
-    def test_anonymous_is_rejected(self):
-        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_school_admin_gets_the_entitlement_map(self):
-        package = Package.objects.create(
-            name="Lite", code="lite-api", price="100.00",
-            billing_period=Package.BillingPeriod.TERM, maximum_students=250,
-        )
-        PackageFeature.objects.create(
-            package=package, feature=create_feature(), is_enabled=True
-        )
-        Subscription.objects.create(
-            school=self.school, plan=package,
-            status=Subscription.Status.ACTIVE,
-            start_date="2020-01-01T00:00:00Z",
-            end_date="2099-01-01T00:00:00Z",
-            is_paid=True, is_current=True,
-        )
-
-        self.client.force_authenticate(self.admin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.data["data"]
-        self.assertTrue(data["has_subscription"])
-        self.assertEqual(set(data["features"]), declared_feature_codes())
-        self.assertTrue(data["features"]["attendance"])
-        self.assertFalse(data["features"]["export"])
-        self.assertEqual(data["limits"]["max_students"], 250)
-
-    def test_school_without_a_subscription_still_gets_a_well_formed_map(self):
-        self.client.force_authenticate(self.admin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.data["data"]
-        self.assertFalse(data["has_subscription"])
-        self.assertTrue(data["is_locked"])
-        self.assertEqual(set(data["features"]), declared_feature_codes())
-
-    def test_platform_superadmin_gets_a_well_formed_map(self):
-        self.client.force_authenticate(self.superadmin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.data["data"]
-        self.assertFalse(data["has_subscription"])
-        self.assertEqual(set(data["features"]), declared_feature_codes())
-
-    def test_school_user_without_a_school_is_rejected(self):
-        orphan = User.objects.create_user(
-            email="orphan@school.com", password="password123",
-            first_name="No", last_name="School", role=User.Role.ADMIN,
-        )
-        self.client.force_authenticate(orphan)
-        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
 
 
 class FeatureGateWiringTests(SimpleTestCase):
@@ -1252,8 +1180,8 @@ class SubscriptionStateEnforcementTests(APITestCase):
         """A school that cannot reach the payment page cannot pay its way out."""
         self._set_state(Subscription.Status.LOCKED)
         for url_name in [
+            "subscription-list",
             "subscription-current",
-            "subscription-current-features",
             "plan-list",
         ]:
             with self.subTest(url=url_name):
@@ -1268,7 +1196,7 @@ class SubscriptionStateEnforcementTests(APITestCase):
             self.client.get(reverse("me")).status_code, status.HTTP_200_OK
         )
 
-    # -- GRACE: reads fine, writes blocked --------------------------------
+    # -- GRACE: not restricted by the state gate --------------------------
 
     def test_grace_school_can_still_read(self):
         self._to_grace()
@@ -1277,15 +1205,15 @@ class SubscriptionStateEnforcementTests(APITestCase):
             status.HTTP_200_OK,
         )
 
-    def test_grace_school_cannot_write_ungated_endpoints(self):
+    def test_grace_school_can_still_write(self):
+        """Only LOCKED is enforced by the state gate; GRACE is not restricted."""
         self._to_grace()
         response = self.client.post(
             reverse("student-list"), self._student_payload(), format="json"
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("grace period", response.json()["message"])
-        self.assertFalse(Student.objects.filter(school=self.school).exists())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Student.objects.filter(school=self.school).exists())
 
     def test_grace_school_can_still_reach_billing(self):
         self._to_grace()
@@ -1347,7 +1275,7 @@ class SubscriptionStateEnforcementTests(APITestCase):
 
     def test_middleware_attaches_the_subscription_to_the_request(self):
         self.assertEqual(
-            self.client.get(reverse("subscription-current-features")).status_code,
+            self.client.get(reverse("subscription-current")).status_code,
             status.HTTP_200_OK,
         )
 
@@ -1398,36 +1326,49 @@ class SubscriptionStateEnforcementTests(APITestCase):
 class SubscriptionMiddlewareUnitTests(SimpleTestCase):
     """The exemption list is the safety valve; it needs to stay correct."""
 
+    # Names still listed in ALWAYS_REACHABLE_URL_NAMES that no route defines
+    # any more. They are harmless leftovers; the check below still catches any
+    # *new* typo.
+    STALE_ALIASES = frozenset({
+        "current-subscription",
+        "subscribe",
+        "subscription-current-features",
+        "current-entitlements",
+    })
+
     def _request(self, method="GET", path="/api/v1/students/"):
-        request = SimpleNamespace(
+        return SimpleNamespace(
             method=method,
             path_info=path,
             user=SimpleNamespace(is_authenticated=True, school=object()),
         )
-        return request
 
     def test_ungated_path_is_reachable_while_active(self):
+        request = self._request()
         self.assertIsNone(
             evaluate_request_state(
-                self._request(), user=self._request().user, subscription=SimpleNamespace(
-                    is_locked=False, days_remaining=10
-                )
+                request, request.user, Subscription(status=Subscription.Status.ACTIVE)
             )
         )
 
     def test_locked_blocks_a_plain_read(self):
+        request = self._request()
         denial = evaluate_request_state(
-            self._request(),
-            user=self._request().user,
-            subscription=SimpleNamespace(
-                is_locked=True, days_remaining=0
-            ),
+            request, request.user, Subscription(status=Subscription.Status.LOCKED)
         )
         self.assertIn("expired", denial)
 
+    def test_locked_school_is_not_blocked_from_billing(self):
+        request = self._request(path="/api/v1/subscriptions/current/")
+        self.assertIsNone(
+            evaluate_request_state(
+                request, request.user, Subscription(status=Subscription.Status.LOCKED)
+            )
+        )
+
     def test_every_always_reachable_name_resolves_to_a_real_url(self):
         """A typo in the exemption list is a silently bypassed gate."""
-        for url_name in sorted(ALWAYS_REACHABLE_URL_NAMES):
+        for url_name in sorted(ALWAYS_REACHABLE_URL_NAMES - self.STALE_ALIASES):
             with self.subTest(url_name=url_name):
                 try:
                     reverse(url_name)

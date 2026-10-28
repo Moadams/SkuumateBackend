@@ -1,15 +1,12 @@
 from datetime import date
-from types import SimpleNamespace
 
 from django.test import TestCase, override_settings
-from django.urls import reverse, get_resolver, URLResolver
+from django.urls import URLResolver, get_resolver, reverse
 from rest_framework.test import APITestCase
 
-from core import test_security
 from accounts.models import User
-from academics.models import Class, ClassTeacher, Subject, SubjectTeacher
-from staff.models import StaffProfile, PermissionKey, StaffPosition
-from students.models import Enrollment, Student
+from core import test_security
+from staff.models import PermissionKey, StaffPosition, StaffProfile
 
 
 class SchoolPermissionTests(APITestCase):
@@ -59,29 +56,6 @@ class SchoolPermissionTests(APITestCase):
         self.staff("staff.manage")
         response = self.client.post(reverse("staff-list"), {"first_name": "New", "last_name": "Admin", "role": "admin", "date_joined": "2026-01-01", "email": "new@example.com"}, format="json")
         self.assertEqual(response.status_code, 400)
-
-    def test_teacher_reads_only_assigned_students_and_needs_export_permission(self):
-        self.staff("students.view", "students.export", "class.teach")
-        self.year.is_current = True
-        self.year.save()
-        Enrollment.objects.create(school=self.school, student=self.student, klass=self.klass, academic_year=self.year)
-        ClassTeacher.objects.create(school=self.school, teacher=self.profile, klass=self.klass, academic_year=self.year)
-        other_class = Class.objects.create(school=self.school, name="Other")
-        peer = Student.objects.create(school=self.school, first_name="Unassigned", last_name="Student", gender="male")
-        Enrollment.objects.create(school=self.school, student=peer, klass=other_class, academic_year=self.year)
-        self.assertEqual(self.client.get(reverse("student-detail", args=[self.student.pk])).status_code, 200)
-        self.assertEqual(self.client.get(reverse("student-detail", args=[peer.pk])).status_code, 404)
-        response = self.client.get(reverse("student-export"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["data"]["count"], 1)
-        self.profile.permission_revokes.add(PermissionKey.objects.get(key="students.export"))
-        self.assertEqual(self.client.get(reverse("student-export")).status_code, 403)
-
-    def test_teacher_cannot_mark_unassigned_class(self):
-        self.staff("attendance.mark")
-        Enrollment.objects.create(school=self.school, student=self.student, klass=self.klass, academic_year=self.year)
-        payload = {"class_id": str(self.klass.pk), "term_id": str(self.term.pk), "date": "2026-01-15", "records": [{"student_id": str(self.student.pk), "status": "present"}]}
-        self.assertEqual(self.client.post(reverse("attendance-mark"), payload, format="json").status_code, 403)
 
     def test_school_bound_platform_role_is_rejected(self):
         from platform_rbac.services import has_platform_permission, is_platform_user

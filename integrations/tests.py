@@ -12,9 +12,6 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from schools.models import School
-from subscriptions.models import Package, Subscription, SubscriptionPayment
-
 from integrations.email import (
     NullEmailProvider,
     SendGridEmailProvider,
@@ -27,13 +24,19 @@ from integrations.payments.base import BasePaymentProvider
 from integrations.payments.paystack import PaystackPaymentProvider
 from integrations.payments.simulate import SimulatedPaymentProvider
 from integrations.payments.stripe import StripePaymentProvider
-from integrations.registry import get_email_provider, get_payment_provider, get_sms_provider
+from integrations.registry import (
+    get_email_provider,
+    get_payment_provider,
+    get_sms_provider,
+)
 from integrations.sms.africas_talking import AfricasTalkingSMSProvider
 from integrations.sms.arkesel import ArkeselSMSProvider
 from integrations.sms.base import BaseSMSProvider
 from integrations.sms.mnotify import MNotifySMSProvider
 from integrations.sms.simulate import SimulatedSMSProvider
 from integrations.sms.twilio import TwilioSMSProvider
+from schools.models import School
+from subscriptions.models import Package, Subscription, SubscriptionPayment
 
 
 class ProviderContractTests(TestCase):
@@ -94,6 +97,7 @@ class SimulatedProviderBehaviourTests(TestCase):
         self.assertIn("Subject", email_output)
 
 
+@override_settings(INTEGRATION_MODE="simulate")
 class RegistryFactoryTests(TestCase):
     def test_simulate_mode_default_returns_simulated_providers(self):
         self.assertIsInstance(get_payment_provider("paystack"), SimulatedPaymentProvider)
@@ -227,6 +231,7 @@ class StripeProviderTests(TestCase):
         self.assertIn("verification failed", result.message.lower())
 
 
+@override_settings(INTEGRATION_MODE="simulate")
 class SubscribePaymentVerificationTests(APITestCase):
     """The frontend collects the charge (Paystack Inline); the backend only
     verifies the submitted reference + amount against the gateway."""
