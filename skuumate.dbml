@@ -1,0 +1,1062 @@
+// Skuumate database diagram
+// Paste into https://dbdiagram.io (Import > DBML / or the editor directly)
+// Table names match the Django db_table names (<app>_<model>).
+// All primary keys are UUIDs (core.TimestampedModel) unless stated otherwise.
+// Django's built-in auth_group / auth_permission tables (from PermissionsMixin) are omitted.
+
+// ============================================================
+// accounts / schools / core
+// ============================================================
+
+Table schools_school {
+  id uuid [pk]
+  name varchar(255)
+  school_code varchar(10) [null]
+  logo varchar(100) [null, note: 'ImageField path']
+  email varchar(254) [unique, null]
+  school_email_domain varchar(255) [null]
+  phone varchar(20)
+  address text
+  city varchar(100)
+  country varchar(100) [default: 'Ghana']
+  onboarding_completed boolean [default: false]
+  status varchar(20) [default: 'active', note: 'active | suspended | pending']
+  joined timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table schools_prospectiveschool {
+  id uuid [pk]
+  name varchar(255)
+  email varchar(254) [unique]
+  phone varchar(20)
+  admin_first_name varchar(100)
+  admin_last_name varchar(100)
+  admin_email varchar(254)
+  admin_phone varchar(20)
+  status varchar(20) [default: 'pending', note: 'pending | approved | rejected']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table accounts_user {
+  id uuid [pk]
+  password varchar(128)
+  last_login timestamptz [null]
+  is_superuser boolean [default: false]
+  email varchar(254) [unique]
+  phone varchar(20) [default: '']
+  first_name varchar(100)
+  last_name varchar(100)
+  role varchar(20) [default: 'teacher', note: 'admin | teacher | student | finance_manager | superadmin | staff | guardian']
+  is_root_admin boolean [default: false]
+  school_id uuid [null, ref: > schools_school.id]
+  is_active boolean [default: true]
+  is_staff boolean [default: false]
+  must_change_password boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+  deleted_at timestamptz [null]
+  deleted_by_id uuid [null, ref: > accounts_user.id]
+}
+
+Table core_auditlog {
+  id uuid [pk]
+  school_id uuid [null, ref: > schools_school.id]
+  actor_id uuid [null, ref: > accounts_user.id]
+  action varchar(20) [note: 'create | update | delete | login | logout | other']
+  resource varchar(100)
+  resource_id varchar(100)
+  description text
+  metadata jsonb
+  ip_address inet [null]
+  timestamp timestamptz
+}
+
+// ============================================================
+// platform_rbac
+// ============================================================
+
+Table platform_rbac_platformpermission {
+  id uuid [pk]
+  code varchar(100) [unique]
+  name varchar(120)
+  description text
+  module varchar(50) [note: 'indexed']
+  is_active boolean [default: true]
+  is_system boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table platform_rbac_platformrole {
+  id uuid [pk]
+  name varchar(100)
+  code varchar(50) [unique]
+  description text
+  is_active boolean [default: true]
+  is_system_role boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table platform_rbac_platformrolepermission {
+  id uuid [pk]
+  role_id uuid [ref: > platform_rbac_platformrole.id]
+  permission_id uuid [ref: > platform_rbac_platformpermission.id]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (role_id, permission_id) [unique, name: 'uniq_platform_role_permission']
+  }
+}
+
+Table platform_rbac_platformuserrole {
+  id uuid [pk]
+  user_id uuid [ref: > accounts_user.id]
+  role_id uuid [ref: > platform_rbac_platformrole.id]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (user_id, role_id) [unique, name: 'uniq_platform_user_role']
+  }
+}
+
+// ============================================================
+// academics
+// ============================================================
+
+Table academics_academicyear {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  start_date date
+  end_date date
+  is_current boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table academics_term {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  academic_year_id uuid [ref: > academics_academicyear.id]
+  name varchar(20) [note: 'term_1 | term_2 | term_3']
+  start_date date
+  end_date date
+  next_reopening_date date [null]
+  is_current boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, academic_year_id, name) [unique]
+  }
+}
+
+Table academics_subject {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  code varchar(20)
+  description text
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table academics_class {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  capacity integer [default: 30]
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table academics_classsubject {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  klass_id uuid [ref: > academics_class.id]
+  subject_id uuid [ref: > academics_subject.id]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, klass_id, subject_id) [unique]
+  }
+}
+
+Table academics_classteacher {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  klass_id uuid [ref: > academics_class.id]
+  teacher_id uuid [ref: > staff_staffprofile.id]
+  academic_year_id uuid [null, ref: > academics_academicyear.id]
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, klass_id, academic_year_id, teacher_id) [unique]
+  }
+}
+
+Table academics_subjectteacher {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  klass_id uuid [ref: > academics_class.id]
+  subject_id uuid [ref: > academics_subject.id]
+  teacher_id uuid [ref: > staff_staffprofile.id]
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, klass_id, subject_id, teacher_id) [unique]
+  }
+}
+
+Table academics_gradingsystem {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  max_score bigint [default: 100]
+  pass_mark bigint [default: 50]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table academics_gradescale {
+  id uuid [pk]
+  grading_system_id uuid [ref: > academics_gradingsystem.id]
+  school_id uuid [ref: > schools_school.id]
+  grade varchar(10) [note: 'e.g. A1, B2']
+  label varchar(50) [note: 'e.g. Excellent']
+  min_score decimal(5,2)
+  max_score decimal(5,2)
+  is_passing boolean [default: true]
+  position integer [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (grading_system_id, grade) [unique]
+    (grading_system_id, position) [unique]
+  }
+}
+
+Table academics_timetableslot {
+  id uuid [pk]
+  day_of_week varchar(150) [note: 'Monday | Tuesday | Wednesday | Thursday | Friday']
+  start_time time
+  end_time time
+  school_id uuid [ref: > schools_school.id]
+  term_id uuid [ref: > academics_term.id]
+  klass_id uuid [ref: > academics_class.id]
+  subject_id uuid [ref: > academics_subject.id]
+  teacher_id uuid [null, ref: > staff_staffprofile.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// ============================================================
+// staff
+// ============================================================
+
+Table staff_permissionkey {
+  id uuid [pk]
+  key varchar(100) [unique]
+  label varchar(150)
+  module varchar(50)
+  description text
+  is_system boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table staff_staffposition {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  is_system boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table staff_staffprofile {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  first_name varchar(100)
+  last_name varchar(100)
+  user_id uuid [null, unique, ref: - accounts_user.id]
+  role varchar(20) [default: 'teacher', note: 'same choices as accounts_user.role']
+  employee_id varchar(20) [unique]
+  date_joined date
+  employment_type varchar(20) [default: 'full_time', note: 'full_time | part_time | contract']
+  status varchar(20) [default: 'active', note: 'active | inactive | on_leave | suspended | terminated']
+  email varchar(254)
+  phone varchar(20) [default: '']
+  address text [null]
+  profile_photo varchar(100) [null]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// M2M: StaffPosition.permissions
+Table staff_staffposition_permissions {
+  id bigserial [pk]
+  staffposition_id uuid [ref: > staff_staffposition.id]
+  permissionkey_id uuid [ref: > staff_permissionkey.id]
+
+  indexes {
+    (staffposition_id, permissionkey_id) [unique]
+  }
+}
+
+// M2M: StaffProfile.positions
+Table staff_staffprofile_positions {
+  id bigserial [pk]
+  staffprofile_id uuid [ref: > staff_staffprofile.id]
+  staffposition_id uuid [ref: > staff_staffposition.id]
+
+  indexes {
+    (staffprofile_id, staffposition_id) [unique]
+  }
+}
+
+// M2M: StaffProfile.permission_grants
+Table staff_staffprofile_permission_grants {
+  id bigserial [pk]
+  staffprofile_id uuid [ref: > staff_staffprofile.id]
+  permissionkey_id uuid [ref: > staff_permissionkey.id]
+
+  indexes {
+    (staffprofile_id, permissionkey_id) [unique]
+  }
+}
+
+// M2M: StaffProfile.permission_revokes
+Table staff_staffprofile_permission_revokes {
+  id bigserial [pk]
+  staffprofile_id uuid [ref: > staff_staffprofile.id]
+  permissionkey_id uuid [ref: > staff_permissionkey.id]
+
+  indexes {
+    (staffprofile_id, permissionkey_id) [unique]
+  }
+}
+
+// ============================================================
+// students
+// ============================================================
+
+Table students_student {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  user_account_id uuid [null, unique, ref: - accounts_user.id]
+  student_id varchar(20) [unique]
+  first_name varchar(100)
+  last_name varchar(100)
+  other_names varchar(100)
+  date_of_birth date [null]
+  gender varchar(10) [note: 'male | female | other']
+  email varchar(254)
+  phone_number varchar(20)
+  profile_photo varchar(100) [null]
+  address text
+  status varchar(20) [default: 'active', note: 'active | withdrawn | inactive']
+  admission_date date [null]
+  previous_school varchar(255)
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table students_guardian {
+  id uuid [pk]
+  student_id uuid [ref: > students_student.id]
+  school_id uuid [ref: > schools_school.id]
+  first_name varchar(100)
+  last_name varchar(100)
+  relationship varchar(20) [note: 'father | mother | guardian | sibling | other']
+  phone varchar(20)
+  email varchar(254)
+  address text
+  is_primary boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table students_enrollment {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_id uuid [ref: > students_student.id]
+  klass_id uuid [ref: > academics_class.id]
+  academic_year_id uuid [ref: > academics_academicyear.id]
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, student_id, academic_year_id) [unique]
+  }
+}
+
+Table students_promotionbatch {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  from_academic_year_id uuid [null, ref: > academics_academicyear.id]
+  from_class_id uuid [null, ref: > academics_class.id]
+  to_academic_year_id uuid [ref: > academics_academicyear.id]
+  to_class_id uuid [ref: > academics_class.id]
+  to_term_id uuid [null, ref: > academics_term.id]
+  status varchar(20) [default: 'completed', note: 'completed | reversed']
+  notes text
+  promoted_by_id uuid [null, ref: > accounts_user.id]
+  reversed_at timestamptz [null]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table students_promotion {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  batch_id uuid [ref: > students_promotionbatch.id]
+  student_id uuid [ref: > students_student.id]
+  from_enrollment_id uuid [null, ref: > students_enrollment.id]
+  resulting_enrollment_id uuid [null, ref: > students_enrollment.id]
+  outcome varchar(20) [default: 'promoted', note: 'promoted | skipped | failed']
+  message varchar(255)
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (batch_id, student_id) [unique]
+  }
+}
+
+// ============================================================
+// guardian (newer app; coexists with students_guardian above)
+// ============================================================
+
+Table guardian_guardian {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  user_account_id uuid [unique, ref: - accounts_user.id]
+  first_name varchar(100)
+  last_name varchar(100)
+  email varchar(254) [null]
+  phone_number varchar(15)
+  address varchar(255) [null]
+  gender varchar(10) [note: 'male | female']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table guardian_guardianstudent {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  guardian_id uuid [ref: > guardian_guardian.id]
+  student_id uuid [ref: > students_student.id]
+  relationship varchar(100) [note: 'mother | father | sister | brother | grandparent | other']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// ============================================================
+// attendance
+// ============================================================
+
+Table attendance_attendance {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_id uuid [ref: > students_student.id]
+  klass_id uuid [ref: > academics_class.id]
+  term_id uuid [ref: > academics_term.id]
+  date date
+  status varchar(10) [default: 'present', note: 'present | absent | late']
+  remarks varchar(255)
+  recorded_by_id uuid [null, ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, student_id, date) [unique]
+  }
+}
+
+Table attendance_attendancesummary {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  klass_id uuid [ref: > academics_class.id]
+  term_id uuid [ref: > academics_term.id]
+  date date
+  total_students integer [default: 0]
+  present_count integer [default: 0]
+  absent_count integer [default: 0]
+  late_count integer [default: 0]
+  attendance_percentage decimal(5,2) [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, klass_id, date) [unique]
+  }
+}
+
+// ============================================================
+// exams
+// ============================================================
+
+Table exams_assessmenttype {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  max_score decimal(5,2)
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table exams_reportscheme {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  main_exam_id uuid [ref: > exams_assessmenttype.id]
+  sba_scaling decimal(5,2) [default: 50]
+  exam_scaling decimal(5,2) [default: 50]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (name, school_id) [unique, name: 'unique_reportscheme_per_school']
+  }
+}
+
+// M2M: ReportScheme.sba_components
+Table exams_reportscheme_sba_components {
+  id bigserial [pk]
+  reportscheme_id uuid [ref: > exams_reportscheme.id]
+  assessmenttype_id uuid [ref: > exams_assessmenttype.id]
+
+  indexes {
+    (reportscheme_id, assessmenttype_id) [unique]
+  }
+}
+
+Table exams_studentmark {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_id uuid [ref: > students_student.id]
+  academic_year_id uuid [ref: > academics_academicyear.id]
+  term_id uuid [ref: > academics_term.id]
+  subject_id uuid [ref: > academics_subject.id]
+  assessment_id uuid [ref: > exams_assessmenttype.id]
+  student_class_id uuid [ref: > academics_class.id]
+  score decimal(5,2) [null]
+  teacher_remarks text
+  teacher_id uuid [null, ref: > staff_staffprofile.id]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (student_id, assessment_id, term_id, subject_id, student_class_id) [unique, name: 'unique_student_assessment_score']
+  }
+}
+
+Table exams_studentreport {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_id uuid [ref: > students_student.id]
+  academic_year_id uuid [ref: > academics_academicyear.id]
+  term_id uuid [ref: > academics_term.id]
+  student_class_id uuid [ref: > academics_class.id]
+  report_scheme_id uuid [ref: > exams_reportscheme.id]
+  overall_score decimal(5,2) [default: 0]
+  overall_attendance smallint [default: 0, note: 'Number of days attended']
+  overall_position integer [null, default: 0]
+  total_school_days smallint [default: 0]
+  teacher_remarks text
+  headteacher_remarks text
+  headteacher varchar(100) [null]
+  teacher varchar(100) [null]
+  promoted_to varchar(50) [null]
+  status varchar(20) [default: 'DRAFT', note: 'DRAFT | READY | PUBLISHED | PENDING_REMARKS']
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (student_id, term_id, student_class_id) [unique, name: 'unique_student_report_per_term_year']
+  }
+}
+
+Table exams_studentreportsubjectscore {
+  id uuid [pk]
+  student_report_id uuid [ref: > exams_studentreport.id]
+  student_id uuid [null, ref: > students_student.id]
+  rank integer [null]
+  subject_id uuid [ref: > academics_subject.id]
+  exam_score decimal(5,2) [default: 0]
+  sba_score decimal(5,2) [default: 0]
+  total_score decimal(5,2) [default: 0]
+  grade varchar(10)
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (student_report_id, subject_id) [unique, name: 'unique_subject_score_per_report']
+  }
+}
+
+// ============================================================
+// finance
+// ============================================================
+
+Table finance_incometype {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table finance_expensetype {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table finance_feecomponent {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  description text
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table finance_schoolfeeinvoice {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_id uuid [ref: > students_student.id]
+  academic_year_id uuid [ref: > academics_academicyear.id]
+  term_id uuid [ref: > academics_term.id]
+  klass_id uuid [null, ref: > academics_class.id]
+  invoice_number varchar(30) [unique]
+  total_amount decimal(12,2) [default: 0]
+  status varchar(20) [default: 'issued', note: 'draft | issued | partially_paid | paid | cancelled | overdue']
+  due_date date [null]
+  notes text
+  is_fully_paid boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, student_id, academic_year_id, term_id) [unique]
+  }
+}
+
+Table finance_invoicelineitem {
+  id uuid [pk]
+  school_id uuid [null, ref: > schools_school.id]
+  invoice_id uuid [ref: > finance_schoolfeeinvoice.id]
+  fee_component_id uuid [ref: > finance_feecomponent.id]
+  amount decimal(10,2)
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (invoice_id, fee_component_id) [unique]
+  }
+}
+
+Table finance_feepayment {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  invoice_id uuid [ref: > finance_schoolfeeinvoice.id]
+  amount_paid decimal(12,2)
+  payment_date date
+  payment_method varchar(20) [note: 'cash | bank_transfer | mobile_money | cheque']
+  reference_number varchar(100)
+  notes text
+  received_by_id uuid [null, ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table finance_paymentallocation {
+  id uuid [pk]
+  payment_id uuid [ref: > finance_feepayment.id]
+  line_item_id uuid [ref: > finance_invoicelineitem.id]
+  amount decimal(10,2)
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table finance_otherincome {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  income_type_id uuid [ref: > finance_incometype.id]
+  amount decimal(12,2)
+  date date
+  description text
+  reference_number varchar(100)
+  received_by_id uuid [null, ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table finance_expense {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  expense_type_id uuid [ref: > finance_expensetype.id]
+  amount decimal(12,2)
+  date date
+  description text
+  reference_number varchar(100)
+  receipt_number varchar(100)
+  created_by_id uuid [null, ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// ============================================================
+// communications
+// ============================================================
+
+Table communications_notificationprovider {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  channel varchar(10) [note: 'email | sms | both']
+  provider_type varchar(30) [note: 'smtp | mnotify | arkesel']
+  config jsonb [note: 'Provider credentials and settings']
+  is_active boolean [default: true]
+  is_default boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table communications_notificationtemplate {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  name varchar(100)
+  subject varchar(200)
+  body text
+  channel varchar(10) [default: 'email', note: 'email | sms | both']
+  variables jsonb
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (school_id, name) [unique]
+  }
+}
+
+Table communications_notification {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  template_id uuid [null, ref: > communications_notificationtemplate.id]
+  title varchar(200)
+  message_body text
+  channel varchar(10) [note: 'email | sms | both']
+  recipient_type varchar(30) [note: 'all_students | all_staff | specific_students | specific_staff | class | guardians_of']
+  metadata jsonb
+  sent_by_id uuid [null, ref: > accounts_user.id]
+  sent_at timestamptz [null]
+  status varchar(10) [default: 'draft', note: 'draft | sent | partial | failed']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table communications_notificationrecipient {
+  id uuid [pk]
+  notification_id uuid [ref: > communications_notification.id]
+  recipient_type varchar(10) [note: 'student | staff | guardian | user']
+  recipient_id uuid [null, note: 'Generic reference (no DB-level FK)']
+  recipient_name varchar(200)
+  recipient_contact varchar(200)
+  status varchar(10) [default: 'pending', note: 'pending | sent | failed']
+  error_message text
+  sent_at timestamptz [null]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// ============================================================
+// subscriptions
+// ============================================================
+
+Table subscriptions_feature {
+  id uuid [pk]
+  name varchar(120)
+  code varchar(100) [unique]
+  description text
+  category varchar(80)
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table subscriptions_package {
+  id uuid [pk]
+  name varchar(100)
+  code varchar(100) [unique]
+  plan_type varchar(20) [null, note: 'lite | advantage | enterprise (legacy)']
+  description text
+  tagline varchar(255)
+  price decimal(10,2) [default: 0]
+  setup_fee decimal(10,2) [default: 0]
+  billing_period varchar(10) [default: 'TERM', note: 'TERM | MONTH | YEAR']
+  currency varchar(3) [default: 'GHS']
+  minimum_students integer [default: 0]
+  maximum_students integer [null, note: 'null = unlimited']
+  is_active boolean [default: true]
+  is_public boolean [default: true]
+  display_order integer [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table subscriptions_packagefeature {
+  id uuid [pk]
+  package_id uuid [ref: > subscriptions_package.id]
+  feature_id uuid [ref: > subscriptions_feature.id]
+  is_enabled boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (package_id, feature_id) [unique, name: 'uniq_package_feature']
+  }
+}
+
+Table subscriptions_packagelimit {
+  id uuid [pk]
+  package_id uuid [ref: > subscriptions_package.id]
+  key varchar(80)
+  name varchar(120)
+  value integer
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (package_id, key) [unique, name: 'uniq_package_limit_key']
+  }
+}
+
+Table subscriptions_subscription {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  plan_id uuid [null, ref: > subscriptions_package.id]
+  status varchar(20) [default: 'active', note: 'pending_payment | active | past_due | expired | grace | locked | cancelled']
+  is_paid boolean [default: false]
+  term_id uuid [null, ref: > academics_term.id]
+  start_date date
+  end_date date
+  grace_end_date date [null]
+  activated_by_id uuid [null, ref: > accounts_user.id]
+  notes text
+  is_current boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table subscriptions_subscriptionpayment {
+  id uuid [pk]
+  subscription_id uuid [null, ref: > subscriptions_subscription.id]
+  school_id uuid [null, ref: > schools_school.id]
+  plan_id uuid [null, ref: > subscriptions_package.id]
+  term_id uuid [null, ref: > academics_term.id]
+  coupon_id uuid [null, ref: > subscriptions_coupon.id]
+  discount_applied decimal(10,2) [default: 0]
+  amount decimal(10,2)
+  currency varchar(3) [default: 'GHS']
+  payment_reference varchar(255)
+  provider varchar(50)
+  payment_mode varchar(20) [default: 'virtual', note: 'cash | virtual']
+  status varchar(20) [default: 'pending', note: 'pending | successful | failed']
+  recorded_by_id uuid [null, ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table subscriptions_coupon {
+  id uuid [pk]
+  code varchar(20) [unique, note: 'always uppercase']
+  description text [null]
+  discount_type varchar(10) [note: 'percentage | fixed']
+  discount_value decimal(10,2)
+  duration varchar(10) [note: 'once | recurring | forever']
+  target varchar(20) [note: 'all | specific_plan']
+  target_plan_id uuid [null, ref: > subscriptions_package.id]
+  max_usage integer [null]
+  usage_count integer [default: 0]
+  expiry_date timestamptz [null]
+  status varchar(10) [default: 'active', note: 'active | expired | disabled']
+  created_by_id uuid [ref: > accounts_user.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table subscriptions_couponredemption {
+  id uuid [pk]
+  coupon_id uuid [ref: > subscriptions_coupon.id]
+  school_id uuid [ref: > schools_school.id]
+  subscription_id uuid [unique, ref: - subscriptions_subscription.id]
+  discount_applied decimal(10,2)
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// ============================================================
+// Table groups (one per app)
+// ============================================================
+
+TableGroup core_and_accounts {
+  schools_school
+  schools_prospectiveschool
+  accounts_user
+  core_auditlog
+}
+
+TableGroup platform_rbac {
+  platform_rbac_platformpermission
+  platform_rbac_platformrole
+  platform_rbac_platformrolepermission
+  platform_rbac_platformuserrole
+}
+
+TableGroup academics {
+  academics_academicyear
+  academics_term
+  academics_subject
+  academics_class
+  academics_classsubject
+  academics_classteacher
+  academics_subjectteacher
+  academics_gradingsystem
+  academics_gradescale
+  academics_timetableslot
+}
+
+TableGroup staff {
+  staff_permissionkey
+  staff_staffposition
+  staff_staffprofile
+  staff_staffposition_permissions
+  staff_staffprofile_positions
+  staff_staffprofile_permission_grants
+  staff_staffprofile_permission_revokes
+}
+
+TableGroup students {
+  students_student
+  students_guardian
+  students_enrollment
+  students_promotionbatch
+  students_promotion
+}
+
+TableGroup guardian {
+  guardian_guardian
+  guardian_guardianstudent
+}
+
+TableGroup attendance {
+  attendance_attendance
+  attendance_attendancesummary
+}
+
+TableGroup exams {
+  exams_assessmenttype
+  exams_reportscheme
+  exams_reportscheme_sba_components
+  exams_studentmark
+  exams_studentreport
+  exams_studentreportsubjectscore
+}
+
+TableGroup finance {
+  finance_incometype
+  finance_expensetype
+  finance_feecomponent
+  finance_schoolfeeinvoice
+  finance_invoicelineitem
+  finance_feepayment
+  finance_paymentallocation
+  finance_otherincome
+  finance_expense
+}
+
+TableGroup communications {
+  communications_notificationprovider
+  communications_notificationtemplate
+  communications_notification
+  communications_notificationrecipient
+}
+
+TableGroup subscriptions {
+  subscriptions_feature
+  subscriptions_package
+  subscriptions_packagefeature
+  subscriptions_packagelimit
+  subscriptions_subscription
+  subscriptions_subscriptionpayment
+  subscriptions_coupon
+  subscriptions_couponredemption
+}

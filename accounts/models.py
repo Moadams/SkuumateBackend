@@ -1,6 +1,11 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.db import models
 import uuid
+
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    BaseUserManager,
+    PermissionsMixin,
+)
+from django.db import models
 
 
 class UserManager(BaseUserManager):
@@ -30,6 +35,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         FINANCE_MANAGER = "finance_manager", "Finance Manager"
         SUPERADMIN = 'superadmin', "Super Admin"
         STAFF='staff', "Staff"
+        GUARDIAN = "guardian", "Guardian"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
@@ -38,7 +44,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=100)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.TEACHER)
     is_root_admin = models.BooleanField(default=False)
-    
+
     # school is nullable to allow superusers with no school
     school = models.ForeignKey(
         "schools.School",

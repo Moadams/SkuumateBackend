@@ -13,6 +13,10 @@ class TimestampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Declared for static type checkers: Django injects this manager via its
+    # metaclass, so tools like Pylance otherwise report it as unknown.
+    objects: models.Manager
+
     class Meta:
         abstract = True
         ordering = ("-created_at",)
@@ -27,6 +31,9 @@ class AuditLog(models.Model):
         LOGIN = "login", "Login"
         LOGOUT = "logout", "Logout"
         OTHER = "other", "Other"
+
+    # Declared for static type checkers; Django injects the real manager.
+    objects: models.Manager
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(

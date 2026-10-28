@@ -78,3 +78,5 @@ Thumbs.db
 # Local development
 .vscode-server/
 docs
+
+pyrightconfig.json

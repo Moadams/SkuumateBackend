@@ -1,4 +1,3 @@
-from core.school_permissions import school_permission
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
@@ -7,8 +6,8 @@ from rest_framework.views import APIView
 
 from core.mixins import AuditLogMixin
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsAdminOrTeacher, IsAdminOrTeacherReadOnly
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
 from core.utils import log_action
 
 from ..models import (
@@ -26,7 +25,6 @@ from ..serializers import (
     ClassSubjectTeacherSummarySerializer,
     GradeResolverSerializer,
     GradeScaleSerializer,
-    SubjectTeacherWriteSerializer,
     TimeTableSlotSerializer,
 )
 
@@ -40,7 +38,9 @@ class GradeScaleBulkSetView(APIView):
     submit the complete set and we validate the entire
     range for gaps, overlaps and coverage.
     """
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
 
     def get_grading_system(self, pk, school):
         try:
@@ -139,7 +139,9 @@ class GradeScaleBulkSetView(APIView):
 
 class GradeScaleUpdateView(APIView):
     """Update or delete a single grade scale."""
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
 
     def get_scale(self, pk, school):
         try:
@@ -235,7 +237,9 @@ class GradeResolverView(APIView):
     Test endpoint — given a score, returns the matching grade.
     Useful for the frontend to preview grading before saving.
     """
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
 
     def post(self, request, pk):
         from ..utils import resolve_grade
@@ -303,56 +307,35 @@ class BulkSubjectTeacherAssignView(APIView):
             "validated_assignments"
         ]
 
-        created_list = []
-        updated_list = []
-
         with transaction.atomic():
             for item in assignments_data:
-                assignment, created = (
-                    SubjectTeacher.objects.update_or_create(
+                # only create subject teacher objects for new assignments
+                already_exists = SubjectTeacher.objects.filter(
+                    school=school,
+                    klass=item["klass"],
+                    subject=item["subject"],
+                    teacher=item["teacher"],
+                ).exists()
+                if not already_exists:
+                    SubjectTeacher.objects.create(
                         school=school,
                         klass=item["klass"],
                         subject=item["subject"],
-                        defaults={
-                            "teacher": item["teacher"],
-                            "is_active": True,
-                        },
+                        teacher=item["teacher"],
+                        is_active=True,
                     )
-                )
-                if created:
-                    created_list.append(assignment)
-                else:
-                    updated_list.append(assignment)
-
-        all_assignments = created_list + updated_list
 
         log_action(
             action=AuditLog.Action.CREATE,
             resource="SubjectTeacher",
-            description=(
-                f"Bulk assignment: {len(created_list)} created, "
-                f"{len(updated_list)} updated"
-            ),
-            request=request,
-            metadata={
-                "created": len(created_list),
-                "updated": len(updated_list),
-            },
+            description="Bulk assignment",
+            request=request
         )
 
         return ApiResponse.created(
-            data={
-                "summary": {
-                    "total": len(all_assignments),
-                    "created": len(created_list),
-                    "updated": len(updated_list),
-                },
 
-            },
             message=(
-                f"Bulk assignment complete — "
-                f"{len(created_list)} created, "
-                f"{len(updated_list)} updated."
+                "Bulk assignment complete"
             ),
         )
 
@@ -365,7 +348,9 @@ class ClassSubjectTeacherSummaryView(APIView):
     Shows unassigned subjects too so the admin can see
     what still needs a teacher.
     """
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
 
     def get(self, request, class_id):
         school = request.user.school
@@ -461,16 +446,22 @@ class TimeTableSlotListCreateView(
     AuditLogMixin, generics.ListCreateAPIView
 ):
     """List or create timetable slots for a class."""
-    permission_classes = [school_permission(read="academics.view", write="academics.manage")]
+    permission_classes = (
+        school_permission(read="academics.view", write="academics.manage"),
+    )
     serializer_class = TimeTableSlotSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = [
+    filter_backends = (
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    )
+    search_fields = (
         "subject__name",
         "teacher__user__first_name",
         "teacher__user__last_name",
-    ]
-    ordering_fields = ["start_time", "end_time", "created_at"]
-    ordering = ["start_time"]
+    )
+    ordering_fields = ("start_time", "end_time", "created_at")
+    ordering = ("start_time",)
     audit_resource = "TimeTableSlot"
     pagination_class = None
 

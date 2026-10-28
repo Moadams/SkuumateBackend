@@ -1,5 +1,6 @@
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -40,6 +41,7 @@ LOCAL_APPS = [
     "dashboard",
     "platform_rbac",
     "integrations",
+    "guardian"
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

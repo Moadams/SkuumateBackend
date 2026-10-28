@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission
 
+from accounts.models import User
 from core.access import school_access_allowed
 
 # Legacy role → key mapping used ONLY during the transition, for
@@ -217,3 +218,9 @@ class IsSuperAdminOrReadOnly(BasePermission):
         if is_platform_superadmin(request.user):
             return True
         return request.method in ("GET", "HEAD", "OPTIONS")
+
+
+class IsGuardian(BasePermission):
+    """Guardians can access."""
+    def has_permission(self, request, view):
+        return request.user.role == User.Role.GUARDIAN

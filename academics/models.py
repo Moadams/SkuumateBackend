@@ -1,4 +1,5 @@
 from django.db import models
+
 from core.models import TimestampedModel
 
 
@@ -95,7 +96,7 @@ class Class(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="classes",
     )
-    name = models.CharField(max_length=100) 
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     capacity = models.PositiveIntegerField(default=30)
     is_active = models.BooleanField(default=True)
@@ -163,7 +164,7 @@ class ClassTeacher(TimestampedModel):
         AcademicYear,
         on_delete=models.CASCADE,
         related_name="class_teachers",
-        blank=True, 
+        blank=True,
         null=True
     )
     is_active = models.BooleanField(default=True)
@@ -197,7 +198,7 @@ class GradingSystem(TimestampedModel):
 
     def __str__(self):
         return f"{self.name} - {self.school.name}"
-    
+
 
 class GradeScale(TimestampedModel):
     grading_system = models.ForeignKey(GradingSystem, on_delete = models.CASCADE,related_name="grade_scales")
@@ -207,7 +208,7 @@ class GradeScale(TimestampedModel):
     label = models.CharField(max_length = 50, help_text = "Descriptive label e.g Excellent, Very good")
     min_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Minimum score for this grade (inclusive)")
     max_score = models.DecimalField(max_digits = 5, decimal_places = 2, help_text = "Maximum score for this grade (inclusive)")
-    
+
     is_passing = models.BooleanField(default = True, help_text = "Whether is grade is considered as a passing grade")
     position = models.PositiveIntegerField(
         default=0,
@@ -219,14 +220,14 @@ class GradeScale(TimestampedModel):
         unique_together = [
             ["grading_system", "grade"],
             ["grading_system", "position"]
-        ] 
+        ]
 
     def __str__(self):
         return (
             f"{self.grade} ({self.min_score}–{self.max_score}) "
             f"— {self.grading_system.name}"
         )
-    
+
     def save(self, *args, **kwargs):
         position = self.position
         while GradeScale.objects.filter(grading_system = self.grading_system, position = position).exclude(pk=self.pk).exists():
@@ -260,20 +261,20 @@ class SubjectTeacher(TimestampedModel):
         on_delete=models.CASCADE,
         related_name="subject_assignments",
     )
-    
+
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ("klass", "subject")
         unique_together = (
-            "school", "klass", "subject"
+            "school", "klass", "subject","teacher"
         )
 
     def __str__(self):
         return (
             f"{self.teacher.user.full_name} → "
             f"{self.subject.name} in {self.klass.name} "
-            
+
         )
 
 

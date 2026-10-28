@@ -1,9 +1,3 @@
-from core.teacher_scope import (
-    TeacherScopedQuerysetMixin,
-    assigned_class_ids,
-    needs_teacher_scope,
-)
-from core.school_permissions import school_permission
 from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -18,15 +12,21 @@ from rest_framework.views import APIView
 from academics.models import AcademicYear, Term
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher
+from core.permissions import IsAdminOrTeacher
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
+from core.teacher_scope import (
+    TeacherScopedQuerysetMixin,
+    assigned_class_ids,
+    needs_teacher_scope,
+)
 from core.utils import log_action
 from students.utils import parse_students_from_excel
 from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
 from .filters import StudentFilter
-from .models import Enrollment, Guardian, Promotion, PromotionBatch, Student
+from .models import Enrollment, Guardian, PromotionBatch, Student
 from .serializers import (
     BulkStudentUploadSerializer,
     EnrollmentSerializer,
@@ -522,8 +522,8 @@ class StudentListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMix
 
 
 class StudentDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="students.view", edit="students.edit", delete="students.delete")]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = (school_permission(read="students.view", edit="students.edit", delete="students.delete"),)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     audit_resource = "Student"
 
 
@@ -766,7 +766,7 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
             enrollments__is_active=True,
         ).distinct().prefetch_related("guardians","enrollments__klass", "enrollments__academic_year")
 
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
 
@@ -1140,4 +1140,3 @@ class PromotionBatchReverseView(APIView):
             data=PromotionBatchSerializer(batch, context={"request": request}).data,
             message="Promotion reversed; the enrollments it created were removed.",
         )
-

@@ -1,4 +1,5 @@
 from django.urls import path
+
 from . import views
 
 urlpatterns = [
@@ -12,8 +13,8 @@ urlpatterns = [
         name="class-student-marks",
     ),
     path(
-        "exams/marks/class/", 
-        views.StudentMarkBulkView.as_view(), 
+        "exams/marks/class/",
+        views.StudentMarkBulkView.as_view(),
         name="student-mark-bulk"
     ),
     path("exams/generate-report/class/<uuid:class_id>/info/", views.ClassReportGenerationValidityView.as_view(), name="generate-report"),

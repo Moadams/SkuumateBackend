@@ -1,5 +1,3 @@
-from core.teacher_scope import TeacherScopedQuerysetMixin
-from core.school_permissions import school_permission
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -7,10 +5,12 @@ from rest_framework import generics, status
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.views import APIView
 
-from academics.models import Class, GradingSystem, Term
+from academics.models import Class, GradingSystem, SubjectTeacher, Term
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
+from core.school_permissions import school_permission
+from core.teacher_scope import TeacherScopedQuerysetMixin
 from exams.filters import AssessmentTypeFilter, StudentReportFilter
 from exams.models import (
     AssessmentType,
@@ -210,7 +210,9 @@ class StudentMarksListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
         return ApiResponse.success(data=registry_data)
 
 class StudentMarkBulkView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.CreateAPIView):
-    permission_classes = [school_permission(create="exams.enter_scores")]
+    permission_classes = (
+        school_permission(create="exams.enter_scores"),
+    )
     serializer_class = StudentMarkCreationSerializer
     audit_resource = "StudentMark"
 
@@ -230,6 +232,15 @@ class StudentMarkBulkView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.Cr
 
         if not current_term:
             return ApiResponse.error(message="Cannot save marks: No active term found.")
+
+        # check if teacher is assigned to that subject for the class
+        teacher_subjects = SubjectTeacher.objects.filter(
+            teacher=request.user.staff_profile,
+            subject_id=request.data['subject'],
+            klass_id=request.data['student_class'],
+        )
+        if not teacher_subjects.exists():
+            return ApiResponse.error(message="Cannot save marks: Teacher is not assigned to this subject for this class.")
 
         marks_data = submitted['marks']
         results = []
@@ -468,7 +479,7 @@ class PublishStudentReportsView(APIView):
         queryset = StudentReport.objects.filter(
             id__in=reports, school=request.user.school, status=StudentReport.ReportStatus.READY
         )
-        from core.teacher_scope import needs_teacher_scope, assigned_class_ids
+        from core.teacher_scope import assigned_class_ids, needs_teacher_scope
         if needs_teacher_scope(request.user):
             queryset = queryset.filter(student_class_id__in=assigned_class_ids(request.user))
         queryset.update(
