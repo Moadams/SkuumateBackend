@@ -26,12 +26,11 @@ from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
 from .filters import StudentFilter
-from .models import Enrollment, Guardian, PromotionBatch, Student
+from .models import Enrollment, PromotionBatch, Student
 from .serializers import (
     BulkStudentUploadSerializer,
     EnrollmentSerializer,
     EnrollStudentSerializer,
-    GuardianSerializer,
     IDCardRequestSerializer,
     PromotionBatchSerializer,
     PromotionRequestSerializer,
@@ -231,13 +230,6 @@ class StudentBulkCreateView(APIView):
             school=school, **student_data
         )
 
-        for guardian_data in guardians_data:
-            Guardian.objects.create(
-                student=student,
-                school=school,
-                **guardian_data,
-            )
-
         if class_id and academic_year_id:
             try:
                 klass = Class.objects.get(id=class_id, school=school)
@@ -258,7 +250,7 @@ class StudentBulkCreateView(APIView):
 class ClassBulkStudentsView(APIView):
     """
     Bulk create students for a specific class from an Excel file.
-    Each student is enrolled in the given class with one guardian.
+    Each student is enrolled in the given class
 
     POST /api/v1/students/class-bulk/
         class_id (required) — UUID of the class to enroll in
@@ -487,7 +479,7 @@ class StudentListCreateView(TeacherScopedQuerysetMixin, AuditLogMixin, ExportMix
     def get_queryset(self):
         return Student.objects.filter(
             school=self.request.user.school
-        ).prefetch_related("guardians", "enrollments__klass", "enrollments__academic_year")
+        ).prefetch_related("enrollments__klass", "enrollments__academic_year")
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
@@ -535,7 +527,7 @@ class StudentDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.Retr
     def get_queryset(self):
         return Student.objects.filter(
             school=self.request.user.school
-        ).prefetch_related("guardians", "enrollments__klass", "enrollments__academic_year")
+        ).prefetch_related("enrollments__klass", "enrollments__academic_year")
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
@@ -574,82 +566,10 @@ class StudentExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAP
     def get_queryset(self):
         return Student.objects.filter(
             school=self.request.user.school
-        ).prefetch_related("guardians", "enrollments__klass", "enrollments__academic_year")
+        ).prefetch_related("enrollments__klass", "enrollments__academic_year")
 
     def get(self, request, *args, **kwargs):
         return self.export(request, *args, **kwargs)
-
-
-# ─── Guardians ────────────────────────────────────────────────────
-
-class GuardianListCreateView(TeacherScopedQuerysetMixin, generics.ListCreateAPIView):
-    permission_classes = [school_permission(read="students.view", write="students.edit")]
-    serializer_class = GuardianSerializer
-
-    def get_student(self, request, pk):
-        try:
-            return Student.objects.get(pk=pk, school=request.user.school)
-        except Student.DoesNotExist:
-            return None
-
-    def get_queryset(self):
-        student = self.get_student(self.request, self.kwargs["pk"])
-        if not student:
-            return Guardian.objects.none()
-        return Guardian.objects.filter(student=student)
-
-    def list(self, request, *args, **kwargs):
-        student = self.get_student(request, kwargs["pk"])
-        if not student:
-            return ApiResponse.error(message="Student not found.", status_code=404)
-        serializer = self.get_serializer(self.get_queryset(), many=True)
-        return ApiResponse.success(data=serializer.data)
-
-    def create(self, request, *args, **kwargs):
-        student = self.get_student(request, kwargs["pk"])
-        if not student:
-            return ApiResponse.error(message="Student not found.", status_code=404)
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        guardian = serializer.save(student=student, school=request.user.school)
-        log_action(
-            action=AuditLog.Action.CREATE,
-            resource="Guardian",
-            resource_id=str(guardian.pk),
-            description=f"Guardian {guardian} added to {student.full_name}",
-            request=request,
-        )
-        return ApiResponse.created(
-            data=serializer.data,
-            message="Guardian added successfully.",
-        )
-
-
-class GuardianDetailView(TeacherScopedQuerysetMixin, generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [school_permission(read="students.view", write="students.edit")]
-    serializer_class = GuardianSerializer
-
-    def get_queryset(self):
-        return Guardian.objects.filter(school=self.request.user.school)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        return ApiResponse.success(data=self.get_serializer(instance).data)
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return ApiResponse.success(
-            data=serializer.data,
-            message="Guardian updated successfully.",
-        )
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.delete()
-        return ApiResponse.success(message="Guardian removed successfully.")
 
 
 # ─── Enrollment ───────────────────────────────────────────────────
@@ -764,7 +684,8 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
             school=self.request.user.school,
             enrollments__klass_id=self.kwargs["class_id"],
             enrollments__is_active=True,
-        ).distinct().prefetch_related("guardians","enrollments__klass", "enrollments__academic_year")
+        ).distinct().prefetch_related(
+            "enrollments__klass", "enrollments__academic_year")
 
 
     def list(self, request, *args, **kwargs):
@@ -799,7 +720,8 @@ def _scoped_students(request):
         Student.objects.filter(school=request.user.school)
         .select_related("school")
         .prefetch_related(
-            "guardians", "enrollments__klass", "enrollments__academic_year"
+
+             "enrollments__klass", "enrollments__academic_year"
         )
     )
     if needs_teacher_scope(request.user):

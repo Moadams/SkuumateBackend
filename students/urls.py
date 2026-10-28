@@ -3,8 +3,6 @@ from django.urls import path
 from .views import (
     ClassBulkStudentsView,
     ClassStudentsListView,
-    GuardianDetailView,
-    GuardianListCreateView,
     PromotionBatchDetailView,
     PromotionBatchListCreateView,
     PromotionBatchReverseView,
@@ -39,10 +37,6 @@ urlpatterns = [
     path("students/promotions/<uuid:pk>/reverse/", PromotionBatchReverseView.as_view(), name="promotion-reverse"),
 
     path("students/<uuid:pk>/", StudentDetailView.as_view(), name="student-detail"),
-
-    # Guardians
-    path("students/<uuid:pk>/guardians/", GuardianListCreateView.as_view(), name="guardian-list"),
-    path("students/guardians/<uuid:pk>/", GuardianDetailView.as_view(), name="guardian-detail"),
 
     # Enrollment
     path("students/<uuid:pk>/enroll/", StudentEnrollView.as_view(), name="student-enroll"),

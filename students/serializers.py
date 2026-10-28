@@ -7,30 +7,8 @@ from rest_framework import serializers
 from accounts.models import User
 from students.utils import generate_user_email
 
-from .models import Enrollment, Guardian, Promotion, PromotionBatch, Student
+from .models import Enrollment, Promotion, PromotionBatch, Student
 
-
-class GuardianSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Guardian
-        fields = [
-            "id",
-            "first_name",
-            "last_name",
-            "relationship",
-            "phone",
-            "email",
-            "address",
-            "is_primary",
-            "created_at",
-        ]
-        read_only_fields = ["id", "created_at"]
-
-    def validate_phone(self, value):
-        if not re.match(r"^\+?\d{7,15}$", value):
-            raise serializers.ValidationError("Phone number must be between 7 and 15 digits, and can start with +.")
-        return value
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source="klass.name", read_only=True)
@@ -85,7 +63,6 @@ class StudentListSerializer(serializers.ModelSerializer):
 
 class StudentSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
-    guardians = GuardianSerializer(many=True, read_only=True)
     current_enrollment = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
 
@@ -108,7 +85,6 @@ class StudentSerializer(serializers.ModelSerializer):
             "status",
             "admission_date",
             "previous_school",
-            "guardians",
             "current_enrollment",
             "created_at",
             "updated_at",
@@ -160,7 +136,7 @@ class StudentMinimalSerializer(serializers.ModelSerializer):
 class StudentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
-        fields = [
+        fields = (
             "first_name",
             "last_name",
             "other_names",
@@ -174,18 +150,18 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
             "status",
             "email",
             "phone_number"
-        ]
+        )
 
     def validate_first_name(self, value):
         if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
             raise serializers.ValidationError("First name must contain only letters.")
         return value
-    
+
     def validate_last_name(self, value):
         if not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
             raise serializers.ValidationError("Last name must contain only letters.")
         return value
-    
+
     def validate_other_names(self, value):
         if value and not re.match(r"^[A-Za-zÀ-ÿ\s'-]+$", value):
             raise serializers.ValidationError("Other names must contain only letters.")
@@ -201,33 +177,31 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
         today = datetime.date.today()
         if value > today:
             raise serializers.ValidationError("Date of birth cannot be in the future.")
-        
+
         return value
-    
+
     def validate_admission_date(self, value):
         import datetime
         if value > datetime.date.today():
             raise serializers.ValidationError("Admission date cannot be in the future.")
         return value
-    
+
     def validate_student_id(self, value):
         student = self.instance
         school = self.context["school"]
         if Student.objects.filter(school=school, student_id=value).exclude(id=student.id).exists():
             raise serializers.ValidationError("Student ID must be unique.")
         return value
-    
+
 class StudentCreateSerializer(serializers.ModelSerializer):
     """
-    Used for creating a student — accepts guardian data
-    and optional enrollment inline.
+    Used for creating a student
     """
-    guardians = GuardianSerializer(many=True, required=False)
     class_id = serializers.UUIDField(write_only=True, required=False)
 
     class Meta:
         model = Student
-        fields = [
+        fields = (
             "first_name",
             "last_name",
             "other_names",
@@ -240,9 +214,8 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             "address",
             "admission_date",
             "previous_school",
-            "guardians",
             "class_id"
-        ]
+        )
 
     def validate(self, attrs):
         class_id = attrs.get("class_id")
@@ -322,30 +295,29 @@ class StudentCreateSerializer(serializers.ModelSerializer):
         if value and not re.match(r"^\+?\d{7,15}$", value):
             raise serializers.ValidationError("Phone number must be between 7 and 15 digits, and can start with +.")
         return value
-    
+
     def validate_admission_date(self, value):
         import datetime
         if value > datetime.date.today():
             raise serializers.ValidationError("Admission date cannot be in the future.")
         return value
-    
+
     def validate_student_id(self, value):
         if Student.objects.filter(school=self.context["school"], student_id=value).exists():
             raise serializers.ValidationError("Student ID must be unique.")
         return value
-    
+
     def validate_date_of_birth(self, value):
         import datetime
         today = datetime.date.today()
         if value > today:
             raise serializers.ValidationError("Date of birth cannot be in the future.")
-        
+
         return value
 
     @transaction.atomic
     def create(self, validated_data):
-        guardians_data = validated_data.pop("guardians", [])
-        validated_data.pop("class_id", None) 
+        validated_data.pop("class_id", None)
         school = self.context["school"]
         school_class = validated_data.pop("school_class", None)
         academic_year = validated_data.pop("academic_year", None)
@@ -367,13 +339,6 @@ class StudentCreateSerializer(serializers.ModelSerializer):
         # Create the student
         student = Student.objects.create(school=school, user_account = user, **validated_data)
 
-        # Create guardians
-        for guardian_data in guardians_data:
-            Guardian.objects.create(
-                student=student,
-                school=school,
-                **guardian_data,
-            )
 
         # Optionally enroll immediately
         if school_class and academic_year:
@@ -383,7 +348,7 @@ class StudentCreateSerializer(serializers.ModelSerializer):
                 klass=school_class,
                 academic_year=academic_year,
             )
-           
+
         return student
 
 
@@ -393,7 +358,7 @@ class EnrollStudentSerializer(serializers.Serializer):
     academic_year_id = serializers.UUIDField()
 
     def validate(self, attrs):
-        from academics.models import Class, AcademicYear
+        from academics.models import AcademicYear, Class
         school = self.context["school"]
 
         try:
@@ -464,11 +429,8 @@ class IDCardRequestSerializer(serializers.Serializer):
 
 
 class StudentVerificationSerializer(serializers.Serializer):
-    """Public projection returned by the QR verification endpoint.
-
-    Deliberately limited to what a card would carry: no date of birth, address,
-    guardians, email or phone. The photo is only exposed to authenticated staff
-    of the same school (or platform superusers).
+    """
+    Public projection returned by the QR verification endpoint.
     """
 
     def to_representation(self, obj):

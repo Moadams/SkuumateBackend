@@ -12,7 +12,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from academics.models import Class
-from students.models import Enrollment, Guardian, Student
+from students.models import Enrollment, Student
 from students.services.excel import parse_class_excel
 from students.services.photo_archive import extracted_photo_map
 
@@ -171,13 +171,6 @@ class ClassBulkImportService:
                         student = Student.objects.create(
                             school=school, **student_data
                         )
-
-                        if guardian_data:
-                            Guardian.objects.create(
-                                student=student,
-                                school=school,
-                                **guardian_data,
-                            )
 
                         Enrollment.objects.create(
                             school=school,

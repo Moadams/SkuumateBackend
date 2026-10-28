@@ -1,4 +1,5 @@
 from django.db import models
+
 from core.models import TimestampedModel
 
 
@@ -65,58 +66,15 @@ class Student(TimestampedModel):
         year = datetime.date.today().year
         school_prefix = self.school.school_code.upper() if self.school.school_code else "SCH"
         count = Student.objects.filter(school=self.school).count() + 1
-        
+
         if self.admission_date:
             year = self.admission_date.year
             count = Student.objects.filter(
                 school=self.school,
                 admission_date__year=year
             ).count() + 1
-        
+
         return f"{school_prefix}-{year}-{count:04d}"
-
-
-class Guardian(TimestampedModel):
-
-    class Relationship(models.TextChoices):
-        FATHER = "father", "Father"
-        MOTHER = "mother", "Mother"
-        GUARDIAN = "guardian", "Guardian"
-        SIBLING = "sibling", "Sibling"
-        OTHER = "other", "Other"
-
-    student = models.ForeignKey(
-        Student,
-        on_delete=models.CASCADE,
-        related_name="guardians",
-    )
-    school = models.ForeignKey(
-        "schools.School",
-        on_delete=models.CASCADE,
-        related_name="guardians",
-    )
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    relationship = models.CharField(max_length=20, choices=Relationship.choices)
-    phone = models.CharField(max_length=20)
-    email = models.EmailField(blank=True)
-    address = models.TextField(blank=True)
-    is_primary = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ["-is_primary", "last_name"]
-
-    def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.get_relationship_display()})"
-
-    def save(self, *args, **kwargs):
-        # Ensure only one primary guardian per student
-        if self.is_primary:
-            Guardian.objects.filter(
-                student=self.student,
-                is_primary=True,
-            ).exclude(pk=self.pk).update(is_primary=False)
-        super().save(*args, **kwargs)
 
 
 class Enrollment(TimestampedModel):
