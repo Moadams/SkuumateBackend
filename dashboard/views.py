@@ -71,7 +71,7 @@ class FinanceManagerDashboardView(APIView):
         return ApiResponse.success(data=data)
 
     def _get_stats(self, school):
-        from finance.models import FeePayment, OtherIncome, Expense, SchoolFeeInvoice
+        from finance.models import Expense, FeePayment, OtherIncome, SchoolFeeInvoice
 
         now = timezone.now()
         this_month_start = now.replace(day=1)
@@ -292,8 +292,8 @@ class TeacherDashboardView(APIView):
         return ApiResponse.success(data=data)
 
     def _get_stats(self, teacher_id):
-        from students.models import Enrollment
         from academics.models import ClassTeacher, SubjectTeacher
+        from students.models import Enrollment
 
         my_class_ids = ClassTeacher.objects.filter(
             teacher_id=teacher_id, is_active=True
@@ -378,8 +378,8 @@ class TeacherDashboardView(APIView):
             return None
 
     def _get_today_attendance(self, teacher_id):
-        from attendance.models import AttendanceSummary
         from academics.models import ClassTeacher
+        from attendance.models import AttendanceSummary
 
         today = timezone.now().date()
         my_class_ids = ClassTeacher.objects.filter(
@@ -457,9 +457,10 @@ class AdminDashboardView(APIView):
         return ApiResponse.success(data=data)
 
     def _get_stats(self, school):
-        from students.models import Student, Guardian
-        from staff.models import StaffProfile
         from academics.models import Class, Subject
+        from guardian.models import Guardian
+        from staff.models import StaffProfile
+        from students.models import Student
 
         now = timezone.now()
         this_month_start = now.replace(day=1)
@@ -487,7 +488,7 @@ class AdminDashboardView(APIView):
 
         total_classes = Class.objects.filter(school=school, is_active=True).count()
         total_subjects = Subject.objects.filter(school=school, is_active=True).count()
-        total_guardians = Guardian.objects.filter(school=school, student__status="active").count()
+        total_guardians = Guardian.objects.filter(school=school).count()
 
         return {
             "total_students": {
@@ -506,7 +507,7 @@ class AdminDashboardView(APIView):
         }
 
     def _get_finance_summary(self, school):
-        from finance.models import FeePayment, OtherIncome, Expense, SchoolFeeInvoice
+        from finance.models import Expense, FeePayment, OtherIncome, SchoolFeeInvoice
 
         now = timezone.now()
         this_month_start = now.replace(day=1)

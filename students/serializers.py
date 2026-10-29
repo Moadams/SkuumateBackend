@@ -65,6 +65,7 @@ class StudentSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     current_enrollment = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
+    guardians = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -86,6 +87,7 @@ class StudentSerializer(serializers.ModelSerializer):
             "admission_date",
             "previous_school",
             "current_enrollment",
+            "guardians",
             "created_at",
             "updated_at",
         )
@@ -109,6 +111,19 @@ class StudentSerializer(serializers.ModelSerializer):
         if enrollment:
             return EnrollmentSerializer(enrollment).data
         return None
+
+    def get_guardians(self, obj):
+        guardians = obj.guardian_links.all()
+        return [
+            {
+                "first_name":guardian.guardian.first_name,
+                "last_name":guardian.guardian.last_name,
+                "relationship":guardian.relationship,
+                "phone":guardian.guardian.phone,
+                "email":guardian.guardian.email,
+                "address":guardian.guardian.address
+            } for guardian in guardians
+        ]
 
 class StudentMinimalSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)

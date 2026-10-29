@@ -51,6 +51,55 @@ class PrivateMediaTests(APITestCase):
         self.client.force_authenticate(student)
         self.assertEqual(self.client.get(self.url).status_code, 404)
 
+    def _guardian(self, email, students):
+        from guardian.services.guardian_service import GuardianService
+
+        return GuardianService().create_guardian(
+            {
+                "first_name": "Efua", "last_name": "Mensah", "email": email,
+                "phone": "0240000000", "gender": "female",
+                "students": [{"student": s, "relationship": "mother"} for s in students],
+            },
+            self.school,
+        )
+
+    def test_guardian_can_download_linked_student_photo(self):
+        guardian = self._guardian("g@example.com", [self.student])
+        self.client.force_authenticate(guardian.user_account)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"private-content")
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        response.close()
+
+    def test_guardian_cannot_download_unlinked_student_photo(self):
+        other_child = Student.objects.create(school=self.school, first_name="B", last_name="Student", gender="male")
+        guardian = self._guardian("g@example.com", [other_child])
+        self.client.force_authenticate(guardian.user_account)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_guardian_loses_access_when_student_is_unlinked(self):
+        from guardian.services.guardian_service import GuardianService
+
+        guardian = self._guardian("g@example.com", [self.student])
+        GuardianService().unlink_students(guardian, [self.student.pk])
+        self.client.force_authenticate(guardian.user_account)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_guardian_cannot_download_staff_photos(self):
+        from datetime import date
+
+        from staff.models import StaffProfile
+
+        staff = StaffProfile.objects.create(
+            school=self.school, first_name="T", last_name="Teacher", date_joined=date(2026, 1, 1),
+            profile_photo=SimpleUploadedFile("staff.png", b"staff", content_type="image/png"),
+        )
+        guardian = self._guardian("g@example.com", [self.student])
+        self.client.force_authenticate(guardian.user_account)
+        url = reverse("private-media", kwargs={"path": staff.profile_photo.name})
+        self.assertEqual(self.client.get(url).status_code, 404)
+
     def test_registered_logo_is_public_but_unknown_files_are_not(self):
         self.school.logo.save("logo.png", SimpleUploadedFile("logo.png", b"logo"))
         response = self.client.get(self.school.logo.url)

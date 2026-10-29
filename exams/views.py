@@ -391,7 +391,9 @@ class PublishStudentReport(APIView):
 
         return ApiResponse.success(message="Reports published successfully")
 class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateAPIView):
-    permission_classes = [school_permission(read="reports.view",write="reports.view")]
+    permission_classes = (
+        school_permission(read="reports.view", write="reports.view"),
+    )
     serializer_class = StudentReportDetailSerializer
 
     def get_queryset(self):
@@ -402,7 +404,9 @@ class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generic
 
 
 class StudentReportSubjectScoreListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
-    permission_classes = [school_permission(read="reports.view")]
+    permission_classes = (
+        school_permission(read="reports.view"),
+    )
     serializer_class = SubjectScoreSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["student__first_name", "student__last_name"]

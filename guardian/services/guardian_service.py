@@ -1,8 +1,15 @@
 
-from django.db import transaction
+from decimal import Decimal
 
+from django.db import transaction
+from django.db.models import DecimalField, Sum
+from django.db.models.functions import Coalesce
+
+from academics.models import AcademicYear
 from accounts.models import User
 from accounts.services import AccountService
+from exams.models import StudentReport
+from finance.models import FeePayment, SchoolFeeInvoice
 from guardian.models import Guardian, GuardianStudent
 from guardian.serializers import GuardianStudentSerializer
 from schools.models import School
@@ -121,6 +128,100 @@ class GuardianService:
         if GuardianStudent.objects.filter(**data).exists():
             raise ValueError("Student is already assigned to this guardian")
         return GuardianStudent.objects.create(**data)
+
+    def get_guardian_student_link(self, user: User, student_id):
+        """The link between ``user``'s guardian profile and one student, or ``None``.
+
+        ``None`` covers both an unknown student and a student linked only to
+        someone else, so callers cannot tell the two apart.
+        """
+        return (
+            GuardianStudent.objects.filter(
+                guardian__user_account=user, student_id=student_id
+            )
+            .select_related("student__school")
+            .first()
+        )
+
+    def get_published_reports(self, student: Student):
+        """Published report cards for ``student``, newest first.
+
+        Draft, ready and pending-remarks reports are never shown to guardians.
+        """
+        return (
+            StudentReport.objects.filter(
+                student=student,
+                school_id=student.school_id,
+                status=StudentReport.ReportStatus.PUBLISHED,
+            )
+            .select_related("academic_year", "term", "student_class")
+            .order_by("-academic_year__start_date", "-term__name")
+        )
+
+    def get_published_report(self, student: Student, report_id):
+        """One published report card for ``student``, or ``None``.
+
+        The report must belong to ``student``: a report for another student,
+        even one linked to the same guardian, resolves to ``None`` so the view
+        answers 404 rather than leaking it.
+        """
+        return (
+            self.get_published_reports(student)
+            .filter(pk=report_id)
+            .prefetch_related("subject_scores__subject")
+            .first()
+        )
+
+    def get_invoices(self, student: Student):
+        """Invoices for ``student`` that a guardian may see, newest first.
+
+        Drafts are internal until the school issues them, so they are hidden.
+        Payments are summed in the database to avoid a query per invoice.
+        """
+        return (
+            SchoolFeeInvoice.objects.filter(
+                school_id=student.school_id, student=student
+            )
+            .exclude(status=SchoolFeeInvoice.Status.DRAFT)
+            .select_related("academic_year", "term", "klass")
+            .annotate(
+                paid_total=Coalesce(
+                    Sum("payments__amount_paid"),
+                    Decimal("0.00"),
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                )
+            )
+            .order_by("-academic_year__start_date", "-term__name")
+        )
+
+    def get_invoice(self, student: Student, invoice_id):
+        """One visible invoice of ``student``, or ``None`` if it is not theirs."""
+        return (
+            self.get_invoices(student)
+            .filter(pk=invoice_id)
+            .prefetch_related(
+                "line_items__fee_component",
+                "line_items__payment_allocations",
+            )
+            .first()
+        )
+
+    def get_payments(self, student: Student):
+        """Payments recorded against ``student``'s non-draft invoices, newest first."""
+        return (
+            FeePayment.objects.filter(
+                school_id=student.school_id, invoice__student=student
+            )
+            .exclude(invoice__status=SchoolFeeInvoice.Status.DRAFT)
+            .select_related("invoice", "invoice__academic_year", "invoice__term")
+            .order_by("-payment_date", "-created_at")
+        )
+
+    def get_academic_years_with_terms(self, student: Student):
+        """Academic years of the student's school, with their terms prefetched."""
+        return AcademicYear.objects.filter(school_id=student.school_id).prefetch_related(
+            "terms"
+        )
 
     def get_guardian_students(self, user: User):
         """Students linked to the guardian account belonging to ``user``."""

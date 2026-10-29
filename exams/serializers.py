@@ -1,8 +1,7 @@
 from rest_framework import serializers
-from core.tenant_serializers import SchoolRelatedFieldsMixin
-from core.teacher_scope import ensure_teacher_assignment
 
-from academics.models import Class, Term
+from core.teacher_scope import ensure_teacher_assignment
+from core.tenant_serializers import SchoolRelatedFieldsMixin
 from exams.models import (
     AssessmentType,
     ReportScheme,
@@ -11,7 +10,6 @@ from exams.models import (
     StudentReportSubjectScore,
 )
 from schools.serializers.superadmin_serializers import (
-    SchoolDetailSerializer,
     SchoolInfoSerializer,
 )
 from students.models import Enrollment

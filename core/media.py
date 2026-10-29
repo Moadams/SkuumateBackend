@@ -3,8 +3,8 @@ from pathlib import PurePosixPath
 
 from django.http import FileResponse, Http404
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
 from core.access import school_access_allowed
 from core.permissions import effective_keys
@@ -64,7 +64,9 @@ class PrivateMediaView(APIView):
             if not user.is_superuser:
                 records = records.filter(school_id=user.school_id)
                 keys = effective_keys(user)
-                if user.role != "admin" and not {"school.manage", "students.view"}.intersection(keys):
+                if user.role == "guardian":
+                    records = records.filter(guardian_links__guardian__user_account=user)
+                elif user.role != "admin" and not {"school.manage", "students.view"}.intersection(keys):
                     records = records.filter(user_account=user)
                 elif needs_teacher_scope(user):
                     records = records.filter(enrollments__klass_id__in=assigned_class_ids(user), enrollments__is_active=True)
