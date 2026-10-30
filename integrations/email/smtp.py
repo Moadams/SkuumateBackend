@@ -30,7 +30,7 @@ class SMTPEmailProvider(BaseEmailProvider):
             use_tls=self.config.get("use_tls", True),
         )
 
-    def send(self, to_email, subject, body, html_body=None, from_email=None):
+    def send(self, to_email, subject, body, html_body=None, from_email=None, attachments=None):
         from_email = from_email or self.config.get("from_email") or settings.DEFAULT_FROM_EMAIL
         try:
             email = mail.EmailMultiAlternatives(
@@ -42,6 +42,8 @@ class SMTPEmailProvider(BaseEmailProvider):
             )
             if html_body:
                 email.attach_alternative(html_body, "text/html")
+            for filename, content, mimetype in attachments or ():
+                email.attach(filename, content, mimetype)
             email.send(fail_silently=False)
             return MessageSendResult(True, self.key, "Sent via SMTP.")
         except Exception as exc:

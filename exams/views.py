@@ -6,11 +6,13 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.views import APIView
 
 from academics.models import Class, GradingSystem, SubjectTeacher, Term
+from core.models import AuditLog
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
 from core.school_permissions import school_permission
 from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.utils import log_action
 from exams.filters import AssessmentTypeFilter, StudentReportFilter
 from exams.models import (
     AssessmentType,
@@ -378,18 +380,6 @@ class StudentReportListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return ApiResponse.success(data = serializer.data)
 
-class PublishStudentReport(APIView):
-    permission_classes = (school_permission(write="reports.view"),)
-    @transaction.atomic
-    def patch(self, request):
-        serializer = PublishReportsSerializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            ReportGenerationService.publish_reports(serializer.validated_data['reports'], request.user.school)
-        except ValueError as e:
-            return ApiResponse.error(message=str(e))
-
-        return ApiResponse.success(message="Reports published successfully")
 class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.RetrieveUpdateAPIView):
     permission_classes = (
         school_permission(read="reports.view", write="reports.view"),
@@ -476,18 +466,38 @@ class StudentReportHeadteacherRemarksView(TeacherScopedQuerysetMixin, AuditLogMi
         return ApiResponse.success("Head Teacher remarks updated")
 
 class PublishStudentReportsView(APIView):
-    permission_classes = [school_permission(write="reports.approve")]
+    permission_classes = (school_permission(write="reports.approve"),)
+
+    @transaction.atomic
     def post(self, request):
-        reports = request.data.get("reports",[])
+        serializer = PublishReportsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        queryset = StudentReport.objects.filter(
-            id__in=reports, school=request.user.school, status=StudentReport.ReportStatus.READY
-        )
         from core.teacher_scope import assigned_class_ids, needs_teacher_scope
-        if needs_teacher_scope(request.user):
-            queryset = queryset.filter(student_class_id__in=assigned_class_ids(request.user))
-        queryset.update(
-            status=StudentReport.ReportStatus.PUBLISHED
+
+        allowed_class_ids = (
+            assigned_class_ids(request.user)
+            if needs_teacher_scope(request.user)
+            else None
         )
 
-        return ApiResponse.success("Reports published")
+        try:
+            result = ReportGenerationService.publish_reports(
+                school=request.user.school,
+                report_ids=serializer.validated_data["reports"],
+                allowed_class_ids=allowed_class_ids,
+            )
+        except ValueError as exc:
+            return ApiResponse.error(message=str(exc))
+
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="StudentReport",
+            description=(
+                f"Published {result['published']} report(s) and queued "
+                f"{result['queued']} guardian delivery row(s)"
+            ),
+            request=request,
+        )
+        return ApiResponse.success(message="Reports published", data=result)
+

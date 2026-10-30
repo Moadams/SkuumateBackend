@@ -15,6 +15,7 @@ def send_templated_email(
     context: dict,
     recipient: str,
     from_email: str = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
 ):
     """
     Sends an HTML email using a Django template.
@@ -45,6 +46,7 @@ def send_templated_email(
             body=text_content,
             html_body=html_content,
             from_email=from_email,
+            attachments=attachments,
         )
         if result.success:
             logger.info("Email sent: '%s' → %s", subject, recipient)

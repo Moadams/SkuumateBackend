@@ -17,7 +17,7 @@ class MailgunEmailProvider(BaseEmailProvider):
     def _domain(self):
         return self.config.get("domain") or getattr(settings, "MAILGUN_DOMAIN", "")
 
-    def send(self, to_email, subject, body, html_body=None, from_email=None):
+    def send(self, to_email, subject, body, html_body=None, from_email=None, attachments=None):
         api_key = self._api_key()
         domain = self._domain()
         if not api_key or not domain:
@@ -33,10 +33,15 @@ class MailgunEmailProvider(BaseEmailProvider):
             }
             if html_body:
                 data["html"] = html_body
+            files = [
+                ("attachment", (filename, payload, mimetype))
+                for filename, payload, mimetype in attachments or ()
+            ] or None
             response = requests.post(
                 f"{self.API_URL}/{domain}/messages",
                 auth=("api", api_key),
                 data=data,
+                files=files,
                 timeout=30,
             )
             ok = response.status_code == 200

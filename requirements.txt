@@ -19,6 +19,7 @@ PyJWT==2.12.1
 pypdf==6.20.1
 python-decouple==3.8
 qrcode==8.2
+reportlab==5.1.0
 requests==2.33.1
 sqlparse==0.5.5
 tzdata==2025.3

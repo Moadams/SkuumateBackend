@@ -339,4 +339,6 @@ class HeadTeacherRemarksSerializer(serializers.ModelSerializer):
 
 
 class PublishReportsSerializer(serializers.Serializer):
-    reports = serializers.ListField(required = True)
+    reports = serializers.ListField(
+        child=serializers.UUIDField(), required=True, allow_empty=False
+    )

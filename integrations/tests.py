@@ -33,6 +33,7 @@ from integrations.sms.africas_talking import AfricasTalkingSMSProvider
 from integrations.sms.arkesel import ArkeselSMSProvider
 from integrations.sms.base import BaseSMSProvider
 from integrations.sms.mnotify import MNotifySMSProvider
+from integrations.sms.null import NullSMSProvider
 from integrations.sms.simulate import SimulatedSMSProvider
 from integrations.sms.twilio import TwilioSMSProvider
 from schools.models import School
@@ -129,6 +130,14 @@ class RegistryFactoryTests(TestCase):
         result = provider.send("x@y.com", "t", "b")
         self.assertFalse(result.success)
         self.assertEqual(result.provider, "null")
+
+    @override_settings(INTEGRATION_MODE="live")
+    def test_unknown_sms_provider_falls_back_to_null(self):
+        provider = get_sms_provider("bogus")
+        result = provider.send("0244000000", "t")
+        self.assertFalse(result.success)
+        self.assertEqual(result.provider, "null")
+        self.assertIsInstance(provider, NullSMSProvider)
 
 
 class PaystackProviderTests(TestCase):

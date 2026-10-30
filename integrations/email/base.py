@@ -17,5 +17,10 @@ class BaseEmailProvider(BaseProvider):
         body: str,
         html_body: str | None = None,
         from_email: str | None = None,
+        attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> MessageSendResult:
-        """Deliver an email."""
+        """Deliver an email.
+
+        ``attachments`` is an optional sequence of
+        ``(filename, content_bytes, mimetype)`` tuples.
+        """

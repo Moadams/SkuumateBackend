@@ -12,11 +12,11 @@ Credentials resolution order:
 from django.conf import settings
 
 from .email import (
+    MailgunEmailProvider,
     NullEmailProvider,
     SendGridEmailProvider,
     SimulatedEmailProvider,
     SMTPEmailProvider,
-    MailgunEmailProvider,
 )
 from .payments import (
     PaystackPaymentProvider,
@@ -24,11 +24,10 @@ from .payments import (
     StripePaymentProvider,
 )
 from .sms import (
-    AfricasTalkingSMSProvider,
     ArkeselSMSProvider,
     MNotifySMSProvider,
+    NullSMSProvider,
     SimulatedSMSProvider,
-    TwilioSMSProvider,
 )
 
 # ─── Registries ────────────────────────────────────────────────────
@@ -40,8 +39,6 @@ EMAIL_PROVIDERS = {
 }
 
 SMS_PROVIDERS = {
-    "twilio": TwilioSMSProvider,
-    "africas_talking": AfricasTalkingSMSProvider,
     "mnotify": MNotifySMSProvider,
     "arkesel": ArkeselSMSProvider,
     "simulate": SimulatedSMSProvider,
@@ -76,11 +73,15 @@ def get_payment_provider(name=None, config=None):
 
 
 def get_sms_provider(name=None, config=None):
-    """SMS provider for ``name`` (``twilio`` | ``africas_talking`` | ``mnotify`` | ``arkesel``)."""
-    name = (name or "twilio").strip().lower()
+    """SMS provider for ``name`` (``mnotify`` | ``arkesel``).
+
+    An unknown key resolves to ``NullSMSProvider`` in live mode (and the
+    simulated gateway in dev) so a typo can never fake a real send.
+    """
+    name = (name or "arkesel").strip().lower()
     if is_simulated():
         return SimulatedSMSProvider(config)
-    return SMS_PROVIDERS.get(name, SimulatedSMSProvider)(config)
+    return SMS_PROVIDERS.get(name, NullSMSProvider)(config)
 
 
 def get_email_provider(name=None, config=None):

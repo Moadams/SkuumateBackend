@@ -1,6 +1,8 @@
-from core.models import TimestampedModel
-from django.db import models
 from django.core.exceptions import ValidationError
+from django.db import models
+
+from core.models import TimestampedModel
+
 
 class AssessmentType(TimestampedModel):
     school = models.ForeignKey('schools.School', on_delete=models.CASCADE, help_text = "School for this assessment type", related_name = "assessment_types")
@@ -11,12 +13,12 @@ class AssessmentType(TimestampedModel):
     class Meta:
         unique_together = [
             ["school", "name"]
-        ] 
+        ]
 
 
     def __str__(self):
         return f"{self.school.name} - {self.name}"
-    
+
 class ReportScheme(TimestampedModel):
     school = models.ForeignKey('schools.School', on_delete = models.CASCADE)
     name = models.CharField(max_length = 100, help_text = "E.g Primary Division report scheme")
@@ -27,11 +29,11 @@ class ReportScheme(TimestampedModel):
 
     def __str__(self):
         return f"{self.name}"
-    
+
     def clean(self):
         if (self.sba_scaling + self.exam_scaling) != 100:
             raise ValidationError("SBA scaling and exam scaling should must sum to 100")
-        
+
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
@@ -64,7 +66,7 @@ class StudentMark(TimestampedModel):
 
     def __str__(self):
         return f"{self.student.full_name} - {self.assessment.name} ({self.term.name})"
-    
+
 class StudentReport(TimestampedModel):
     class ReportStatus(models.TextChoices):
         DRAFT = "DRAFT", "Draft"

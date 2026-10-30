@@ -179,14 +179,35 @@ AFRICASTALKING_API_KEY = config("AFRICASTALKING_API_KEY", default="")
 AFRICASTALKING_USERNAME = config("AFRICASTALKING_USERNAME", default="")
 AFRICASTALKING_FROM = config("AFRICASTALKING_FROM", default="")
 MNOTIFY_API_KEY = config("MNOTIFY_API_KEY", default="")
-MNOTIFY_SENDER_ID = config("MNOTIFY_SENDER_ID", default="")
+MNOTIFY_SENDER_ID = config("MNOTIFY_SENDER_ID", default="SkuuMate")
 ARKESEL_API_KEY = config("ARKESEL_API_KEY", default="")
-ARKESEL_SENDER = config("ARKESEL_SENDER", default="")
+ARKESEL_SENDER = config("ARKESEL_SENDER", default="SkuuMate")
+
+# System-wide SMS sender, used when a school has no active SMS provider of its
+# own. One of: arkesel | mnotify | twilio | africas_talking | simulate.
+# Credentials come from the provider-specific settings above.
+SMS_PROVIDER = config("SMS_PROVIDER", default="")
 
 # Email
 SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")
 MAILGUN_API_KEY = config("MAILGUN_API_KEY", default="")
 MAILGUN_DOMAIN = config("MAILGUN_DOMAIN", default="")
+
+# ─── Report distribution (guardian email + SMS) ─────────────────────
+# The queue is drained by ``manage.py dispatch_report_deliveries`` from cron.
+REPORT_DISTRIBUTION = {
+    "MAX_ATTEMPTS": 5,
+    "BACKOFF_MINUTES": [1, 5, 15, 60, 360],
+    "BATCH_SIZE": 25,
+    "LOCK_TTL_MINUTES": 15,
+    "TIME_BUDGET_SECONDS": 50,
+    "SMS_MAX_LENGTH": 320,
+    "SMS_INCLUDE_REMARKS": True,
+    # Adjust the path to match the guardian portal's report route.
+    "REPORT_CARD_URL_TEMPLATE": (
+        "{frontend_url}/guardian/reports"
+    ),
+}
 
 # ─── Cache (overridden per environment) ────────────────────────────
 CACHES = {

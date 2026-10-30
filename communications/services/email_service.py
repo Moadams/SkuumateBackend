@@ -16,7 +16,7 @@ class EmailService:
     TEMPLATE = "emails/base_notification.html"
 
     @staticmethod
-    def send(provider, to_email, subject, body, html_body=None, school_name=None):
+    def send(provider, to_email, subject, body, html_body=None, school_name=None, attachments=None):
         """
         Send an email using the given provider configuration.
 
@@ -25,21 +25,32 @@ class EmailService:
         resolved by ``integrations.registry.get_email_provider``.
 
         Args:
-            provider: NotificationProvider instance (channel=email)
+            provider: NotificationProvider instance (channel=email) or ``None``
+                to use the project's default SMTP settings.
             to_email: str recipient address
             subject: str email subject
             body: str plain text body
             html_body: str optional pre-rendered HTML (overrides template wrapping)
+            school_name: str optional school name for the email footer
+            attachments: optional list of ``(filename, bytes, mimetype)`` tuples
 
         Returns:
             (success: bool, message: str)
         """
-        provider_type = provider.provider_type
-        config = provider.config
+        if provider is None:
+            provider_type = "smtp"
+            config = {}
+        else:
+            provider_type = provider.provider_type
+            config = provider.config
 
         if not html_body:
             if not school_name:
-                school_name = provider.school.name if provider.school else "School"
+                school_name = (
+                    provider.school.name
+                    if provider is not None and provider.school
+                    else "School"
+                )
             html_body = render_to_string(EmailService.TEMPLATE, {
                 "title": subject,
                 "body": body.replace("\n", "<br/>"),
@@ -55,6 +66,7 @@ class EmailService:
             body=body,
             html_body=html_body,
             from_email=from_email,
+            attachments=attachments,
         )
 
         if not result.success:

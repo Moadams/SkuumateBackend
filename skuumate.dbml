@@ -836,6 +836,30 @@ Table communications_notificationrecipient {
   updated_at timestamptz
 }
 
+Table communications_reportdelivery {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  student_report_id uuid [ref: > exams_studentreport.id]
+  guardian_id uuid [ref: > guardian_guardian.id]
+  channel varchar(10) [note: 'email | sms']
+  recipient varchar(255) [note: 'Email address or phone number snapshot']
+  status varchar(12) [default: 'pending', note: 'pending | processing | sent | failed | skipped']
+  attempts smallint [default: 0]
+  next_attempt_at timestamptz [null]
+  locked_at timestamptz [null]
+  locked_by varchar(64)
+  last_error text
+  provider varchar(30)
+  sent_at timestamptz [null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (student_report_id, guardian_id, channel) [unique, name: 'unique_report_delivery_per_channel']
+    (status, next_attempt_at) [name: 'report_delivery_due_idx']
+  }
+}
+
 // ============================================================
 // subscriptions
 // ============================================================

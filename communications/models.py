@@ -1,4 +1,5 @@
 from django.db import models
+
 from core.models import TimestampedModel
 
 
@@ -7,7 +8,6 @@ class NotificationProvider(TimestampedModel):
     class Channel(models.TextChoices):
         EMAIL = "email", "Email"
         SMS = "sms", "SMS"
-        BOTH = "both", "Both"
 
     class ProviderType(models.TextChoices):
         # Email
@@ -98,6 +98,71 @@ class Notification(TimestampedModel):
 
     def __str__(self):
         return self.title
+
+
+class ReportDelivery(TimestampedModel):
+    """One guardian/channel delivery attempt for a published report card.
+
+    Rows are created inside the publish transaction (a transactional outbox)
+    and processed later by ``manage.py dispatch_report_deliveries``. Shared
+    hosting has no reliable long-running worker, so cron + a database queue is
+    used instead of threads/Celery.
+    """
+
+    class Channel(models.TextChoices):
+        EMAIL = "email", "Email"
+        SMS = "sms", "SMS"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Skipped"
+
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, related_name="report_deliveries"
+    )
+    student_report = models.ForeignKey(
+        "exams.StudentReport", on_delete=models.CASCADE, related_name="deliveries"
+    )
+    guardian = models.ForeignKey(
+        "guardian.Guardian", on_delete=models.CASCADE, related_name="report_deliveries"
+    )
+    channel = models.CharField(max_length=10, choices=Channel.choices)
+    recipient = models.CharField(
+        max_length=255, help_text="Email address or phone number snapshot"
+    )
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.PENDING
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.CharField(max_length=64, blank=True)
+    last_error = models.TextField(blank=True)
+    provider = models.CharField(max_length=30, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "report delivery"
+        verbose_name_plural = "report deliveries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student_report", "guardian", "channel"],
+                name="unique_report_delivery_per_channel",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "next_attempt_at"],
+                name="report_delivery_due_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student_report_id} → {self.guardian_id} ({self.channel})"
 
 
 class NotificationRecipient(TimestampedModel):

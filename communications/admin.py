@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     NotificationProvider, NotificationTemplate,
-    Notification, NotificationRecipient,
+    Notification, NotificationRecipient, ReportDelivery,
 )
 
 
@@ -40,3 +40,21 @@ class NotificationRecipientAdmin(admin.ModelAdmin):
     list_display = ["recipient_name", "notification", "status", "recipient_contact", "sent_at"]
     list_filter = ["status", "recipient_type"]
     search_fields = ["recipient_name", "recipient_contact"]
+
+
+@admin.register(ReportDelivery)
+class ReportDeliveryAdmin(admin.ModelAdmin):
+    list_display = [
+        "student_report", "guardian", "channel", "status",
+        "attempts", "sent_at", "next_attempt_at",
+    ]
+    list_filter = ["channel", "status", "school"]
+    search_fields = [
+        "recipient",
+        "student_report__student__first_name",
+        "student_report__student__last_name",
+        "guardian__first_name",
+        "guardian__last_name",
+    ]
+    readonly_fields = ["created_at", "updated_at", "locked_at", "locked_by"]
+

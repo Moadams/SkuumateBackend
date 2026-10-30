@@ -71,26 +71,49 @@ class ReportGenerationService:
 
     @staticmethod
     @transaction.atomic
-    def publish_reports(reports:list, school):
+    def publish_reports(*, school, report_ids, allowed_class_ids=None):
+        """Publish READY reports and queue guardian delivery in one transaction.
+
+        ``allowed_class_ids`` limits teachers to their assigned classes; pass
+        ``None`` for users who may publish across the school.
+        """
+        report_ids = list(report_ids)
+        if not report_ids:
+            raise ValueError("Select at least one report to publish.")
+
         # Reject duplicate IDs to avoid misleading counts.
-        if len(reports) != len(set(reports)):
+        if len(report_ids) != len(set(report_ids)):
             raise ValueError("Duplicate report IDs were submitted.")
-        
-        ready_reports = StudentReport.objects.filter(
+
+        queryset = StudentReport.objects.filter(
             school=school,
-            id__in=reports,
+            id__in=report_ids,
             status=StudentReport.ReportStatus.READY,
         )
+        if allowed_class_ids is not None:
+            queryset = queryset.filter(student_class_id__in=allowed_class_ids)
 
-        if ready_reports.count() != len(reports):
+        reports = list(
+            queryset.select_related(
+                "school", "student", "student_class", "term", "academic_year"
+            ).prefetch_related("subject_scores__subject")
+        )
+        if len(reports) != len(report_ids):
             raise ValueError(
                 "Some reports were not found for this school "
                 "or are not ready for publishing."
             )
 
-        ready_reports.update(
+        StudentReport.objects.filter(school=school, id__in=report_ids).update(
             status=StudentReport.ReportStatus.PUBLISHED
         )
 
-        return True
+        # Same transaction as the status change: either reports are published
+        # and queued, or the whole operation rolls back.
+        from communications.services.report_distribution import (
+            ReportDistributionService,
+        )
+
+        queued = ReportDistributionService.enqueue(reports)
+        return {"published": len(reports), "queued": queued}
 
