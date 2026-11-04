@@ -1,4 +1,5 @@
 import django_filters
+
 from .models import Student
 
 
@@ -20,3 +21,9 @@ class StudentFilter(django_filters.FilterSet):
     class Meta:
         model = Student
         fields = ["status", "gender", "admission_year", "class_id", "academic_year_id"]
+
+
+class ClassStudentsFilter(django_filters.FilterSet):
+    class Meta:
+        model = Student
+        fields = ["enrollments__academic_year__id"]

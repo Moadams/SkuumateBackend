@@ -29,13 +29,11 @@ from integrations.registry import (
     get_payment_provider,
     get_sms_provider,
 )
-from integrations.sms.africas_talking import AfricasTalkingSMSProvider
 from integrations.sms.arkesel import ArkeselSMSProvider
 from integrations.sms.base import BaseSMSProvider
 from integrations.sms.mnotify import MNotifySMSProvider
 from integrations.sms.null import NullSMSProvider
 from integrations.sms.simulate import SimulatedSMSProvider
-from integrations.sms.twilio import TwilioSMSProvider
 from schools.models import School
 from subscriptions.models import Package, Subscription, SubscriptionPayment
 
@@ -45,7 +43,7 @@ class ProviderContractTests(TestCase):
         self.assertTrue(issubclass(PaystackPaymentProvider, BasePaymentProvider))
         self.assertTrue(issubclass(StripePaymentProvider, BasePaymentProvider))
         self.assertTrue(issubclass(SimulatedPaymentProvider, BasePaymentProvider))
-        for cls in (TwilioSMSProvider, AfricasTalkingSMSProvider, MNotifySMSProvider, ArkeselSMSProvider):
+        for cls in (MNotifySMSProvider, ArkeselSMSProvider):
             self.assertTrue(issubclass(cls, BaseSMSProvider))
         for cls in (SMTPEmailProvider, SendGridEmailProvider, MailgunEmailProvider, NullEmailProvider):
             self.assertTrue(issubclass(cls, BaseEmailProvider))
@@ -116,10 +114,8 @@ class RegistryFactoryTests(TestCase):
         self.assertIsInstance(get_payment_provider("paystack"), PaystackPaymentProvider)
         self.assertIsInstance(get_payment_provider("momo"), PaystackPaymentProvider)
         self.assertIsInstance(get_payment_provider("stripe"), StripePaymentProvider)
-        self.assertIsInstance(get_sms_provider("twilio"), TwilioSMSProvider)
         self.assertIsInstance(get_sms_provider("mnotify"), MNotifySMSProvider)
         self.assertIsInstance(get_sms_provider("arkesel"), ArkeselSMSProvider)
-        self.assertIsInstance(get_sms_provider("africas_talking"), AfricasTalkingSMSProvider)
         self.assertIsInstance(get_email_provider("smtp"), SMTPEmailProvider)
         self.assertIsInstance(get_email_provider("sendgrid"), SendGridEmailProvider)
         self.assertIsInstance(get_email_provider("mailgun"), MailgunEmailProvider)

@@ -25,7 +25,7 @@ from students.utils import parse_students_from_excel
 from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
-from .filters import StudentFilter
+from .filters import ClassStudentsFilter, StudentFilter
 from .models import Enrollment, PromotionBatch, Student
 from .serializers import (
     BulkStudentUploadSerializer,
@@ -63,8 +63,8 @@ class StudentBulkCreateView(APIView):
     Individual students in the Excel can override class_id
     and academic_year_id per row.
     """
-    permission_classes = [school_permission(create="students.create")]
-    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = (school_permission(create="students.create"),)
+    parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
         school = request.user.school
@@ -259,8 +259,8 @@ class ClassBulkStudentsView(APIView):
 
     GET  /api/v1/students/class-bulk/ — downloads the template
     """
-    permission_classes = [IsAdminOrTeacher]
-    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = (IsAdminOrTeacher,)
+    parser_classes = (MultiPartParser, FormParser)
 
     def get(self, request):
         workbook = build_class_bulk_template_workbook()
@@ -338,7 +338,7 @@ class StudentExcelTemplateView(APIView):
     """
     Returns a downloadable Excel template for bulk student import.
     """
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
     def get(self, request):
         import openpyxl
@@ -553,15 +553,15 @@ class StudentDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generics.Retr
 
 
 class StudentExportView(TeacherScopedQuerysetMixin, ExportMixin, generics.ListAPIView):
-    permission_classes = [
+    permission_classes = (
         school_permission(read="students.export"),
         HasExportAccess,
-    ]
+    )
     serializer_class = StudentSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_class = StudentFilter
-    search_fields = ["first_name", "last_name", "other_names", "student_id"]
-    ordering = ["last_name", "first_name"]
+    search_fields = ("first_name", "last_name", "other_names", "student_id")
+    ordering = ("last_name", "first_name")
 
     def get_queryset(self):
         return Student.objects.filter(
@@ -659,7 +659,7 @@ class StudentEnrollView(APIView):
 
 class StudentEnrollmentHistoryView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     """Full enrollment history for a student."""
-    permission_classes = [school_permission(read="students.view")]
+    permission_classes = (school_permission(read="students.view"),)
     serializer_class = EnrollmentSerializer
 
     def get_queryset(self):
@@ -678,12 +678,15 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     '''List of students currently enrolled in a specific class.'''
     permission_classes = (school_permission(read="students.view"),)
     serializer_class = StudentMinimalSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    ordering_fields = ["first_name", "last_name", "student_id"]
+    search_fields = ["first_name", "last_name", "student_id"]
+    filterset_class = ClassStudentsFilter
 
     def get_queryset(self):
         return Student.objects.filter(
             school=self.request.user.school,
-            enrollments__klass_id=self.kwargs["class_id"],
-            enrollments__is_active=True,
+            enrollments__klass_id=self.kwargs["class_id"]
         ).distinct().prefetch_related(
             "enrollments__klass", "enrollments__academic_year")
 

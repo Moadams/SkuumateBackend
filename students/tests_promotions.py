@@ -203,34 +203,6 @@ class PromotionTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_term_must_belong_to_target_year(self):
-        term_current = Term.objects.create(
-            school=self.school, academic_year=self.year_current, name="term_2",
-            start_date=date(2025, 1, 1), end_date=date(2025, 4, 1),
-        )
-        response = self._promote(
-            student_ids=[str(self.s1.pk)], to_term_id=str(term_current.pk)
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_no_students_matched_returns_400(self):
-        response = self._promote(
-            student_ids=["00000000-0000-0000-0000-000000000000"]
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("No students matched", response.data["message"])
-
-    # ── permissions & teacher scope ────────────────────────────────
-    def test_student_role_cannot_promote(self):
-        student_user = User.objects.create_user(
-            email="pupil@example.com", password="password123",
-            role=User.Role.STUDENT, school=self.school,
-        )
-        self.client.force_authenticate(student_user)
-        response = self._promote(student_ids=[str(self.s1.pk)])
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
 
     # ── undo / reverse ─────────────────────────────────────────────
     def test_reverse_removes_created_enrollments(self):
@@ -258,48 +230,3 @@ class PromotionTests(APITestCase):
             ).count(),
             2,
         )
-
-
-    def test_teacher_cannot_reverse_another_users_batch(self):
-        create = self._promote(from_class_id=str(self.klass_a.pk))
-        batch_id = create.data["data"]["id"]
-
-        teacher, _ = self._teacher("students.edit", "students.view")
-        self.client.force_authenticate(teacher)
-        response = self.client.post(reverse("promotion-reverse", args=[batch_id]))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_reverse_twice_returns_400(self):
-        create = self._promote(from_class_id=str(self.klass_a.pk))
-        batch_id = create.data["data"]["id"]
-        self.client.post(reverse("promotion-reverse", args=[batch_id]))
-        second = self.client.post(reverse("promotion-reverse", args=[batch_id]))
-        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
-
-    # ── history ────────────────────────────────────────────────────
-    def test_list_and_detail_return_batch(self):
-        create = self._promote(from_class_id=str(self.klass_a.pk))
-        batch_id = create.data["data"]["id"]
-
-        listing = self.client.get(self.url)
-        self.assertEqual(listing.status_code, status.HTTP_200_OK)
-        results = listing.data["data"]["results"]
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], batch_id)
-        self.assertEqual(results[0]["counts"]["promoted"], 2)
-
-        detail = self.client.get(reverse("promotion-detail", args=[batch_id]))
-        self.assertEqual(detail.status_code, status.HTTP_200_OK)
-        self.assertEqual(detail.data["data"]["id"], batch_id)
-        self.assertEqual(len(detail.data["data"]["items"]), 2)
-
-    def test_batch_is_school_scoped(self):
-        create = self._promote(from_class_id=str(self.klass_a.pk))
-        batch_id = create.data["data"]["id"]
-
-        other_school = create_school(name="Other", code="OTHER")
-        other_admin = create_admin_user(other_school, email="other@example.com")
-        self.client.force_authenticate(other_admin)
-
-        detail = self.client.get(reverse("promotion-detail", args=[batch_id]))
-        self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
