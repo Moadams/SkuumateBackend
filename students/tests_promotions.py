@@ -83,6 +83,48 @@ class PromotionTests(APITestCase):
     def _promote(self, **overrides):
         return self.client.post(self.url, self._payload(**overrides), format="json")
 
+    def test_class_students_can_be_filtered_by_academic_year(self):
+        Enrollment.objects.create(
+            school=self.school,
+            student=self.s1,
+            klass=self.klass_b,
+            academic_year=self.year_next,
+        )
+        next_year_student = self._student("Next", "Year")
+        Enrollment.objects.create(
+            school=self.school,
+            student=next_year_student,
+            klass=self.klass_a,
+            academic_year=self.year_next,
+        )
+
+        response = self.client.get(
+            reverse("class-students", args=[self.klass_a.pk]),
+            {"academic_year_id": str(self.year_next.pk), "no_pagination": "true"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [student["id"] for student in response.data["data"]],
+            [str(next_year_student.pk)],
+        )
+        self.assertEqual(
+            response.data["data"][0]["academic_year"],
+            str(self.year_next.pk),
+        )
+        self.assertEqual(
+            response.data["data"][0]["academic_year_name"],
+            self.year_next.name,
+        )
+
+    def test_class_students_requires_academic_year(self):
+        response = self.client.get(
+            reverse("class-students", args=[self.klass_a.pk])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("academic_year_id", response.data["errors"])
+
     def _teacher(self, *keys):
         user = User.objects.create_user(
             email="promo-teacher@example.com", password="password123",

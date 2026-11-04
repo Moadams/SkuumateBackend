@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -9,7 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from academics.models import AcademicYear, Term
+from academics.models import AcademicYear, ClassTeacher, SubjectTeacher, Term
 from core.mixins import AuditLogMixin, ExportMixin
 from core.models import AuditLog
 from core.permissions import IsAdminOrTeacher
@@ -25,10 +26,11 @@ from students.utils import parse_students_from_excel
 from subscriptions.permissions import HasExportAccess, HasIdCardAccess
 from subscriptions.utils import check_limit
 
-from .filters import ClassStudentsFilter, StudentFilter
+from .filters import StudentFilter
 from .models import Enrollment, PromotionBatch, Student
 from .serializers import (
     BulkStudentUploadSerializer,
+    ClassStudentSerializer,
     EnrollmentSerializer,
     EnrollStudentSerializer,
     IDCardRequestSerializer,
@@ -675,21 +677,76 @@ class StudentEnrollmentHistoryView(TeacherScopedQuerysetMixin, generics.ListAPIV
 
 
 class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
-    '''List of students currently enrolled in a specific class.'''
+    """List students enrolled in a class during the required academic year."""
     permission_classes = (school_permission(read="students.view"),)
-    serializer_class = StudentMinimalSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    serializer_class = ClassStudentSerializer
+    filter_backends = [SearchFilter, OrderingFilter]
     ordering_fields = ["first_name", "last_name", "student_id"]
     search_fields = ["first_name", "last_name", "student_id"]
-    filterset_class = ClassStudentsFilter
+
+    def get_academic_year(self):
+        if not hasattr(self, "_academic_year"):
+            academic_year_id = self.request.query_params.get("academic_year_id")
+            if not academic_year_id:
+                raise serializers.ValidationError(
+                    {"academic_year_id": "This query parameter is required."}
+                )
+            academic_year_id = serializers.UUIDField().run_validation(
+                academic_year_id
+            )
+            self._academic_year = get_object_or_404(
+                AcademicYear,
+                pk=academic_year_id,
+                school=self.request.user.school,
+            )
+        return self._academic_year
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["academic_year"] = self.get_academic_year()
+        return context
 
     def get_queryset(self):
+        school = self.request.user.school
+        academic_year = self.get_academic_year()
         return Student.objects.filter(
-            school=self.request.user.school,
-            enrollments__klass_id=self.kwargs["class_id"]
-        ).distinct().prefetch_related(
-            "enrollments__klass", "enrollments__academic_year")
+            school=school,
+            enrollments__school=school,
+            enrollments__klass__school=school,
+            enrollments__klass_id=self.kwargs["class_id"],
+            enrollments__academic_year=academic_year,
+        ).distinct()
 
+    def filter_queryset(self, queryset):
+        queryset = super(TeacherScopedQuerysetMixin, self).filter_queryset(queryset)
+        user = self.request.user
+        if not needs_teacher_scope(user):
+            return queryset
+
+        profile = getattr(user, "staff_profile", None)
+        if profile is None:
+            return queryset.none()
+
+        school_id = user.school_id
+        class_id = self.kwargs["class_id"]
+        academic_year = self.get_academic_year()
+        assigned_to_class = ClassTeacher.objects.filter(
+            school_id=school_id,
+            klass_id=class_id,
+            teacher=profile,
+            is_active=True,
+        ).filter(
+            Q(academic_year=academic_year) | Q(academic_year__isnull=True)
+        ).exists()
+        assigned_to_subject = SubjectTeacher.objects.filter(
+            school_id=school_id,
+            klass_id=class_id,
+            teacher=profile,
+            is_active=True,
+        ).exists()
+        if not (assigned_to_class or assigned_to_subject):
+            return queryset.none()
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()

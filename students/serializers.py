@@ -148,6 +148,24 @@ class StudentMinimalSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.profile_photo.url)
         return None
 
+
+class ClassStudentSerializer(StudentMinimalSerializer):
+    academic_year = serializers.SerializerMethodField()
+    academic_year_name = serializers.SerializerMethodField()
+
+    class Meta(StudentMinimalSerializer.Meta):
+        fields = StudentMinimalSerializer.Meta.fields + (
+            "academic_year",
+            "academic_year_name",
+        )
+
+    def get_academic_year(self, obj):
+        return str(self.context["academic_year"].pk)
+
+    def get_academic_year_name(self, obj):
+        return self.context["academic_year"].name
+
+
 class StudentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
