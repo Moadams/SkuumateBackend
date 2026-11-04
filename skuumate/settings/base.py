@@ -209,6 +209,19 @@ REPORT_DISTRIBUTION = {
     ),
 }
 
+# ── Broadcast notifications (guardians + staff) ─────────────────────
+# One SMS credit covers one 160-character segment. Longer messages consume
+# one credit per segment per recipient. The queue is drained by
+# ``manage.py dispatch_notifications`` from cron.
+BROADCAST_NOTIFICATIONS = {
+    "MAX_ATTEMPTS": 5,
+    "BACKOFF_MINUTES": [1, 5, 15, 60, 360],
+    "BATCH_SIZE": 25,
+    "LOCK_TTL_MINUTES": 15,
+    "TIME_BUDGET_SECONDS": 50,
+    "SMS_CHARS_PER_CREDIT": 160,
+}
+
 # ─── Cache (overridden per environment) ────────────────────────────
 CACHES = {
     "default": {

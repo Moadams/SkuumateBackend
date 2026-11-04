@@ -10,10 +10,12 @@ from datetime import date
 from django.db import models
 from django.db.models import Count
 
+from subscriptions.services.packages import get_package_features
+
 from .attendance import AttendanceStatsService
 from .dto import (
-    AcademicYearDTO,
     AcademicsDTO,
+    AcademicYearDTO,
     AssessmentTypeDTO,
     ClassEnrollmentDTO,
     ClassSummaryDTO,
@@ -34,8 +36,8 @@ from .dto import (
     StaffDTO,
     StaffPositionDTO,
     StaffTotalsDTO,
-    StudentTotalsDTO,
     StudentsDTO,
+    StudentTotalsDTO,
     SubjectDTO,
     SubscriptionDTO,
     SubscriptionPaymentDTO,
@@ -46,8 +48,6 @@ from .dto import (
 from .finance import SchoolFinanceService
 from .onboarding import OnboardingService
 from .term_progress import TermProgressService
-
-from subscriptions.services.packages import get_package_features
 
 
 class SchoolProjector:
@@ -348,7 +348,7 @@ class StaffProjector:
 class StudentsProjector:
     @staticmethod
     def build(school) -> StudentsDTO:
-        from students.models import Guardian, Student
+        from guardian.models import Guardian, Student
 
         status_rows = (
             Student.objects

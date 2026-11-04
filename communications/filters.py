@@ -1,5 +1,8 @@
 import django_filters
-from .models import NotificationProvider, NotificationTemplate, Notification
+from .models import (
+    NotificationProvider, NotificationTemplate, Notification,
+    NotificationRecipient, SMSPurchase, SMSLedgerEntry,
+)
 
 
 class NotificationProviderFilter(django_filters.FilterSet):
@@ -34,3 +37,41 @@ class NotificationFilter(django_filters.FilterSet):
     class Meta:
         model = Notification
         fields = ["channel", "recipient_type", "status"]
+
+
+class SMSPurchaseFilter(django_filters.FilterSet):
+    status = django_filters.ChoiceFilter(choices=SMSPurchase.Status.choices)
+    bundle = django_filters.UUIDFilter(field_name="bundle_id")
+    created_from = django_filters.DateFilter(field_name="created_at", lookup_expr="gte")
+    created_to = django_filters.DateFilter(field_name="created_at", lookup_expr="lte")
+
+    class Meta:
+        model = SMSPurchase
+        fields = ["status", "bundle"]
+
+
+class SMSHistoryFilter(django_filters.FilterSet):
+    status = django_filters.ChoiceFilter(
+        choices=NotificationRecipient.DeliveryStatus.choices
+    )
+    recipient_type = django_filters.ChoiceFilter(
+        choices=NotificationRecipient.RecipientType.choices
+    )
+    notification = django_filters.UUIDFilter(field_name="notification_id")
+    sent_from = django_filters.DateFilter(field_name="sent_at", lookup_expr="gte")
+    sent_to = django_filters.DateFilter(field_name="sent_at", lookup_expr="lte")
+
+    class Meta:
+        model = NotificationRecipient
+        fields = ["status", "recipient_type", "notification"]
+
+
+class SMSLedgerFilter(django_filters.FilterSet):
+    kind = django_filters.ChoiceFilter(choices=SMSLedgerEntry.Kind.choices)
+    notification = django_filters.UUIDFilter(field_name="notification_id")
+    created_from = django_filters.DateFilter(field_name="created_at", lookup_expr="gte")
+    created_to = django_filters.DateFilter(field_name="created_at", lookup_expr="lte")
+
+    class Meta:
+        model = SMSLedgerEntry
+        fields = ["kind", "notification"]

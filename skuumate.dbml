@@ -813,11 +813,15 @@ Table communications_notification {
   title varchar(200)
   message_body text
   channel varchar(10) [note: 'email | sms | both']
-  recipient_type varchar(30) [note: 'all_students | all_staff | specific_students | specific_staff | class | guardians_of']
+  recipient_type varchar(30) [note: 'all_students | all_staff | specific_students | specific_staff | specific_recipients | class | guardians_of']
   metadata jsonb
   sent_by_id uuid [null, ref: > accounts_user.id]
   sent_at timestamptz [null]
-  status varchar(10) [default: 'draft', note: 'draft | sent | partial | failed']
+  status varchar(10) [default: 'draft', note: 'draft | queued | processing | sent | partial | failed']
+  total_recipients integer [default: 0, note: 'Number of queued channel deliveries']
+  sms_credits_charged integer [default: 0, note: 'SMS credits reserved when queued']
+  queued_at timestamptz [null]
+  completed_at timestamptz [null]
   created_at timestamptz
   updated_at timestamptz
 }
@@ -829,9 +833,74 @@ Table communications_notificationrecipient {
   recipient_id uuid [null, note: 'Generic reference (no DB-level FK)']
   recipient_name varchar(200)
   recipient_contact varchar(200)
-  status varchar(10) [default: 'pending', note: 'pending | sent | failed']
+  channel varchar(10) [default: 'sms', note: 'email | sms']
+  status varchar(12) [default: 'pending', note: 'pending | processing | sent | failed | skipped']
+  attempts smallint [default: 0]
+  next_attempt_at timestamptz [null]
+  locked_at timestamptz [null]
+  locked_by varchar(64)
+  provider varchar(30)
+  credit_cost smallint [default: 1, note: 'SMS credits reserved for this delivery']
+  credit_refunded boolean [default: false]
   error_message text
   sent_at timestamptz [null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (status, next_attempt_at) [name: 'notification_recipient_due_idx']
+  }
+}
+
+Table communications_smsbundle {
+  id uuid [pk]
+  name varchar(100)
+  code varchar(50) [unique]
+  credits integer
+  price decimal(10,2)
+  currency varchar(3) [default: 'GHS']
+  description text
+  is_active boolean [default: true]
+  display_order integer [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table communications_smswallet {
+  id uuid [pk]
+  school_id uuid [unique, ref: > schools_school.id]
+  balance integer [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table communications_smspurchase {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  bundle_id uuid [ref: > communications_smsbundle.id]
+  credits integer
+  amount decimal(10,2)
+  currency varchar(3) [default: 'GHS']
+  provider varchar(30)
+  payment_reference varchar(100) [unique]
+  status varchar(12) [default: 'pending', note: 'pending | successful | failed']
+  failure_reason text
+  purchased_by_id uuid [null, ref: > accounts_user.id]
+  completed_at timestamptz [null]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table communications_smsledgerentry {
+  id uuid [pk]
+  school_id uuid [ref: > schools_school.id]
+  kind varchar(15) [note: 'purchase | usage | refund | adjustment | bonus']
+  credits integer [note: 'Signed: positive in, negative out']
+  balance_after integer
+  description varchar(255)
+  notification_id uuid [null, ref: > communications_notification.id]
+  purchase_id uuid [null, ref: > communications_smspurchase.id]
+  created_by_id uuid [null, ref: > accounts_user.id]
   created_at timestamptz
   updated_at timestamptz
 }
@@ -1072,6 +1141,10 @@ TableGroup communications {
   communications_notificationtemplate
   communications_notification
   communications_notificationrecipient
+  communications_smsbundle
+  communications_smswallet
+  communications_smspurchase
+  communications_smsledgerentry
 }
 
 TableGroup subscriptions {
