@@ -677,28 +677,25 @@ class StudentEnrollmentHistoryView(TeacherScopedQuerysetMixin, generics.ListAPIV
 
 
 class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
-    """List students enrolled in a class during the required academic year."""
+    """List students enrolled in a class for the selected or current academic year."""
     permission_classes = (school_permission(read="students.view"),)
     serializer_class = ClassStudentSerializer
-    filter_backends = [SearchFilter, OrderingFilter]
-    ordering_fields = ["first_name", "last_name", "student_id"]
-    search_fields = ["first_name", "last_name", "student_id"]
+    filter_backends = (SearchFilter, OrderingFilter)
+    ordering_fields = ("first_name", "last_name", "student_id")
+    search_fields = ("first_name", "last_name", "student_id")
 
     def get_academic_year(self):
         if not hasattr(self, "_academic_year"):
             academic_year_id = self.request.query_params.get("academic_year_id")
-            if not academic_year_id:
-                raise serializers.ValidationError(
-                    {"academic_year_id": "This query parameter is required."}
+            years = AcademicYear.objects.filter(school=self.request.user.school)
+            if academic_year_id:
+                academic_year_id = serializers.UUIDField().run_validation(
+                    academic_year_id
                 )
-            academic_year_id = serializers.UUIDField().run_validation(
-                academic_year_id
-            )
-            self._academic_year = get_object_or_404(
-                AcademicYear,
-                pk=academic_year_id,
-                school=self.request.user.school,
-            )
+                years = years.filter(pk=academic_year_id)
+            else:
+                years = years.filter(is_current=True)
+            self._academic_year = get_object_or_404(years)
         return self._academic_year
 
     def get_serializer_context(self):
@@ -749,7 +746,7 @@ class ClassStudentsListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
 
         # Skip pagination when no_pagination=true
         if request.query_params.get("no_pagination", "").lower() == "true":

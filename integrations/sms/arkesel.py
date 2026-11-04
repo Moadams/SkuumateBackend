@@ -1,4 +1,5 @@
 """Real Arkesel SMS gateway (Ghana)."""
+import requests
 from django.conf import settings
 
 from ..common import MessageSendResult
@@ -15,26 +16,39 @@ class ArkeselSMSProvider(BaseSMSProvider):
         return self.config.get("api_key") or getattr(settings, "ARKESEL_API_KEY", "")
 
     def _sender(self):
-        return self.config.get("sender") or getattr(settings, "ARKESEL_SENDER", "SkuuMate")
+        return self.config.get("sender") or getattr(settings, "ARKESEL_SENDER", "SKUUMATE")
 
     def send(self, to_phone, message):
         api_key = self._api_key()
         if not api_key:
             return MessageSendResult(False, self.key, "Arkesel API key not configured.")
+
+        client = requests.Session()
+        headers = {
+            "api-key": api_key,
+            "Content-Type": "application/json",
+        }
+        recipients = [to_phone]
+
+        sms_payload = {
+            "sender": self._sender(),
+            "message": message,
+            "recipients": recipients,
+        }
+
         try:
-            import requests
-            response = requests.post(
+
+            response = client.post(
                 self.API_URL,
-                json={
-                    "api_key": api_key,
-                    "sender": self._sender(),
-                    "to": to_phone,
-                    "message": message,
-                },
+                headers=headers,
+                json=sms_payload,
                 timeout=30,
             )
+            response.raise_for_status()
             data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {"raw": response.text}
-            ok = response.status_code == 200 and data.get("code") in (None, "1101", 1101, "ok", "OK")
+            ok = response.status_code == 200 and data.get("status") in (None, "success", "ok", "OK")
+            print(response.text)
+            print(ok)
             return MessageSendResult(ok or bool(response.status_code == 200), self.key, "Sent via Arkesel." if ok else f"Arkesel error: {data}", raw=data)
         except Exception as exc:
             self.log_error(exc)

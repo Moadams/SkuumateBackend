@@ -172,21 +172,15 @@ STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 
 # SMS
-TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID", default="")
-TWILIO_AUTH_TOKEN = config("TWILIO_AUTH_TOKEN", default="")
-TWILIO_FROM_NUMBER = config("TWILIO_FROM_NUMBER", default="")
-AFRICASTALKING_API_KEY = config("AFRICASTALKING_API_KEY", default="")
-AFRICASTALKING_USERNAME = config("AFRICASTALKING_USERNAME", default="")
-AFRICASTALKING_FROM = config("AFRICASTALKING_FROM", default="")
 MNOTIFY_API_KEY = config("MNOTIFY_API_KEY", default="")
-MNOTIFY_SENDER_ID = config("MNOTIFY_SENDER_ID", default="SkuuMate")
+MNOTIFY_SENDER_ID = config("MNOTIFY_SENDER_ID", default="SKUUMATE")
 ARKESEL_API_KEY = config("ARKESEL_API_KEY", default="")
-ARKESEL_SENDER = config("ARKESEL_SENDER", default="SkuuMate")
+ARKESEL_SENDER = config("ARKESEL_SENDER", default="SKUUMATE")
 
 # System-wide SMS sender, used when a school has no active SMS provider of its
 # own. One of: arkesel | mnotify | twilio | africas_talking | simulate.
 # Credentials come from the provider-specific settings above.
-SMS_PROVIDER = config("SMS_PROVIDER", default="")
+SMS_PROVIDER = config("SMS_PROVIDER", default="arkesel")
 
 # Email
 SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")

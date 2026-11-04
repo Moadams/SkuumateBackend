@@ -97,10 +97,21 @@ class PromotionTests(APITestCase):
             klass=self.klass_a,
             academic_year=self.year_next,
         )
+        other_student = self._student("Other", "Student")
+        Enrollment.objects.create(
+            school=self.school,
+            student=other_student,
+            klass=self.klass_a,
+            academic_year=self.year_next,
+        )
 
         response = self.client.get(
             reverse("class-students", args=[self.klass_a.pk]),
-            {"academic_year_id": str(self.year_next.pk), "no_pagination": "true"},
+            {
+                "academic_year_id": str(self.year_next.pk),
+                "search": "Next",
+                "no_pagination": "true",
+            },
         )
 
         self.assertEqual(response.status_code, 200)
@@ -117,13 +128,23 @@ class PromotionTests(APITestCase):
             self.year_next.name,
         )
 
-    def test_class_students_requires_academic_year(self):
+    def test_class_students_defaults_to_current_academic_year(self):
         response = self.client.get(
-            reverse("class-students", args=[self.klass_a.pk])
+            reverse("class-students", args=[self.klass_a.pk]),
+            {"no_pagination": "true"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("academic_year_id", response.data["errors"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(
+            [student["id"] for student in response.data["data"]],
+            [str(self.s1.pk), str(self.s2.pk)],
+        )
+        self.assertTrue(
+            all(
+                student["academic_year"] == str(self.year_current.pk)
+                for student in response.data["data"]
+            )
+        )
 
     def _teacher(self, *keys):
         user = User.objects.create_user(

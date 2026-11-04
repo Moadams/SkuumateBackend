@@ -34,4 +34,4 @@ except ImportError:
     pass
 
 
-PAYMENT_GATEWAY = "simulator"
+PAYMENT_GATEWAY = config("PAYMENT_GATEWAY", default="simulator")
