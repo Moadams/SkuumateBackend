@@ -208,25 +208,25 @@ class StaffCreationSerializer(serializers.ModelSerializer):
             attrs["email"] = generate_user_email(
                 attrs.get("first_name", ""),
                 attrs.get("last_name", ""),
-                domain=self.context["school"].school_email_domain or "school.com"
+                domain=self.context["school"].school_email_domain or "skuumate.com"
             )
         return attrs
-    
+
     def validate_first_name(self, value):
         return validate_name(value, "First name")
-    
+
     def validate_last_name(self, value):
         return validate_name(value, "Last name")
-    
+
     def validate_phone(self, value):
         return validate_phone_number(value, "Phone number")
-    
+
     def validate_date_joined(self, value):
         return validate_date(value, "Date joined")
-    
+
 
 class UpdateStaffSerializer(serializers.ModelSerializer):
-    
+
     class Meta:
         model = StaffProfile
         fields = (

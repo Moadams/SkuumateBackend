@@ -257,7 +257,7 @@ class StudentCreateSerializer(serializers.ModelSerializer):
         first_name = attrs.get("first_name", "")
         last_name = attrs.get("last_name", "")
         if not email:
-            email = generate_user_email(first_name, last_name, domain=self.context["school"].school_email_domain or "school.com")
+            email = generate_user_email(first_name, last_name, domain=self.context["school"].school_email_domain or "skuumate.com")
 
         if not student_id:
             if not self.context["school"].school_code:
@@ -355,22 +355,8 @@ class StudentCreateSerializer(serializers.ModelSerializer):
         school_class = validated_data.pop("school_class", None)
         academic_year = validated_data.pop("academic_year", None)
 
-        # User account
-        temporary_password = secrets.token_urlsafe(16)
-
-        # 2. Create the first admin user
-        user = User.objects.create_user(
-            email=validated_data.get("email"),
-            password=temporary_password,
-            first_name=validated_data.get("first_name"),
-            last_name=validated_data.get("last_name"),
-            role=User.Role.STUDENT,
-            must_change_password=True,
-            school=school
-        )
-
         # Create the student
-        student = Student.objects.create(school=school, user_account = user, **validated_data)
+        student = Student.objects.create(school=school, **validated_data)
 
 
         # Optionally enroll immediately

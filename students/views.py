@@ -38,7 +38,6 @@ from .serializers import (
     PromotionRequestSerializer,
     StudentCreateSerializer,
     StudentListSerializer,
-    StudentMinimalSerializer,
     StudentSerializer,
     StudentUpdateSerializer,
     StudentVerificationSerializer,
