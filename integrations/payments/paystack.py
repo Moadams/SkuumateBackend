@@ -170,7 +170,6 @@ class PaystackPaymentProvider(BasePaymentProvider):
             reference=reference,
             status="success",
             amount=verified_amount,
-            currency=gateway_data.get("currency") or "",
             metadata=gateway_data.get("metadata") or {},
             raw=data,
         )
