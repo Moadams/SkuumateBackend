@@ -1,8 +1,9 @@
-"""Queue, deliver and retry published student reports for guardians.
+"""Directly send, queue, deliver and retry published student reports.
 
 The web request only writes ``ReportDelivery`` rows inside the publish
 transaction. ``manage.py dispatch_report_deliveries`` (run from cPanel cron)
 does the slow work: rendering the PDF and calling the email/SMS providers.
+The explicit direct-send path below instead performs provider calls inline.
 """
 import logging
 import re
@@ -14,10 +15,21 @@ from datetime import timedelta
 from itertools import groupby
 
 from django.conf import settings
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.utils import timezone
 
-from communications.models import NotificationProvider, ReportDelivery
+from communications.models import (
+    NotificationProvider,
+    ReportDelivery,
+    SMSLedgerEntry,
+    SMSWallet,
+)
+from communications.services.broadcast import sms_segments
+from communications.services.contacts import (
+    is_valid_email,
+    is_valid_phone,
+    normalise_phone,
+)
 from communications.services.email_service import EmailService
 from communications.services.sms_service import SMSService
 from exams.services.report_pdf import build_report_pdf
@@ -67,7 +79,178 @@ def _score(value):
 
 
 class ReportDistributionService:
-    """Transactional-outbox queue for guardian report delivery."""
+    """Queue report deliveries or send an individual report synchronously."""
+
+    @classmethod
+    def send_direct(cls, report, *, channel, user):
+        """Send a published report to linked guardians during the request."""
+        from guardian.models import GuardianStudent
+
+        if channel not in (ReportDelivery.Channel.EMAIL, ReportDelivery.Channel.SMS):
+            raise ValueError("Channel must be either email or sms.")
+
+        links = list(
+            GuardianStudent.objects.filter(
+                school_id=report.school_id,
+                student_id=report.student_id,
+                guardian__school_id=report.school_id,
+            )
+            .select_related("guardian__user_account")
+            .order_by("created_at")
+        )
+        if not links:
+            raise ValueError("This student has no linked guardians.")
+
+        recipients = []
+        failures = []
+        for link in links:
+            guardian = link.guardian
+            if channel == ReportDelivery.Channel.EMAIL:
+                contact = (
+                    guardian.email or guardian.user_account.email or ""
+                ).strip()
+                valid = is_valid_email(contact)
+            else:
+                contact = normalise_phone(
+                    guardian.phone or guardian.user_account.phone or ""
+                )
+                valid = is_valid_phone(contact)
+
+            if valid:
+                recipients.append((guardian, contact))
+            else:
+                failures.append(
+                    {
+                        "guardian_id": str(guardian.pk),
+                        "reason": f"Guardian has no valid {channel} contact.",
+                    }
+                )
+
+        if not recipients:
+            raise ValueError(
+                f"No linked guardians have a valid {channel} contact."
+            )
+
+        sms_body = None
+        credits_per_message = 0
+        if channel == ReportDelivery.Channel.SMS:
+            sms_body = cls.build_sms_body(report)
+            credits_per_message = sms_segments(sms_body)
+            credits_required = len(recipients) * credits_per_message
+
+            with transaction.atomic():
+                wallet = (
+                    SMSWallet.objects.select_for_update()
+                    .filter(school_id=report.school_id)
+                    .first()
+                )
+                available = wallet.balance if wallet else 0
+                if wallet is None or available < credits_required:
+                    raise ValueError(
+                        f"Not enough SMS credits: {credits_required} required, "
+                        f"{available} available."
+                    )
+
+                sent, delivery_failures = cls._send_direct_sms(
+                    report, recipients, sms_body
+                )
+                failures.extend(delivery_failures)
+                credits_used = len(sent) * credits_per_message
+                if credits_used:
+                    wallet.balance -= credits_used
+                    wallet.save(update_fields=["balance", "updated_at"])
+                    SMSLedgerEntry.objects.create(
+                        school_id=report.school_id,
+                        kind=SMSLedgerEntry.Kind.USAGE,
+                        credits=-credits_used,
+                        balance_after=wallet.balance,
+                        description=f"Direct SMS report delivery {report.pk}",
+                        created_by=user,
+                    )
+                balance = wallet.balance
+        else:
+            pdf_bytes = build_report_pdf(report).getvalue()
+            sent, delivery_failures = cls._send_direct_email(
+                report, recipients, pdf_bytes
+            )
+            failures.extend(delivery_failures)
+            credits_used = 0
+            balance = None
+
+        return {
+            "channel": channel,
+            "total_guardians": len(links),
+            "sent": len(sent),
+            "failed": len(failures),
+            "failures": failures,
+            "sms_credits_used": credits_used,
+            "sms_wallet_balance": balance,
+        }
+
+    @classmethod
+    def _send_direct_sms(cls, report, recipients, message):
+        provider = cls._provider(report.school, NotificationProvider.Channel.SMS)
+        sent = []
+        failures = []
+        for guardian, contact in recipients:
+            try:
+                success, _message = SMSService.send(provider, contact, message)
+            except Exception:
+                logger.warning(
+                    "Direct report SMS failed for report %s and guardian %s",
+                    report.pk,
+                    guardian.pk,
+                )
+                success = False
+            if success:
+                sent.append(guardian)
+            else:
+                failures.append(
+                    {
+                        "guardian_id": str(guardian.pk),
+                        "reason": "SMS delivery failed.",
+                    }
+                )
+        return sent, failures
+
+    @classmethod
+    def _send_direct_email(cls, report, recipients, pdf_bytes):
+        provider = cls._provider(report.school, NotificationProvider.Channel.EMAIL)
+        subject = (
+            f"{report.term.get_name_display()} Report Card - "
+            f"{report.student.full_name}"
+        )
+        sent = []
+        failures = []
+        for guardian, contact in recipients:
+            try:
+                success, _message = EmailService.send(
+                    provider=provider,
+                    to_email=contact,
+                    subject=subject,
+                    body=cls._email_body_for_guardian(report, guardian),
+                    school_name=report.school.name,
+                    attachments=[
+                        (cls._pdf_filename(report), pdf_bytes, "application/pdf")
+                    ],
+                )
+            except Exception:
+                logger.warning(
+                    "Direct report email failed for report %s and guardian %s",
+                    report.pk,
+                    guardian.pk,
+                )
+                success = False
+            if success:
+                sent.append(guardian)
+            else:
+                failures.append(
+                    {
+                        "guardian_id": str(guardian.pk),
+                        "reason": "Email delivery failed.",
+                    }
+                )
+        return sent, failures
 
     # ── Queueing ──────────────────────────────────────────────────
     @classmethod
@@ -402,7 +585,10 @@ class ReportDistributionService:
     # ── Message building ──────────────────────────────────────────
     @classmethod
     def _email_body(cls, report, delivery):
-        guardian = delivery.guardian
+        return cls._email_body_for_guardian(report, delivery.guardian)
+
+    @classmethod
+    def _email_body_for_guardian(cls, report, guardian):
         name = f"{guardian.first_name} {guardian.last_name}".strip() or "Guardian"
         term = report.term.get_name_display()
         student = report.student.full_name

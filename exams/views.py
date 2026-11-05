@@ -1,18 +1,21 @@
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.views import APIView
 
-from academics.models import Class, GradingSystem, SubjectTeacher, Term
+from academics.models import Class, ClassTeacher, GradingSystem, SubjectTeacher, Term
 from core.models import AuditLog
 from core.mixins import AuditLogMixin, ExportMixin
 from core.permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from core.responses import ApiResponse
 from core.school_permissions import school_permission
-from core.teacher_scope import TeacherScopedQuerysetMixin
+from core.teacher_scope import TeacherScopedQuerysetMixin, needs_teacher_scope
 from core.utils import log_action
+from communications.services.report_distribution import ReportDistributionService
 from exams.filters import AssessmentTypeFilter, StudentReportFilter
 from exams.models import (
     AssessmentType,
@@ -28,6 +31,7 @@ from exams.serializers import (
     PublishReportsSerializer,
     ReportSchemeSerializer,
     ReportTeacherRemarksSerializer,
+    SendStudentReportSerializer,
     StudentMarkCreationSerializer,
     StudentMarkSerializer,
     StudentReportDetailSerializer,
@@ -393,6 +397,97 @@ class StudentReportDetailView(TeacherScopedQuerysetMixin, AuditLogMixin, generic
         ).prefetch_related('subject_scores__student_report')
 
 
+class SendStudentReportView(APIView):
+    permission_classes = (school_permission(create="reports.send"),)
+
+    def post(self, request, pk):
+        serializer = SendStudentReportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        report = get_object_or_404(
+            StudentReport.objects.filter(
+                school=request.user.school,
+                student__school=request.user.school,
+            )
+            .select_related(
+                "school",
+                "student",
+                "student_class",
+                "term",
+                "academic_year",
+            )
+            .prefetch_related("subject_scores__subject"),
+            pk=pk,
+        )
+        if report.status != StudentReport.ReportStatus.PUBLISHED:
+            return ApiResponse.error(
+                message="Only published student reports can be sent.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if needs_teacher_scope(request.user):
+            profile = getattr(request.user, "staff_profile", None)
+            if profile is None:
+                raise PermissionDenied(
+                    "You are not assigned to this report's class."
+                )
+            class_assignment = ClassTeacher.objects.filter(
+                school_id=request.user.school_id,
+                klass_id=report.student_class_id,
+                teacher=profile,
+                is_active=True,
+            ).filter(
+                Q(academic_year=report.academic_year)
+                | Q(academic_year__isnull=True)
+            ).exists()
+            subject_assignment = SubjectTeacher.objects.filter(
+                school_id=request.user.school_id,
+                klass_id=report.student_class_id,
+                teacher=profile,
+                is_active=True,
+            ).exists()
+            if not (class_assignment or subject_assignment):
+                raise PermissionDenied(
+                    "You are not assigned to this report's class."
+                )
+
+        try:
+            result = ReportDistributionService.send_direct(
+                report,
+                channel=serializer.validated_data["channel"],
+                user=request.user,
+            )
+        except ValueError as exc:
+            return ApiResponse.error(message=str(exc))
+
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            resource="StudentReport",
+            resource_id=str(report.pk),
+            description="Sent student report directly to linked guardians",
+            metadata={
+                "channel": result["channel"],
+                "sent": result["sent"],
+                "failed": result["failed"],
+                "sms_credits_used": result["sms_credits_used"],
+            },
+            request=request,
+        )
+
+        if result["sent"] == 0:
+            return ApiResponse.error(
+                message="The report could not be delivered to any guardian.",
+                errors=result,
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
+        message = (
+            "Report sent to all reachable guardians."
+            if not result["failed"]
+            else "Report sent, but some guardian deliveries failed."
+        )
+        return ApiResponse.success(data=result, message=message)
+
+
 class StudentReportSubjectScoreListView(TeacherScopedQuerysetMixin, generics.ListAPIView):
     permission_classes = (
         school_permission(read="reports.view"),
@@ -500,4 +595,3 @@ class PublishStudentReportsView(APIView):
             request=request,
         )
         return ApiResponse.success(message="Reports published", data=result)
-

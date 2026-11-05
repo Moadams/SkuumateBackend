@@ -310,6 +310,10 @@ class StudentReportDetailSerializer(serializers.ModelSerializer):
         )
 
 
+class SendStudentReportSerializer(serializers.Serializer):
+    channel = serializers.ChoiceField(choices=("email", "sms"))
+
+
 class StudentReportGeneratorSerializer(serializers.Serializer):
     class_id = serializers.UUIDField(required = True)
     report_scheme_id = serializers.UUIDField(required = True)

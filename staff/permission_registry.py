@@ -203,6 +203,12 @@ PERMISSION_DEFS = [
         "description": "Approve finalised report cards.",
     },
     {
+        "key": "reports.send",
+        "module": "Reports",
+        "label": "Send Reports",
+        "description": "Send published student reports to linked guardians.",
+    },
+    {
         "key": "reports.export",
         "module": "Reports",
         "label": "Export Reports",
