@@ -19,13 +19,18 @@ class LoginSerializer(serializers.Serializer):
         try:
             user = User.objects.select_related("staff_profile").get(email=email)
         except User.DoesNotExist:
+            # Burn the same password-hashing work as a real account so response
+            # timing does not reveal which email addresses exist.
+            User().set_password(password)
+            raise serializers.ValidationError("Invalid email or password.")
+
+        # Verify the password before revealing that an account is deactivated,
+        # otherwise the error message alone confirms the email exists.
+        if not user.check_password(password):
             raise serializers.ValidationError("Invalid email or password.")
 
         if not user.is_active:
             raise serializers.ValidationError("This account has been deactivated.")
-        
-        if not user.check_password(password):
-            raise serializers.ValidationError("Invalid email or password.")
 
         from .authentication import validate_account_access
         validate_account_access(user)

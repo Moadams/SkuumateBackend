@@ -84,6 +84,29 @@ class SMSCreditService:
                 f"Payment verification failed: {verification.message}"
             )
 
+        # Amount alone is not enough: a same-priced payment for something else
+        # must not be converted into SMS credits, and a foreign-currency charge
+        # must never match a GHS amount.
+        if (
+            verification.currency
+            and verification.currency.upper() != bundle.currency.upper()
+        ):
+            raise PaymentGatewayError(
+                "Payment currency does not match the bundle currency."
+            )
+
+        metadata = verification.metadata or {}
+        purpose = metadata.get("purpose")
+        if purpose and purpose != "sms_credits":
+            raise PaymentGatewayError(
+                "This payment was not made for SMS credits."
+            )
+        metadata_school = metadata.get("school_id")
+        if metadata_school and str(metadata_school) != str(school.id):
+            raise PaymentGatewayError(
+                "This payment belongs to another school."
+            )
+
         now = timezone.now()
         try:
             with transaction.atomic():

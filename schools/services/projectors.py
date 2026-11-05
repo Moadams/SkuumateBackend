@@ -348,7 +348,8 @@ class StaffProjector:
 class StudentsProjector:
     @staticmethod
     def build(school) -> StudentsDTO:
-        from guardian.models import Guardian, Student
+        from guardian.models import Guardian
+        from students.models import Student
 
         status_rows = (
             Student.objects
@@ -394,7 +395,11 @@ class StudentsProjector:
             ],
             current_year_enrolled=sum(row["count"] for row in by_class),
             guardians=guardians.count(),
-            primary_guardians=guardians.filter(is_primary=True).count(),
+            # The guardian-app model has no "primary contact" flag; report the
+            # guardians that are actually linked to at least one student.
+            primary_guardians=guardians.filter(
+                guardian_students__isnull=False
+            ).distinct().count(),
         )
 
 

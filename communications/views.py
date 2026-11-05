@@ -112,10 +112,16 @@ class SendTestNotificationView(APIView):
     permission_classes = [school_permission(read="settings.manage", write="settings.manage")]
 
     def post(self, request):
-        serializer = SendTestSerializer(data=request.data)
+        serializer = SendTestSerializer(
+            data=request.data, context={"school": request.user.school}
+        )
         serializer.is_valid(raise_exception=True)
 
         provider = serializer.validated_data["provider"]
+        # Defence in depth: the serializer already scoped the queryset, but the
+        # provider must belong to the caller's school before it is used.
+        if provider.school_id != request.user.school_id:
+            return ApiResponse.error(message="Provider not found.", status_code=404)
         recipient = serializer.validated_data["recipient"]
         subject = serializer.validated_data["subject"]
         message = serializer.validated_data["message"]
@@ -297,7 +303,15 @@ class NotificationListCreateView(AuditLogMixin, generics.ListCreateAPIView):
             ),
             request=self.request,
             metadata={
-                **request.data,
+                # Keep the audit trail to a small, non-sensitive summary.
+                # The raw request body is deliberately not logged.
+                "channel": notification.channel,
+                "recipient_type": notification.recipient_type,
+                "template_id": (
+                    str(notification.template_id)
+                    if notification.template_id
+                    else None
+                ),
                 "queued_recipients": notification.total_recipients,
                 "sms_credits_charged": notification.sms_credits_charged,
             },

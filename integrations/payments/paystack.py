@@ -79,9 +79,17 @@ class PaystackPaymentProvider(BasePaymentProvider):
         if not secret_key:
             return PaymentVerificationResult(False, self.key, "Paystack secret key not configured.")
 
-        expected = hmac.new(secret_key.encode(), payload.get("_raw_body", b""), hashlib.sha512).hexdigest()
+        raw_body = payload.get("_raw_body")
+        if not raw_body:
+            return PaymentVerificationResult(False, self.key, "Missing raw Paystack webhook body.")
+
+        expected = hmac.new(secret_key.encode(), raw_body, hashlib.sha512).hexdigest()
         provided = headers.get("X-Paystack-Signature") or headers.get("x-paystack-signature")
-        if provided and not hmac.compare_digest(provided, expected):
+        if not provided:
+            # Never accept an unsigned callback: absence of the header used to
+            # skip the comparison entirely and let anyone forge a payment.
+            return PaymentVerificationResult(False, self.key, "Missing Paystack signature.")
+        if not hmac.compare_digest(str(provided), expected):
             return PaymentVerificationResult(False, self.key, "Invalid Paystack signature.")
 
         event = payload.get("event")

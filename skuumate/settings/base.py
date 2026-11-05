@@ -8,6 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = config("SECRET_KEY")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="127.0.0.1").split(",")
 
+# Reject oversized request bodies before Django spools them to disk. Bulk
+# student imports (workbook + photo ZIP) are the largest legitimate payloads.
+MAX_REQUEST_BODY_SIZE = config(
+    "MAX_REQUEST_BODY_SIZE", default=50 * 1024 * 1024, cast=int
+)
+
 # ─── Application definition ────────────────────────────────────────
 DJANGO_APPS = [
     "django.contrib.admin",
@@ -48,6 +54,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.RequestSizeLimitMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -132,6 +139,13 @@ REST_FRAMEWORK = {
         "private_media": "3000/hour",
         "student_verify": "600/hour",
         "guardian_students": "600/hour",
+        # Public auth endpoints. These replace (not add to) the default anon
+        # throttle, so keep them tight enough to slow credential stuffing
+        # while still tolerating a staff room behind one NAT address.
+        "login": "10/min",
+        "password_reset": "10/hour",
+        "password_reset_confirm": "30/hour",
+        "school_registration": "10/hour",
     },
 }
 

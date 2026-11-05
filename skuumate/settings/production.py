@@ -3,7 +3,14 @@ from .base import *
 
 DEBUG = False
 
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
+
+def _env_list(name, default=""):
+    """Read a comma-separated env var, dropping blanks and whitespace."""
+    raw = config(name, default=default)
+    return [item.strip() for item in str(raw).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS")
 
 # ─── Third-party integrations — real providers in production ───────
 INTEGRATION_MODE = config("INTEGRATION_MODE", default="live")
@@ -58,11 +65,18 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 X_FRAME_OPTIONS = "DENY"
 
+# cPanel/Passenger terminates TLS at Apache and forwards plain HTTP to the
+# app. Trust the proxy's scheme header so SECURE_SSL_REDIRECT does not loop.
+# Set USE_X_FORWARDED_PROTO=False if the app is ever exposed without a proxy
+# that overwrites this header.
+if config("USE_X_FORWARDED_PROTO", default=True, cast=bool):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # CSRF trusted origins for cross-domain frontend
-CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="").split(",")
+CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS")
 
 # ─── CORS ──────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="").split(",")
+CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
 
 # ─── Static — whitenoise ───────────────────────────────────────────

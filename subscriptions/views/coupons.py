@@ -11,7 +11,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.permissions import IsSuperAdminOrReadOnly
+from core.permissions import IsSuperAdmin
 from subscriptions.coupon_serializers import (
     CouponSerializer,
     CouponValidationSerializer,
@@ -34,7 +34,10 @@ class CouponViewSet(viewsets.ModelViewSet):
     pagination_class = CouponPagination
     filter_backends = (DjangoFilterBackend, SearchFilter)
     search_fields = ('code', 'description')
-    permission_classes = (IsSuperAdminOrReadOnly,)
+    # Coupon codes are discount credentials: listing them is platform-only.
+    # The checkout ``validate`` action opts back in to authenticated access
+    # below so a school can still apply a code it was given.
+    permission_classes = (IsSuperAdmin,)
 
     def get_queryset(self):
         queryset = Coupon.objects.select_related('target_plan')

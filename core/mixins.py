@@ -1,38 +1,12 @@
-from django.core.files.uploadedfile import UploadedFile
 from core.responses import ApiResponse
 from django.db import transaction
-from .utils import log_action
+from .utils import log_action, sanitize_audit_payload
 from .models import AuditLog
 
 
 def _make_json_serializable(data):
-    """
-    Recursively filter out non-JSON-serializable objects like uploaded files.
-    Converts dict-like and list-like objects, excluding file upload objects.
-    """
-    if isinstance(data, dict):
-        return {
-            k: ("[REDACTED]" if any(secret in k.lower() for secret in
-                ("password", "token", "secret", "api_key", "authorization"))
-                else _make_json_serializable(v))
-            for k, v in data.items()
-            if not isinstance(v, UploadedFile)
-        }
-    elif isinstance(data, (list, tuple)):
-        return [
-            _make_json_serializable(item)
-            for item in data
-            if not isinstance(item, UploadedFile)
-        ]
-    elif isinstance(data, UploadedFile):
-        # Return file metadata instead of the file object
-        return {
-            "filename": getattr(data, "name", None),
-            "size": getattr(data, "size", None),
-            "content_type": getattr(data, "content_type", None),
-        }
-    else:
-        return data
+    """Backwards-compatible alias for :func:`sanitize_audit_payload`."""
+    return sanitize_audit_payload(data)
 
 
 class AuditLogMixin:

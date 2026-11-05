@@ -1,4 +1,53 @@
+from django.core.files.uploadedfile import UploadedFile
+
 from .models import AuditLog
+
+REDACTED = "[REDACTED]"
+
+# Metadata keys whose values must never reach the audit log.
+SENSITIVE_KEY_PARTS = (
+    "password",
+    "token",
+    "secret",
+    "api_key",
+    "api-key",
+    "apikey",
+    "authorization",
+    "credential",
+)
+
+
+def is_sensitive_key(key):
+    lowered = str(key).lower()
+    return any(part in lowered for part in SENSITIVE_KEY_PARTS)
+
+
+def sanitize_audit_payload(data):
+    """Return ``data`` as JSON-safe audit metadata, redacting secret-like keys.
+
+    Uploaded files are replaced with metadata. Used by both
+    ``AuditLogMixin`` and the free-standing ``log_action`` helper so every
+    audit path redacts alike.
+    """
+    if isinstance(data, dict):
+        return {
+            key: (REDACTED if is_sensitive_key(key) else sanitize_audit_payload(value))
+            for key, value in data.items()
+            if not isinstance(value, UploadedFile)
+        }
+    if isinstance(data, (list, tuple)):
+        return [
+            sanitize_audit_payload(item)
+            for item in data
+            if not isinstance(item, UploadedFile)
+        ]
+    if isinstance(data, UploadedFile):
+        return {
+            "filename": getattr(data, "name", None),
+            "size": getattr(data, "size", None),
+            "content_type": getattr(data, "content_type", None),
+        }
+    return data
 
 
 def log_action(
@@ -40,7 +89,7 @@ def log_action(
         description=description,
         actor=actor,
         school=school,
-        metadata=metadata or {},
+        metadata=sanitize_audit_payload(metadata) if metadata else {},
         ip_address=ip,
     )
 

@@ -500,6 +500,7 @@ class StudentReportSubjectScoreListView(TeacherScopedQuerysetMixin, generics.Lis
 
     def get_queryset(self):
         return StudentReportSubjectScore.objects.filter(
+            student_report__school=self.request.user.school,
             subject_id = self.kwargs['subject_id'],
             student_report__term_id = self.kwargs['term_id'],
             student_report__student_class_id = self.kwargs['class_id']

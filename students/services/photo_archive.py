@@ -11,6 +11,12 @@ from contextlib import contextmanager
 
 from rest_framework import serializers
 
+# A photos archive is a convenience for bulk import, not a general file dump.
+# Cap both the number of entries and the total uncompressed size so a zip bomb
+# cannot exhaust the shared-hosting disk quota.
+MAX_ARCHIVE_MEMBERS = 5000
+MAX_ARCHIVE_UNCOMPRESSED_BYTES = 500 * 1024 * 1024
+
 
 @contextmanager
 def extracted_photo_map(photos_zip):
@@ -49,8 +55,23 @@ def _extract_safely(archive, destination):
     the target directory, so each member is resolved and checked first.
     """
     destination_root = os.path.realpath(destination)
-    for member in archive.infolist():
-        member_path = os.path.realpath(os.path.join(destination_root, member.filename))
+    members = archive.infolist()
+    if len(members) > MAX_ARCHIVE_MEMBERS:
+        raise serializers.ValidationError(
+            f"Photos archive has too many files (limit {MAX_ARCHIVE_MEMBERS})."
+        )
+
+    total_size = 0
+    for member in members:
+        if member.is_dir():
+            continue
+        total_size += member.file_size
+        if total_size > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
+            raise serializers.ValidationError("Photos archive is too large.")
+
+        # Normalise Windows separators so a member cannot escape on either OS.
+        name = member.filename.replace("\\", "/")
+        member_path = os.path.realpath(os.path.join(destination_root, name))
         if not member_path.startswith(destination_root + os.sep):
             raise serializers.ValidationError("Invalid ZIP file for photos.")
         archive.extract(member, destination_root)

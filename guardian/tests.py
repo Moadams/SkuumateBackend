@@ -1,7 +1,9 @@
 from django.test import TestCase
+from django.urls import reverse
+from rest_framework.test import APITestCase
 
 from accounts.models import User
-from guardian.models import GuardianStudent
+from guardian.models import Guardian, GuardianStudent
 from guardian.serializers import GuardianSerializer
 from guardian.services.guardian_service import GuardianService
 from schools.models import School
@@ -70,3 +72,57 @@ class CreateGuardianWithStudentsTests(TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("students", serializer.errors)
+
+
+class GuardianListScopingTests(APITestCase):
+    """The guardian list must never leak another school's records."""
+
+    def setUp(self):
+        self.school = School.objects.create(
+            name="Alpha School", school_code="AL", email="alpha@example.com"
+        )
+        self.other_school = School.objects.create(
+            name="Beta School", school_code="BE", email="beta@example.com"
+        )
+        self.admin = User.objects.create_user(
+            email="admin@alpha.com",
+            password="password123",
+            first_name="Alpha",
+            last_name="Admin",
+            role=User.Role.ADMIN,
+            school=self.school,
+        )
+        self.own_guardian = self._guardian(
+            self.school, "own@alpha.com", "Own", "Guardian"
+        )
+        self.foreign_guardian = self._guardian(
+            self.other_school, "foreign@beta.com", "Foreign", "Guardian"
+        )
+        self.client.force_authenticate(self.admin)
+
+    @staticmethod
+    def _guardian(school, email, first_name, last_name):
+        account = User.objects.create_user(
+            email=email,
+            password="password123",
+            first_name=first_name,
+            last_name=last_name,
+            role=User.Role.GUARDIAN,
+            school=school,
+        )
+        return Guardian.objects.create(
+            school=school,
+            user_account=account,
+            first_name=first_name,
+            last_name=last_name,
+            phone="0240000000",
+            gender="female",
+        )
+
+    def test_list_returns_only_the_callers_school(self):
+        response = self.client.get(reverse("guardian-account-list-create"))
+
+        self.assertEqual(response.status_code, 200)
+        ids = {row["id"] for row in response.json()["data"]["results"]}
+        self.assertEqual(ids, {str(self.own_guardian.id)})
+        self.assertNotIn(str(self.foreign_guardian.id), ids)

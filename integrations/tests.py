@@ -198,6 +198,26 @@ class PaystackProviderTests(TestCase):
             )
         self.assertFalse(result.success)
 
+    def test_webhook_missing_signature_is_rejected(self):
+        body = json.dumps({"event": "charge.success", "data": {"reference": "ref1", "status": "success", "amount": 25000}}).encode()
+        with override_settings(PAYSTACK_SECRET_KEY="secret"):
+            provider = PaystackPaymentProvider()
+            result = provider.verify_webhook(
+                {"event": "charge.success", "data": {"reference": "ref1", "status": "success", "amount": 25000}, "_raw_body": body},
+                {},
+            )
+        self.assertFalse(result.success)
+        self.assertIn("signature", result.message.lower())
+
+    def test_webhook_missing_raw_body_is_rejected(self):
+        with override_settings(PAYSTACK_SECRET_KEY="secret"):
+            provider = PaystackPaymentProvider()
+            result = provider.verify_webhook(
+                {"event": "charge.success", "data": {"reference": "ref1"}},
+                {"X-Paystack-Signature": "deadbeef"},
+            )
+        self.assertFalse(result.success)
+
 
 class StripeProviderTests(TestCase):
     def setUp(self):

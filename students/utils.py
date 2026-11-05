@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-from exams.tests import User
+from accounts.models import User
 
 
 REQUIRED_COLUMNS = [

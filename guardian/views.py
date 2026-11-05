@@ -34,7 +34,6 @@ from guardian.services.guardian_service import GuardianService
 
 
 class GuardianListCreateView(generics.ListCreateAPIView):
-    queryset = Guardian.objects.prefetch_related("guardian_students")
     serializer_class = GuardianSerializer
     permission_classes = (school_permission(read="guardians.list", write="guardians.create"),)
     filter_backends = (DjangoFilterBackend,  OrderingFilter, SearchFilter)
@@ -44,6 +43,14 @@ class GuardianListCreateView(generics.ListCreateAPIView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.service = GuardianService()
+
+    def get_queryset(self):
+        # Never expose another tenant's guardians: filter by the caller's
+        # school (a platform actor with no school resolves to none()).
+        return (
+            Guardian.objects.filter(school=self.request.user.school)
+            .prefetch_related("guardian_students__student")
+        )
 
     def create(self, request, *args, **kwargs):
         school = request.user.school
@@ -56,7 +63,7 @@ class GuardianListCreateView(generics.ListCreateAPIView):
                 data=self.get_serializer(guardian).data,
                 message="Guardian created successfully"
             )
-        except Exception as e:
+        except ValueError as e:
             return ApiResponse.error(str(e))
 
 

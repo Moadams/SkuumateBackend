@@ -171,7 +171,9 @@ class NotificationCreateSerializer(SchoolRelatedFieldsMixin, serializers.Seriali
         required=False, allow_null=True,
     )
     title = serializers.CharField(max_length=200)
-    message_body = serializers.CharField(required=False, allow_blank=True)
+    message_body = serializers.CharField(
+        required=False, allow_blank=True, max_length=5000
+    )
     channel = serializers.ChoiceField(choices=Notification.Channel.choices)
     recipient_type = serializers.ChoiceField(choices=Notification.RecipientType.choices)
     # ``recipient_ids`` is kept for the legacy payloads; it is interpreted as
@@ -210,7 +212,7 @@ class NotificationCreateSerializer(SchoolRelatedFieldsMixin, serializers.Seriali
 
 
 class NotificationPreviewSerializer(serializers.Serializer):
-    message_body = serializers.CharField()
+    message_body = serializers.CharField(max_length=5000)
     channel = serializers.ChoiceField(choices=Notification.Channel.choices)
     recipient_type = serializers.ChoiceField(choices=Notification.RecipientType.choices)
     recipient_ids = serializers.ListField(
@@ -230,11 +232,22 @@ class NotificationPreviewSerializer(serializers.Serializer):
 
 class SendTestSerializer(serializers.Serializer):
     provider = serializers.PrimaryKeyRelatedField(
-        queryset=NotificationProvider.objects.all(),
+        queryset=NotificationProvider.objects.none(),
     )
     recipient = serializers.CharField(max_length=200)
     subject = serializers.CharField(max_length=200, required=False, default="Test Notification")
     message = serializers.CharField(max_length=500, default="This is a test message from SkuuMate.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only the caller's own providers may be used. Without a school
+        # context (e.g. a platform actor) nothing is selectable, so a school
+        # can never send through another tenant's credentials.
+        school = self.context.get("school")
+        if school is not None:
+            self.fields["provider"].queryset = NotificationProvider.objects.filter(
+                school=school
+            )
 
 
 # ─── SMS credits ───────────────────────────────────────────────────

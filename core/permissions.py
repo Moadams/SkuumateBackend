@@ -221,6 +221,12 @@ class IsSuperAdminOrReadOnly(BasePermission):
 
 
 class IsGuardian(BasePermission):
-    """Guardians can access."""
+    """Guardians can access. Combine with ``IsAuthenticated``."""
+
     def has_permission(self, request, view):
-        return request.user.role == User.Role.GUARDIAN
+        user = getattr(request, "user", None)
+        return bool(
+            user
+            and getattr(user, "is_authenticated", False)
+            and getattr(user, "role", "") == User.Role.GUARDIAN
+        )

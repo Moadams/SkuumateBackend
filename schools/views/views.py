@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.cache import CacheKeys, cache_response, invalidate_school_cache
@@ -29,6 +30,8 @@ from ..serializers.serializers import (
 class PublicSchoolRegistrationView(generics.CreateAPIView):
     serializer_class = PublicSchoolRegistrationSerializer
     permission_classes = []  # Allow public access
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "school_registration"
 
 class ProspectiveSchoolListView(generics.ListAPIView):
     serializer_class = PublicSchoolRegistrationSerializer
