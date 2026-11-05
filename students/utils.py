@@ -3,7 +3,6 @@ from datetime import datetime
 
 from accounts.models import User
 
-
 REQUIRED_COLUMNS = [
     "first_name",
     "last_name",
@@ -236,10 +235,10 @@ def _validate_guardian(g_data, g_index, row_index):
         "is_primary": is_primary,
     }
 
-def generate_user_email(first_name, last_name, domain="school.com"):
+def generate_user_email(first_name, last_name, domain="skuumate.com"):
     """
     Generates a unique email for a user based on their name and ID.
-    Example: generate_user_email("John", "Doe") => "john.doe@school.com"
+    Example: generate_user_email("John", "Doe") => "john.doe@skuumate.com"
     """
     base_email = f"{first_name.lower()}.{last_name.lower()}".replace(" ", "")
     user_email = f"{base_email}@{domain}"
@@ -248,4 +247,3 @@ def generate_user_email(first_name, last_name, domain="school.com"):
         import random
         user_email = f"{base_email}{random.randint(1000,9999)}@{domain}"
     return user_email
-    

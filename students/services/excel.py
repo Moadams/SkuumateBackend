@@ -4,15 +4,13 @@
 ``build_class_bulk_template_workbook`` materialises the matching downloadable
 template so the two can never drift apart.
 """
-from datetime import datetime
+from datetime import date, datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 
-
 REQUIRED_COLUMNS = ["first_name", "last_name", "date_of_birth", "gender"]
 VALID_GENDERS = ["male", "female", "other"]
-VALID_RELATIONSHIPS = ["father", "mother", "guardian", "sibling", "other"]
 DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]
 
 TEMPLATE_HEADERS = [
@@ -27,13 +25,6 @@ TEMPLATE_HEADERS = [
     "email",
     "phone_number",
     "photo_filename",
-    "guardian_first_name",
-    "guardian_last_name",
-    "guardian_relationship",
-    "guardian_phone",
-    "guardian_email",
-    "guardian_address",
-    "guardian_is_primary",
 ]
 
 
@@ -41,9 +32,20 @@ def _parse_date(raw):
     """Parse a raw cell into a date, trying the supported formats."""
     if not raw:
         return None
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+
+    raw = str(raw).strip()
+    try:
+        return datetime.fromisoformat(raw).date()
+    except ValueError:
+        pass
+
     for fmt in DATE_FORMATS:
         try:
-            return datetime.strptime(str(raw).strip(), fmt).date()
+            return datetime.strptime(raw, fmt).date()
         except ValueError:
             continue
     return None
@@ -119,7 +121,7 @@ def parse_class_excel(file):
             if raw and parsed is None:
                 errors.append(
                     f"Invalid date format for '{date_field}': '{raw}'. "
-                    f"Use YYYY-MM-DD."
+                    f"Use an Excel date, YYYY-MM-DD, or DD/MM/YYYY."
                 )
             else:
                 student[date_field] = parsed
@@ -130,47 +132,6 @@ def parse_class_excel(file):
         student.setdefault("previous_school", "")
         student.setdefault("email", "")
         student.setdefault("phone_number", "")
-
-        # Guardian (single)
-        guardian = {}
-        g_first_name = student.pop("guardian_first_name", "").strip()
-        g_last_name = student.pop("guardian_last_name", "").strip()
-        g_relationship = student.pop("guardian_relationship", "").strip().lower()
-        g_phone = student.pop("guardian_phone", "").strip()
-        g_email = student.pop("guardian_email", "").strip()
-        g_address = student.pop("guardian_address", "").strip()
-        g_is_primary = student.pop("guardian_is_primary", "").strip().lower() in (
-            "true", "1", "yes"
-        )
-
-        has_guardian = any([g_first_name, g_last_name, g_relationship, g_phone])
-        if has_guardian:
-            if not g_first_name:
-                errors.append("Guardian 'first_name' is required.")
-            if not g_last_name:
-                errors.append("Guardian 'last_name' is required.")
-            if not g_relationship:
-                errors.append("Guardian 'relationship' is required.")
-            elif g_relationship not in VALID_RELATIONSHIPS:
-                errors.append(
-                    f"Invalid guardian relationship '{g_relationship}'. "
-                    f"Must be one of: {', '.join(VALID_RELATIONSHIPS)}."
-                )
-            if not g_phone:
-                errors.append("Guardian 'phone' is required.")
-
-            if not errors:
-                guardian = {
-                    "first_name": g_first_name,
-                    "last_name": g_last_name,
-                    "relationship": g_relationship,
-                    "phone": g_phone,
-                    "email": g_email,
-                    "address": g_address,
-                    "is_primary": g_is_primary,
-                }
-
-        student["guardian"] = guardian if guardian else None
 
         # Photo filename
         photo_filename = student.pop("photo_filename", "").strip()
@@ -217,8 +178,6 @@ def build_class_bulk_template_workbook():
         "123 Adum Street, Kumasi", "Good Shepherd Academy",
         "ekow.mensah@school.com", "0244000001",
         "ekow_photo.jpg",
-        "Kwame", "Mensah", "father",
-        "0244000002", "kwame@email.com", "", "true",
     ]
     for col_num, value in enumerate(sample, start=1):
         cell = sheet.cell(row=2, column=col_num, value=value)
@@ -238,14 +197,7 @@ def build_class_bulk_template_workbook():
         ["previous_school", "No", "Text"],
         ["email", "No", "Email address"],
         ["phone_number", "No", "Phone number"],
-        ["photo_filename", "No", "Filename in the uploaded photos ZIP (e.g., student1.jpg)"],
-        ["guardian_first_name", "No", "Text"],
-        ["guardian_last_name", "No", "Text"],
-        ["guardian_relationship", "No", "father / mother / guardian / sibling / other"],
-        ["guardian_phone", "No", "Phone number"],
-        ["guardian_email", "No", "Email address"],
-        ["guardian_address", "No", "Text"],
-        ["guardian_is_primary", "No", "true / false"],
+        ["photo_filename", "No", "Filename in the uploaded photos ZIP (e.g., student1.jpg)"]
     ]
     notes_header_font = Font(bold=True)
     for row_index, row_data in enumerate(notes, start=1):
